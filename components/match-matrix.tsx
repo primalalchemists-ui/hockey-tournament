@@ -81,81 +81,97 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-4">
-        <table className="w-full border-collapse text-xs sm:text-sm">
-          <thead className="w-full">
-            <tr>
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600"></th>
+     <div className="overflow-x-auto pb-4">
+  <table className="w-full border-collapse text-xs sm:text-sm p-16">
+    <thead className="w-full">
+      <tr>
+        <th className="sticky left-0 z-10 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600"></th>
 
-              {group.teams.map((team) => (
-                <th
-                  key={team.id}
-                  className="bg-slate-50 px-2 py-3 text-center font-semibold text-slate-600"
-                >
-                  <div className="mx-auto flex w-20 flex-col items-center gap-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[9px] font-semibold uppercase text-slate-600">
-                      {team.logoText}
-                    </div>
-                    <span className="line-clamp-2 text-[11px] leading-tight sm:text-xs">
-                      {team.name}
-                    </span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
+        {group.teams.map((team) => (
+          <th
+            key={team.id}
+            className="bg-slate-50 px-2 py-3 text-center font-semibold text-slate-600"
+          >
+            <div className="mx-auto flex w-20 flex-col items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[9px] font-semibold uppercase text-slate-600">
+                {team.logoText}
+              </div>
+              {/* <span className="line-clamp-2 text-[11px] leading-tight sm:text-xs">
+                {team.name}
+              </span> */}
+            </div>
+          </th>
+        ))}
+      </tr>
+    </thead>
 
-          <tbody>
-            {group.teams.map((rowTeam, rowIndex) => (
-              <tr
-                key={rowTeam.id}
-                className={rowIndex % 2 === 0 ? "ml-4 bg-white" : "bg-slate-50/40"}
+    <tbody>
+      {group.teams.map((rowTeam, rowIndex) => (
+        <tr
+          key={rowTeam.id}
+          className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/40"}
+        >
+          <td
+            className={[
+              "sticky left-0 z-30 px-3 py-3 font-medium text-slate-900",
+              "overflow-hidden isolate will-change-transform [transform:translateZ(0)] [backface-visibility:hidden]",
+              rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50",
+            ].join(" ")}
+          >
+            <div
+              className={[
+                "relative z-10 flex items-center gap-3",
+                "will-change-transform [transform:translateZ(0)] [backface-visibility:hidden]",
+                rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50",
+              ].join(" ")}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[9px] font-semibold uppercase text-slate-600">
+                {rowTeam.logoText}
+              </div>
+
+              <span className="truncate">{rowTeam.name}</span>
+            </div>
+          </td>
+
+          {group.teams.map((colTeam, colIndex) => {
+            const isSame = rowTeam.id === colTeam.id;
+            const matches = findMatches(group, rowTeam.id, colTeam.id);
+            const tone = isSame ? "neutral" : getResultTone(matches, rowTeam.id);
+            const isLastCol = colIndex === group.teams.length - 1;
+
+            return (
+              <td
+                key={colTeam.id}
+                className={isLastCol ? "pl-2 pr-4 py-2 text-center" : "px-2 py-2 text-center"}
               >
-                <td className="px-4 sticky left-0 z-10 w-[220px] bg-inherit px-3 py-3 font-medium text-slate-900">
-                  <div className="flex w-[220px] items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[9px] font-semibold uppercase text-slate-600">
-                      {rowTeam.logoText}
-                    </div>
-
-                    <span className="truncate">{rowTeam.name}</span>
-                  </div>
-                </td>
-
-                {group.teams.map((colTeam) => {
-                  const isSame = rowTeam.id === colTeam.id;
-                  const matches = findMatches(group, rowTeam.id, colTeam.id);
-                  const tone = isSame ? "neutral" : getResultTone(matches, rowTeam.id);
-
-                  return (
-                    <td key={colTeam.id} className="px-2 py-2 text-center">
-                      <div
-                        className={[
-                          "mx-auto flex min-h-11 w-16 flex-col items-center justify-center rounded-xl border px-1 py-1 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
-                          isSame
-                            ? "border-slate-200 bg-slate-100 text-slate-400"
-                            : getResultClasses(tone),
-                        ].join(" ")}
-                      >
-                        {isSame ? (
-                          ""
-                        ) : matches.length > 0 ? (
-                          matches.map((match) => (
-                            <span key={match.id} className="leading-tight">
-                              {match.homeScore}:{match.awayScore}
-                            </span>
-                          ))
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                <div
+                  className={[
+                    "mx-auto flex min-h-10 flex-col items-center justify-center rounded-xl border text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
+                    isSame
+                      ? "border-slate-200 bg-slate-100 text-slate-400"
+                      : getResultClasses(tone),
+                  ].join(" ")}
+                >
+                  {isSame ? (
+                    "-"
+                  ) : matches.length > 0 ? (
+                    matches.map((match) => (
+                      <span key={match.id} className="leading-tight">
+                        {match.homeScore} : {match.awayScore}
+                      </span>
+                    ))
+                  ) : (
+                    "—"
+                  )}
+                </div>
+              </td>
+            );
+          })}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
     </section>
   );
 }
