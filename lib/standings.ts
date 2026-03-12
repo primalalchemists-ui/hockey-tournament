@@ -13,6 +13,7 @@ function buildEmptyRow(team: Team): StandingRow {
     teamId: team.id,
     teamName: team.name,
     logoText: team.logoText,
+    logoUrl: team.logoUrl,
     played: 0,
     wins: 0,
     draws: 0,
@@ -97,7 +98,6 @@ export function calculateStandings(group: Group): StandingRow[] {
 
     const tiedCount = pointsCount.get(a.points) ?? 0;
 
-    // only for exactly 2 tied teams -> head to head
     if (tiedCount === 2) {
       const h2h = headToHeadWinner(a.teamId, b.teamId, group.matches);
       if (h2h !== 0) return h2h;

@@ -36,20 +36,9 @@ export function StandingsTable({ groupName, rows }: StandingsTableProps) {
                 <td className="px-3 py-3 font-semibold text-slate-900">{row.position}</td>
                 <td className="px-3 py-3">
                   <div className="flex min-w-[180px] items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                      {row.logoUrl ? (
-                        <img
-                          src={row.logoUrl}
-                          alt={row.teamName}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-[10px] font-semibold uppercase text-slate-600">
-                          {row.logoText ?? "LOGO"}
-                        </span>
-                      )}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-[10px] font-semibold uppercase text-slate-600">
+                      {row.logoText}
                     </div>
-
                     <span className="font-medium text-slate-900">{row.teamName}</span>
                   </div>
                 </td>

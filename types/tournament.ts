@@ -5,7 +5,10 @@ export type Team = {
   id: string;
   name: string;
   shortName?: string;
-  logoText: string;
+  logoText?: string;
+  logoUrl?: string;
+  logoName?: string;
+  logoType?: string;
   sourceOrder: number;
 };
 
@@ -26,8 +29,12 @@ export type Group = {
 };
 
 export type TournamentAssets = {
-  scheduleImage: string;
-  regulationImage: string;
+  scheduleImage?: string;
+  scheduleImageType?: string;
+  scheduleImageName?: string;
+  regulationImage?: string;
+  regulationImageType?: string;
+  regulationImageName?: string;
 };
 
 export type Tournament = {
@@ -41,7 +48,8 @@ export type StandingRow = {
   position: number;
   teamId: string;
   teamName: string;
-  logoText: string;
+  logoText?: string;
+  logoUrl?: string;
   played: number;
   wins: number;
   draws: number;

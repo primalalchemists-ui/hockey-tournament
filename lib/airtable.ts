@@ -20,6 +20,7 @@ type AirtableAttachment = {
   id: string;
   url: string;
   filename?: string;
+  type?: string;
 };
 
 type TournamentFields = {
@@ -37,7 +38,7 @@ type TeamFields = {
   teamId?: string;
   name?: string;
   shortName?: string;
-  logoText?: string;
+  logo?: AirtableAttachment[];
   sourceOrder?: number;
 };
 
@@ -110,11 +111,16 @@ function mapTeams(records: AirtableRecord<TeamFields>[]): Group[] {
 
     if (!fields.group || !fields.teamId || !fields.name) continue;
 
+    const logoAttachment = fields.logo?.[0];
+
     const team: Team = {
       id: fields.teamId,
       name: fields.name,
       shortName: fields.shortName,
-      logoText: fields.logoText ?? "logo-x",
+      logoText: fields.shortName ?? "LOGO",
+      logoUrl: logoAttachment?.url,
+      logoName: logoAttachment?.filename,
+      logoType: logoAttachment?.type,
       sourceOrder: typeof fields.sourceOrder === "number" ? fields.sourceOrder : 999,
     };
 
@@ -192,7 +198,7 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
   }
 
   const teamsRecords = await airtableFetch<TeamFields>(AIRTABLE_TEAMS_TABLE, {
-    filterByFormula: `OR({tournamentSlug}="${activeSlug}", ARRAYJOIN({tournamentSlugLookup})="${activeSlug}")`,
+    filterByFormula: `{tournamentSlug}="${activeSlug}"`,
     "sort[0][field]": "group",
     "sort[0][direction]": "asc",
     "sort[1][field]": "sourceOrder",
@@ -200,7 +206,7 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
   });
 
   const matchesRecords = await airtableFetch<MatchFields>(AIRTABLE_MATCHES_TABLE, {
-    filterByFormula: `OR({tournamentSlug}="${activeSlug}", ARRAYJOIN({tournamentSlugLookup})="${activeSlug}")`,
+    filterByFormula: `{tournamentSlug}="${activeSlug}"`,
     "sort[0][field]": "group",
     "sort[0][direction]": "asc",
   });
@@ -212,12 +218,19 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
     group.matches = matches.filter((match) => match.group === group.key);
   }
 
+  const scheduleAttachment = tournamentRecord.fields.scheduleImage?.[0];
+  const regulationAttachment = tournamentRecord.fields.regulationImage?.[0];
+
   return {
     id: activeSlug,
     title: tournamentRecord.fields.title ?? "Turniej Hokejowy",
     assets: {
-      scheduleImage: tournamentRecord.fields.scheduleImage?.[0]?.url ?? "",
-      regulationImage: tournamentRecord.fields.regulationImage?.[0]?.url ?? "",
+      scheduleImage: scheduleAttachment?.url ?? "",
+      scheduleImageType: scheduleAttachment?.type ?? "",
+      scheduleImageName: scheduleAttachment?.filename ?? "",
+      regulationImage: regulationAttachment?.url ?? "",
+      regulationImageType: regulationAttachment?.type ?? "",
+      regulationImageName: regulationAttachment?.filename ?? "",
     },
     groups,
   };

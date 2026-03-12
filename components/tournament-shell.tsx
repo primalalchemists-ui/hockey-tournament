@@ -27,12 +27,24 @@ export function TournamentShell({ tournament }: TournamentShellProps) {
 
   const content = useMemo(() => {
     if (activeTab === "schedule") {
-      return <ScheduleSection imageUrl={tournament.assets.scheduleImage} />;
-    }
+  return (
+    <ScheduleSection
+      fileUrl={tournament.assets.scheduleImage}
+      fileType={tournament.assets.scheduleImageType}
+      fileName={tournament.assets.scheduleImageName}
+    />
+  );
+}
 
-    if (activeTab === "regulation") {
-      return <RegulationSection imageUrl={tournament.assets.regulationImage} />;
-    }
+if (activeTab === "regulation") {
+  return (
+    <RegulationSection
+      fileUrl={tournament.assets.regulationImage}
+      fileType={tournament.assets.regulationImageType}
+      fileName={tournament.assets.regulationImageName}
+    />
+  );
+}
 
     return <GroupTabs groups={tournament.groups} />;
   }, [activeTab, tournament]);

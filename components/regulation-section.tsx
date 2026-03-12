@@ -1,6 +1,30 @@
-// components/regulation-section.tsx
-export function RegulationSection({ imageUrl }: { imageUrl: string }) {
-  const hasImage = Boolean(imageUrl);
+type RegulationSectionProps = {
+  fileUrl?: string;
+  fileType?: string;
+  fileName?: string;
+};
+
+export function RegulationSection({
+  fileUrl,
+  fileType,
+  fileName,
+}: RegulationSectionProps) {
+  const safeFileUrl = fileUrl ?? "";
+  const safeFileType = fileType ?? "";
+  const safeFileName = (fileName ?? "").toLowerCase();
+  const hasFile = Boolean(safeFileUrl);
+
+  const isImage =
+    safeFileType.startsWith("image/") ||
+    safeFileName.endsWith(".png") ||
+    safeFileName.endsWith(".jpg") ||
+    safeFileName.endsWith(".jpeg") ||
+    safeFileName.endsWith(".webp") ||
+    safeFileName.endsWith(".gif");
+
+  const isPdf =
+    safeFileType === "application/pdf" ||
+    safeFileName.endsWith(".pdf");
 
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -8,17 +32,31 @@ export function RegulationSection({ imageUrl }: { imageUrl: string }) {
         <h2 className="text-lg font-semibold text-slate-900">Regulamin</h2>
       </div>
 
-      <div className="p-3 sm:p-4 md:p-6">
-        {hasImage ? (
-          <img
-            src={imageUrl}
-            alt="Regulamin turnieju"
-            className="w-full rounded-2xl border border-slate-200 object-cover"
+      <div className="w-full">
+        {!hasFile ? (
+          <div className="flex min-h-[300px] items-center justify-center text-sm font-medium text-slate-500">
+            PLACEHOLDER — regulation file
+          </div>
+        ) : isImage ? (
+          <div className="flex justify-center">
+            <img
+              src={safeFileUrl}
+              alt="Regulamin turnieju"
+              className="max-h-[90vh] max-w-full object-contain"
+            />
+          </div>
+        ) : isPdf ? (
+          <iframe
+            src={safeFileUrl}
+            title="Regulamin turnieju"
+            className="h-[90vh] w-full"
           />
         ) : (
-          <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 text-sm font-medium text-slate-500">
-            PLACEHOLDER — regulation image
-          </div>
+          <iframe
+            src={safeFileUrl}
+            title="Regulamin turnieju"
+            className="h-[90vh] w-full"
+          />
         )}
       </div>
     </section>
