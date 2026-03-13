@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
@@ -58,6 +58,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "error">("idle");
+  const [deletePublicIds, setDeletePublicIds] = useState<string[]>([]);
 
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const regulationInputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +72,15 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
     return () => window.clearTimeout(timeout);
   }, [saveStatus]);
+
+  function queueDelete(publicId?: string) {
+    if (!publicId) return;
+
+    setDeletePublicIds((prev) => {
+      if (prev.includes(publicId)) return prev;
+      return [...prev, publicId];
+    });
+  }
 
   function updateDraft(updater: (prev: Tournament) => Tournament) {
     setDraft((prev) => updater(cloneTournament(prev)));
@@ -102,6 +112,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
       name: string;
       type: string;
       format?: string;
+      publicId?: string;
     };
   }
 
@@ -130,6 +141,14 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
   function handleRemoveGroup(groupKey: string) {
     updateDraft((prev) => {
+      const group = prev.groups.find((item) => item.key === groupKey);
+
+      if (group) {
+        for (const team of group.teams) {
+          queueDelete((team as any).logoPublicId);
+        }
+      }
+
       prev.groups = prev.groups.filter((group) => group.key !== groupKey);
       return prev;
     });
@@ -163,6 +182,11 @@ export function AdminShell({ tournament }: AdminShellProps) {
       const group = prev.groups.find((item) => item.key === groupKey);
       if (!group) return prev;
 
+      const team = group.teams.find((item) => item.id === teamId);
+      if (team) {
+        queueDelete((team as any).logoPublicId);
+      }
+
       group.teams = group.teams.filter((team) => team.id !== teamId);
       group.matches = group.matches.filter(
         (match) => match.homeTeamId !== teamId && match.awayTeamId !== teamId
@@ -192,9 +216,12 @@ export function AdminShell({ tournament }: AdminShellProps) {
       const team = group?.teams.find((item) => item.id === teamId);
       if (!team) return prev;
 
+      queueDelete((team as any).logoPublicId);
+
       team.logoUrl = uploaded.url;
       team.logoName = uploaded.name;
       team.logoType = file.type || "image/*";
+      (team as any).logoPublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
@@ -203,10 +230,13 @@ export function AdminShell({ tournament }: AdminShellProps) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
+      queueDelete((prev.assets as any).scheduleImagePublicId);
+
       prev.assets.scheduleImage = uploaded.url;
       prev.assets.scheduleImageName = uploaded.name;
       prev.assets.scheduleImageType =
         file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
+      (prev.assets as any).scheduleImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
@@ -215,10 +245,37 @@ export function AdminShell({ tournament }: AdminShellProps) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
+      queueDelete((prev.assets as any).regulationImagePublicId);
+
       prev.assets.regulationImage = uploaded.url;
       prev.assets.regulationImageName = uploaded.name;
       prev.assets.regulationImageType =
         file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
+      (prev.assets as any).regulationImagePublicId = uploaded.publicId ?? "";
+      return prev;
+    });
+  }
+
+  function handleRemoveScheduleFile() {
+    updateDraft((prev) => {
+      queueDelete((prev.assets as any).scheduleImagePublicId);
+
+      prev.assets.scheduleImage = "";
+      prev.assets.scheduleImageType = "";
+      prev.assets.scheduleImageName = "";
+      (prev.assets as any).scheduleImagePublicId = "";
+      return prev;
+    });
+  }
+
+  function handleRemoveRegulationFile() {
+    updateDraft((prev) => {
+      queueDelete((prev.assets as any).regulationImagePublicId);
+
+      prev.assets.regulationImage = "";
+      prev.assets.regulationImageType = "";
+      prev.assets.regulationImageName = "";
+      (prev.assets as any).regulationImagePublicId = "";
       return prev;
     });
   }
@@ -267,6 +324,15 @@ export function AdminShell({ tournament }: AdminShellProps) {
   }
 
   function handleClearAll() {
+    for (const group of draft.groups) {
+      for (const team of group.teams) {
+        queueDelete((team as any).logoPublicId);
+      }
+    }
+
+    queueDelete((draft.assets as any).scheduleImagePublicId);
+    queueDelete((draft.assets as any).regulationImagePublicId);
+
     setDraft({
       ...draft,
       title: "Nowy turniej",
@@ -280,6 +346,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
         regulationImageName: "",
       },
     });
+
     setSaveStatus("idle");
   }
 
@@ -290,7 +357,11 @@ export function AdminShell({ tournament }: AdminShellProps) {
       try {
         const formData = new FormData();
         formData.set("payload", JSON.stringify(draft));
+        formData.set("deletePublicIds", JSON.stringify(deletePublicIds));
+
         await saveAdminDraftAction(formData);
+
+        setDeletePublicIds([]);
         setSaveStatus("saved");
       } catch (error) {
         console.error(error);
@@ -303,7 +374,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
     if (activeTab === "schedule") {
       return (
         <section className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <input
               ref={scheduleInputRef}
               type="file"
@@ -332,6 +403,15 @@ export function AdminShell({ tournament }: AdminShellProps) {
               <Pencil size={16} />
               Zmień harmonogram
             </button>
+
+            <button
+              type="button"
+              onClick={handleRemoveScheduleFile}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+            >
+              <Trash2 size={16} />
+              Usuń
+            </button>
           </div>
 
           <ScheduleSection
@@ -346,7 +426,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
     if (activeTab === "regulation") {
       return (
         <section className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <input
               ref={regulationInputRef}
               type="file"
@@ -375,6 +455,15 @@ export function AdminShell({ tournament }: AdminShellProps) {
               <Pencil size={16} />
               Zmień regulamin
             </button>
+
+            <button
+              type="button"
+              onClick={handleRemoveRegulationFile}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+            >
+              <Trash2 size={16} />
+              Usuń
+            </button>
           </div>
 
           <RegulationSection
@@ -398,68 +487,68 @@ export function AdminShell({ tournament }: AdminShellProps) {
         onUpdateCell={handleUpdateCell}
       />
     );
-  }, [activeTab, draft]);
+  }, [activeTab, draft, deletePublicIds]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
-    <header className="space-y-4">
-      <div className="flex w-full flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="inline-flex shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-            Live tournament
-          </div>
+      <header className="space-y-4">
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="inline-flex shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+              Live tournament
+            </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="rounded-2xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
-              >
-                Wyczyść
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isPending}
-                className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
-              >
-                Zapisz
-              </button>
-
-              <form action={logoutAdminAction}>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex items-center gap-2">
                 <button
-                  type="submit"
-                  className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  type="button"
+                  onClick={handleClearAll}
+                  className="rounded-2xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
                 >
-                  Wyloguj
+                  Wyczyść
                 </button>
-              </form>
-            </div>
 
-            <div className="h-5 text-right text-sm font-medium">
-              {isPending ? (
-                <span className="text-slate-600">Zapisywanie...</span>
-              ) : uploadStatus === "uploading" ? (
-                <span className="text-slate-600">Dodawanie...</span>
-              ) : saveStatus === "saved" ? (
-                <span className="text-emerald-700">Zapisano</span>
-              ) : saveStatus === "error" || uploadStatus === "error" ? (
-                <span className="text-rose-700">Błąd</span>
-              ) : (
-                <span className="invisible">Placeholder</span>
-              )}
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isPending}
+                  className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Zapisz
+                </button>
+
+                <form action={logoutAdminAction}>
+                  <button
+                    type="submit"
+                    className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Wyloguj
+                  </button>
+                </form>
+              </div>
+
+              <div className="h-5 text-right text-sm font-medium">
+                {isPending ? (
+                  <span className="text-slate-600">Zapisywanie...</span>
+                ) : uploadStatus === "uploading" ? (
+                  <span className="text-slate-600">Dodawanie...</span>
+                ) : saveStatus === "saved" ? (
+                  <span className="text-emerald-700">Zapisano</span>
+                ) : saveStatus === "error" || uploadStatus === "error" ? (
+                  <span className="text-rose-700">Błąd</span>
+                ) : (
+                  <span className="invisible">Placeholder</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <EditableTournamentHeader
-          title={draft.title}
-          onChangeTitle={handleChangeTitle}
-        />
-      </div>
-    </header>
+          <EditableTournamentHeader
+            title={draft.title}
+            onChangeTitle={handleChangeTitle}
+          />
+        </div>
+      </header>
 
       <nav className="overflow-x-auto">
         <div className="inline-flex min-w-full gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">

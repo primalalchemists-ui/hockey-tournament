@@ -1,4 +1,3 @@
-// types/tournament.ts
 export type GroupKey = string;
 
 export type Team = {
@@ -9,6 +8,7 @@ export type Team = {
   logoUrl?: string;
   logoName?: string;
   logoType?: string;
+  logoPublicId?: string;
   sourceOrder: number;
 };
 
@@ -32,9 +32,12 @@ export type TournamentAssets = {
   scheduleImage?: string;
   scheduleImageType?: string;
   scheduleImageName?: string;
+  scheduleImagePublicId?: string;
+
   regulationImage?: string;
   regulationImageType?: string;
   regulationImageName?: string;
+  regulationImagePublicId?: string;
 };
 
 export type Tournament = {

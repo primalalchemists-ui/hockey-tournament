@@ -35,16 +35,14 @@ export async function POST(req: Request) {
       name: upload.original_filename,
       type: upload.resource_type,
       format: upload.format,
+      publicId: upload.public_id,
     });
   } catch (err: any) {
     console.error("Cloudinary upload error:", err);
 
     return NextResponse.json(
       {
-        error:
-          err?.message ||
-          err?.error?.message ||
-          "Upload failed",
+        error: err?.message || err?.error?.message || "Upload failed",
       },
       { status: 500 }
     );

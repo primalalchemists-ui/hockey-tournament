@@ -183,7 +183,6 @@ export async function saveAdminDraft(tournament: Tournament) {
   const activeTournamentRecord =
     tournaments.find((record) => record.fields.isActive === true) ?? null;
 
-  // wyłącz wszystkie poprzednie aktywne
   for (const record of tournaments) {
     if (record.fields.isActive) {
       await airtableUpdate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, record.id, {
@@ -191,8 +190,6 @@ export async function saveAdminDraft(tournament: Tournament) {
       });
     }
   }
-
-  let tournamentRecordId: string;
 
   if (activeTournamentRecord) {
     await airtableUpdate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, activeTournamentRecord.id, {
@@ -208,10 +205,8 @@ export async function saveAdminDraft(tournament: Tournament) {
         tournament.assets.regulationImageName || "regulation-file"
       ),
     });
-
-    tournamentRecordId = activeTournamentRecord.id;
   } else {
-    const created = await airtableCreate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, {
+    await airtableCreate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, {
       slug: nextSlug,
       title: tournament.title,
       isActive: true,
@@ -224,8 +219,6 @@ export async function saveAdminDraft(tournament: Tournament) {
         tournament.assets.regulationImageName || "regulation-file"
       ),
     });
-
-    tournamentRecordId = created.records[0].id;
   }
 
   const existingTeams = await airtableFetch<TeamFields>(AIRTABLE_TEAMS_TABLE, {
@@ -327,7 +320,6 @@ export async function saveAdminDraft(tournament: Tournament) {
   }
 
   return {
-    tournamentRecordId,
     slug: nextSlug,
   };
 }

@@ -1,4 +1,3 @@
-// app/admin/actions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -6,21 +5,29 @@ import { redirect } from "next/navigation";
 
 import { createAdminSession, destroyAdminSession } from "@/lib/admin-auth";
 import { saveAdminDraft } from "@/lib/airtable-admin";
+import { deleteCloudinaryAssets } from "@/lib/cloudinary";
 import type { Tournament } from "@/types/tournament";
 
 function getString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
-export async function loginAdminAction(formData: FormData) {
+export type AdminLoginState = {
+  error: string | null;
+};
+
+export async function loginAdminAction(
+  _prevState: AdminLoginState,
+  formData: FormData
+): Promise<AdminLoginState> {
   const password = getString(formData, "password");
 
   if (!process.env.ADMIN_PASSWORD) {
-    throw new Error("Brak ADMIN_PASSWORD w env");
+    return { error: "Brak ADMIN_PASSWORD w env" };
   }
 
   if (password !== process.env.ADMIN_PASSWORD) {
-    throw new Error("Nieprawidłowe hasło");
+    return { error: "Nieprawidłowe hasło" };
   }
 
   await createAdminSession();
@@ -34,12 +41,14 @@ export async function logoutAdminAction() {
 
 export async function saveAdminDraftAction(formData: FormData) {
   const payloadRaw = getString(formData, "payload");
+  const deleteRaw = getString(formData, "deletePublicIds");
 
   if (!payloadRaw) {
     throw new Error("Brak payload do zapisu");
   }
 
   let payload: Tournament;
+  let deletePublicIds: string[] = [];
 
   try {
     payload = JSON.parse(payloadRaw) as Tournament;
@@ -47,7 +56,16 @@ export async function saveAdminDraftAction(formData: FormData) {
     throw new Error("Nieprawidłowy JSON payload");
   }
 
+  if (deleteRaw) {
+    try {
+      deletePublicIds = JSON.parse(deleteRaw) as string[];
+    } catch {
+      deletePublicIds = [];
+    }
+  }
+
   await saveAdminDraft(payload);
+  await deleteCloudinaryAssets(deletePublicIds);
 
   revalidatePath("/");
   revalidatePath("/admin");

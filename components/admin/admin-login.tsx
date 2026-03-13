@@ -1,7 +1,37 @@
-// components/admin/admin-login.tsx
-import { loginAdminAction } from "@/app/admin/actions";
+"use client";
+
+import { useActionState, useEffect, useState } from "react";
+import {
+  loginAdminAction,
+  type AdminLoginState,
+} from "@/app/admin/actions";
+
+const initialState: AdminLoginState = {
+  error: null,
+};
 
 export function AdminLogin() {
+  const [state, formAction, isPending] = useActionState(
+    loginAdminAction,
+    initialState
+  );
+  const [visibleError, setVisibleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!state.error) {
+      setVisibleError(null);
+      return;
+    }
+
+    setVisibleError(state.error);
+
+    const timeout = window.setTimeout(() => {
+      setVisibleError(null);
+    }, 2500);
+
+    return () => window.clearTimeout(timeout);
+  }, [state.error]);
+
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
       <div className="mx-auto max-w-md">
@@ -11,7 +41,7 @@ export function AdminLogin() {
             Wpisz hasło, aby przejść do panelu edycji wyników.
           </p>
 
-          <form action={loginAdminAction} className="mt-6 space-y-4">
+          <form action={formAction} className="mt-6 space-y-4">
             <input
               type="password"
               name="password"
@@ -20,11 +50,20 @@ export function AdminLogin() {
               required
             />
 
+            <div className="h-5 text-sm font-medium">
+              {visibleError ? (
+                <span className="text-rose-700">{visibleError}</span>
+              ) : (
+                <span className="invisible">placeholder</span>
+              )}
+            </div>
+
             <button
               type="submit"
-              className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white"
+              disabled={isPending}
+              className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
             >
-              Wejdź do admina
+              {isPending ? "Sprawdzanie..." : "Wejdź do admina"}
             </button>
           </form>
         </section>
