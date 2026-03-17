@@ -1,5 +1,5 @@
 // app/page.tsx
-import { CampBanner } from "@/components/camp-banner";
+// import { CampBanner } from "@/components/camp-banner";
 import { TournamentShell } from "@/components/tournament-shell";
 import { getAirtableTournament } from "@/lib/airtable";
 import { mergeTournamentData } from "@/lib/merge-data";
