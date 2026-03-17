@@ -5,13 +5,15 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
+import { CampBanner } from "@/components/camp-banner";
 import { EditableGroupTabs } from "@/components/admin/editable-group-tabs";
+import { ScorersManager } from "@/components/admin/scorers-manager";
 import { EditableTournamentHeader } from "@/components/admin/editable-tournament-header";
 import { RegulationSection } from "@/components/regulation-section";
 import { ScheduleSection } from "@/components/schedule-section";
 import type { Tournament } from "@/types/tournament";
 
-type MainTab = "live" | "schedule" | "regulation";
+type MainTab = "live" | "schedule" | "regulation" | "scorers" | "camp";
 
 type AdminShellProps = {
   tournament: Tournament;
@@ -19,8 +21,10 @@ type AdminShellProps = {
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
   { key: "live", label: "Tabela Live" },
+  { key: "scorers", label: "Strzelcy" },
   { key: "schedule", label: "Harmonogram" },
   { key: "regulation", label: "Regulamin" },
+  { key: "camp", label: "Camp i bannery" },
 ];
 
 function cloneTournament(tournament: Tournament): Tournament {
@@ -33,15 +37,15 @@ function normalizeScore(value: string) {
   if (!raw) return null;
   if (!raw.includes(":")) return null;
 
-  const [homeRaw, awayRaw] = raw.split(":").map((item) => item.trim());
-  const homeScore = Number(homeRaw);
-  const awayScore = Number(awayRaw);
+  const [leftRaw, rightRaw] = raw.split(":").map((item) => item.trim());
+  const leftScore = Number(leftRaw);
+  const rightScore = Number(rightRaw);
 
-  if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) {
+  if (!Number.isFinite(leftScore) || !Number.isFinite(rightScore)) {
     return null;
   }
 
-  return { homeScore, awayScore };
+  return { leftScore, rightScore };
 }
 
 function createTeamId(groupKey: string) {
@@ -50,6 +54,36 @@ function createTeamId(groupKey: string) {
 
 function createMatchId(groupKey: string, homeTeamId: string, awayTeamId: string) {
   return `${groupKey}-${homeTeamId}-${awayTeamId}`;
+}
+
+function createScorerId() {
+  return `scorer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function PreviewImage({
+  src,
+  alt,
+  emptyLabel,
+  className,
+}: {
+  src?: string;
+  alt: string;
+  emptyLabel: string;
+  className?: string;
+}) {
+  if (!src) {
+    return (
+      <div className="flex min-h-[180px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-sm font-medium text-slate-500">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className={["overflow-hidden rounded-3xl border border-slate-200 bg-white", className].join(" ")}>
+      <img src={src} alt={alt} className="h-full w-full object-cover" />
+    </div>
+  );
 }
 
 export function AdminShell({ tournament }: AdminShellProps) {
@@ -62,6 +96,10 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const regulationInputRef = useRef<HTMLInputElement | null>(null);
+  const heroBannerInputRef = useRef<HTMLInputElement | null>(null);
+  const campBannerInputRef = useRef<HTMLInputElement | null>(null);
+  const campPosterLeftInputRef = useRef<HTMLInputElement | null>(null);
+  const campPosterRightInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (saveStatus !== "saved") return;
@@ -145,8 +183,12 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
       if (group) {
         for (const team of group.teams) {
-          queueDelete((team as any).logoPublicId);
+          queueDelete(team.logoPublicId);
         }
+
+        prev.scorers = prev.scorers.filter((scorer) =>
+          !group.teams.some((team) => team.id === scorer.teamId)
+        );
       }
 
       prev.groups = prev.groups.filter((group) => group.key !== groupKey);
@@ -184,13 +226,14 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
       const team = group.teams.find((item) => item.id === teamId);
       if (team) {
-        queueDelete((team as any).logoPublicId);
+        queueDelete(team.logoPublicId);
       }
 
       group.teams = group.teams.filter((team) => team.id !== teamId);
       group.matches = group.matches.filter(
         (match) => match.homeTeamId !== teamId && match.awayTeamId !== teamId
       );
+      prev.scorers = prev.scorers.filter((scorer) => scorer.teamId !== teamId);
 
       return prev;
     });
@@ -216,12 +259,12 @@ export function AdminShell({ tournament }: AdminShellProps) {
       const team = group?.teams.find((item) => item.id === teamId);
       if (!team) return prev;
 
-      queueDelete((team as any).logoPublicId);
+      queueDelete(team.logoPublicId);
 
       team.logoUrl = uploaded.url;
       team.logoName = uploaded.name;
       team.logoType = file.type || "image/*";
-      (team as any).logoPublicId = uploaded.publicId ?? "";
+      team.logoPublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
@@ -230,13 +273,13 @@ export function AdminShell({ tournament }: AdminShellProps) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
-      queueDelete((prev.assets as any).scheduleImagePublicId);
+      queueDelete(prev.assets.scheduleImagePublicId);
 
       prev.assets.scheduleImage = uploaded.url;
       prev.assets.scheduleImageName = uploaded.name;
       prev.assets.scheduleImageType =
         file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
-      (prev.assets as any).scheduleImagePublicId = uploaded.publicId ?? "";
+      prev.assets.scheduleImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
@@ -245,54 +288,232 @@ export function AdminShell({ tournament }: AdminShellProps) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
-      queueDelete((prev.assets as any).regulationImagePublicId);
+      queueDelete(prev.assets.regulationImagePublicId);
 
       prev.assets.regulationImage = uploaded.url;
       prev.assets.regulationImageName = uploaded.name;
       prev.assets.regulationImageType =
         file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
-      (prev.assets as any).regulationImagePublicId = uploaded.publicId ?? "";
+      prev.assets.regulationImagePublicId = uploaded.publicId ?? "";
+      return prev;
+    });
+  }
+
+  async function handleUploadHeroBanner(file: File) {
+    const uploaded = await uploadFileToCloudinary(file);
+
+    updateDraft((prev) => {
+      queueDelete(prev.assets.heroBannerImagePublicId);
+
+      prev.assets.heroBannerImage = uploaded.url;
+      prev.assets.heroBannerImageName = uploaded.name;
+      prev.assets.heroBannerImageType = file.type || "image/*";
+      prev.assets.heroBannerImagePublicId = uploaded.publicId ?? "";
+      return prev;
+    });
+  }
+
+  async function handleUploadCampBanner(file: File) {
+    const uploaded = await uploadFileToCloudinary(file);
+
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campBannerImagePublicId);
+
+      prev.assets.campBannerImage = uploaded.url;
+      prev.assets.campBannerImageName = uploaded.name;
+      prev.assets.campBannerImageType = file.type || "image/*";
+      prev.assets.campBannerImagePublicId = uploaded.publicId ?? "";
+      return prev;
+    });
+  }
+
+  async function handleUploadCampPosterLeft(file: File) {
+    const uploaded = await uploadFileToCloudinary(file);
+
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campPosterLeftPublicId);
+
+      prev.assets.campPosterLeft = uploaded.url;
+      prev.assets.campPosterLeftName = uploaded.name;
+      prev.assets.campPosterLeftType = file.type || "image/*";
+      prev.assets.campPosterLeftPublicId = uploaded.publicId ?? "";
+      return prev;
+    });
+  }
+
+  async function handleUploadCampPosterRight(file: File) {
+    const uploaded = await uploadFileToCloudinary(file);
+
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campPosterRightPublicId);
+
+      prev.assets.campPosterRight = uploaded.url;
+      prev.assets.campPosterRightName = uploaded.name;
+      prev.assets.campPosterRightType = file.type || "image/*";
+      prev.assets.campPosterRightPublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
   function handleRemoveScheduleFile() {
     updateDraft((prev) => {
-      queueDelete((prev.assets as any).scheduleImagePublicId);
+      queueDelete(prev.assets.scheduleImagePublicId);
 
       prev.assets.scheduleImage = "";
       prev.assets.scheduleImageType = "";
       prev.assets.scheduleImageName = "";
-      (prev.assets as any).scheduleImagePublicId = "";
+      prev.assets.scheduleImagePublicId = "";
       return prev;
     });
   }
 
   function handleRemoveRegulationFile() {
     updateDraft((prev) => {
-      queueDelete((prev.assets as any).regulationImagePublicId);
+      queueDelete(prev.assets.regulationImagePublicId);
 
       prev.assets.regulationImage = "";
       prev.assets.regulationImageType = "";
       prev.assets.regulationImageName = "";
-      (prev.assets as any).regulationImagePublicId = "";
+      prev.assets.regulationImagePublicId = "";
+      return prev;
+    });
+  }
+
+  function handleRemoveHeroBannerFile() {
+    updateDraft((prev) => {
+      queueDelete(prev.assets.heroBannerImagePublicId);
+
+      prev.assets.heroBannerImage = "";
+      prev.assets.heroBannerImageType = "";
+      prev.assets.heroBannerImageName = "";
+      prev.assets.heroBannerImagePublicId = "";
+      return prev;
+    });
+  }
+
+  function handleRemoveCampBannerFile() {
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campBannerImagePublicId);
+
+      prev.assets.campBannerImage = "";
+      prev.assets.campBannerImageType = "";
+      prev.assets.campBannerImageName = "";
+      prev.assets.campBannerImagePublicId = "";
+      return prev;
+    });
+  }
+
+  function handleRemoveCampPosterLeftFile() {
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campPosterLeftPublicId);
+
+      prev.assets.campPosterLeft = "";
+      prev.assets.campPosterLeftType = "";
+      prev.assets.campPosterLeftName = "";
+      prev.assets.campPosterLeftPublicId = "";
+      return prev;
+    });
+  }
+
+  function handleRemoveCampPosterRightFile() {
+    updateDraft((prev) => {
+      queueDelete(prev.assets.campPosterRightPublicId);
+
+      prev.assets.campPosterRight = "";
+      prev.assets.campPosterRightType = "";
+      prev.assets.campPosterRightName = "";
+      prev.assets.campPosterRightPublicId = "";
+      return prev;
+    });
+  }
+
+  function handleChangeCampStartDate(value: string) {
+    updateDraft((prev) => {
+      prev.campStartDate = value;
+      return prev;
+    });
+  }
+
+  function handleChangeCampSignupLink(value: string) {
+    updateDraft((prev) => {
+      prev.campSignupLink = value;
+      return prev;
+    });
+  }
+
+  function handleAddScorer() {
+    updateDraft((prev) => {
+      const allTeams = prev.groups.flatMap((group) => group.teams);
+      const firstTeamId = allTeams[0]?.id ?? "";
+
+      prev.scorers.push({
+        id: createScorerId(),
+        playerName: "",
+        jerseyNumber: undefined,
+        goals: 0,
+        teamId: firstTeamId,
+      });
+
+      return prev;
+    });
+  }
+
+  function handleRemoveScorer(scorerId: string) {
+    updateDraft((prev) => {
+      prev.scorers = prev.scorers.filter((scorer) => scorer.id !== scorerId);
+      return prev;
+    });
+  }
+
+  function handleUpdateScorer(
+    scorerId: string,
+    field: "playerName" | "jerseyNumber" | "goals" | "teamId",
+    value: string
+  ) {
+    updateDraft((prev) => {
+      const scorer = prev.scorers.find((item) => item.id === scorerId);
+      if (!scorer) return prev;
+
+      if (field === "playerName") {
+        scorer.playerName = value;
+      }
+
+      if (field === "teamId") {
+        scorer.teamId = value;
+      }
+
+      if (field === "jerseyNumber") {
+        scorer.jerseyNumber = value.trim() === "" ? undefined : Number(value);
+      }
+
+      if (field === "goals") {
+        scorer.goals = value.trim() === "" ? 0 : Math.max(0, Number(value) || 0);
+      }
+
       return prev;
     });
   }
 
   function handleUpdateCell(
     groupKey: string,
-    homeTeamId: string,
-    awayTeamId: string,
+    teamAId: string,
+    teamBId: string,
     value: string
   ) {
     updateDraft((prev) => {
       const group = prev.groups.find((item) => item.key === groupKey);
       if (!group) return prev;
 
+      const orderedIds = [teamAId, teamBId].sort();
+      const canonicalHomeTeamId = orderedIds[0];
+      const canonicalAwayTeamId = orderedIds[1];
+
       const existingMatch = group.matches.find(
         (match) =>
-          match.homeTeamId === homeTeamId && match.awayTeamId === awayTeamId
+          (match.homeTeamId === canonicalHomeTeamId &&
+            match.awayTeamId === canonicalAwayTeamId) ||
+          (match.homeTeamId === canonicalAwayTeamId &&
+            match.awayTeamId === canonicalHomeTeamId)
       );
 
       const parsed = normalizeScore(value);
@@ -304,19 +525,27 @@ export function AdminShell({ tournament }: AdminShellProps) {
         return prev;
       }
 
+      const isSameOrientation =
+        teamAId === canonicalHomeTeamId && teamBId === canonicalAwayTeamId;
+
+      const homeScore = isSameOrientation ? parsed.leftScore : parsed.rightScore;
+      const awayScore = isSameOrientation ? parsed.rightScore : parsed.leftScore;
+
       if (existingMatch) {
-        existingMatch.homeScore = parsed.homeScore;
-        existingMatch.awayScore = parsed.awayScore;
+        existingMatch.homeTeamId = canonicalHomeTeamId;
+        existingMatch.awayTeamId = canonicalAwayTeamId;
+        existingMatch.homeScore = homeScore;
+        existingMatch.awayScore = awayScore;
         return prev;
       }
 
       group.matches.push({
-        id: createMatchId(groupKey, homeTeamId, awayTeamId),
+        id: createMatchId(groupKey, canonicalHomeTeamId, canonicalAwayTeamId),
         group: groupKey,
-        homeTeamId,
-        awayTeamId,
-        homeScore: parsed.homeScore,
-        awayScore: parsed.awayScore,
+        homeTeamId: canonicalHomeTeamId,
+        awayTeamId: canonicalAwayTeamId,
+        homeScore,
+        awayScore,
       });
 
       return prev;
@@ -326,17 +555,24 @@ export function AdminShell({ tournament }: AdminShellProps) {
   function handleClearAll() {
     for (const group of draft.groups) {
       for (const team of group.teams) {
-        queueDelete((team as any).logoPublicId);
+        queueDelete(team.logoPublicId);
       }
     }
 
-    queueDelete((draft.assets as any).scheduleImagePublicId);
-    queueDelete((draft.assets as any).regulationImagePublicId);
+    queueDelete(draft.assets.scheduleImagePublicId);
+    queueDelete(draft.assets.regulationImagePublicId);
+    queueDelete(draft.assets.heroBannerImagePublicId);
+    queueDelete(draft.assets.campBannerImagePublicId);
+    queueDelete(draft.assets.campPosterLeftPublicId);
+    queueDelete(draft.assets.campPosterRightPublicId);
 
     setDraft({
       ...draft,
       title: "Nowy turniej",
       groups: [],
+      scorers: [],
+      campStartDate: "",
+      campSignupLink: "",
       assets: {
         scheduleImage: "",
         scheduleImageType: "",
@@ -344,6 +580,18 @@ export function AdminShell({ tournament }: AdminShellProps) {
         regulationImage: "",
         regulationImageType: "",
         regulationImageName: "",
+        heroBannerImage: "",
+        heroBannerImageType: "",
+        heroBannerImageName: "",
+        campBannerImage: "",
+        campBannerImageType: "",
+        campBannerImageName: "",
+        campPosterLeft: "",
+        campPosterLeftType: "",
+        campPosterLeftName: "",
+        campPosterRight: "",
+        campPosterRightType: "",
+        campPosterRightName: "",
       },
     });
 
@@ -369,6 +617,8 @@ export function AdminShell({ tournament }: AdminShellProps) {
       }
     });
   }
+
+  const allTeams = draft.groups.flatMap((group) => group.teams);
 
   const content = useMemo(() => {
     if (activeTab === "schedule") {
@@ -475,6 +725,275 @@ export function AdminShell({ tournament }: AdminShellProps) {
       );
     }
 
+    if (activeTab === "camp") {
+      return (
+        <section className="space-y-6">
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Banner główny</h2>
+
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={heroBannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (event) => {
+                    const input = event.currentTarget;
+                    const file = input.files?.[0];
+                    if (!file) return;
+
+                    try {
+                      await handleUploadHeroBanner(file);
+                    } catch (error) {
+                      console.error(error);
+                    } finally {
+                      input.value = "";
+                    }
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => heroBannerInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <Pencil size={16} />
+                  Zmień banner
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRemoveHeroBannerFile}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+                >
+                  <Trash2 size={16} />
+                  Usuń
+                </button>
+              </div>
+            </div>
+
+            <PreviewImage
+              src={draft.assets.heroBannerImage}
+              alt="Banner główny"
+              emptyLabel="Brak bannera głównego"
+              className="aspect-[16/7]"
+            />
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Data startu campa
+                </label>
+                <input
+                  type="datetime-local"
+                  value={draft.campStartDate ?? ""}
+                  onChange={(event) => handleChangeCampStartDate(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">
+                  Link do zapisów
+                </label>
+                <input
+                  type="text"
+                  value={draft.campSignupLink ?? ""}
+                  onChange={(event) => handleChangeCampSignupLink(event.target.value)}
+                  placeholder="https://..."
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Banner campa</h2>
+
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={campBannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (event) => {
+                    const input = event.currentTarget;
+                    const file = input.files?.[0];
+                    if (!file) return;
+
+                    try {
+                      await handleUploadCampBanner(file);
+                    } catch (error) {
+                      console.error(error);
+                    } finally {
+                      input.value = "";
+                    }
+                  }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => campBannerInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <Pencil size={16} />
+                  Zmień banner campa
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRemoveCampBannerFile}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+                >
+                  <Trash2 size={16} />
+                  Usuń
+                </button>
+              </div>
+            </div>
+
+            <PreviewImage
+              src={draft.assets.campBannerImage}
+              alt="Banner campa"
+              emptyLabel="Brak bannera campa"
+              className="aspect-[16/6]"
+            />
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <h2 className="text-lg font-semibold text-slate-900">Plakaty campa</h2>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={campPosterLeftInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (event) => {
+                      const input = event.currentTarget;
+                      const file = input.files?.[0];
+                      if (!file) return;
+
+                      try {
+                        await handleUploadCampPosterLeft(file);
+                      } catch (error) {
+                        console.error(error);
+                      } finally {
+                        input.value = "";
+                      }
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => campPosterLeftInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    <Pencil size={16} />
+                    Zmień lewy plakat
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCampPosterLeftFile}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+                  >
+                    <Trash2 size={16} />
+                    Usuń
+                  </button>
+                </div>
+
+                <PreviewImage
+                  src={draft.assets.campPosterLeft}
+                  alt="Lewy plakat"
+                  emptyLabel="Brak lewego plakatu"
+                  className="aspect-[4/6]"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={campPosterRightInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (event) => {
+                      const input = event.currentTarget;
+                      const file = input.files?.[0];
+                      if (!file) return;
+
+                      try {
+                        await handleUploadCampPosterRight(file);
+                      } catch (error) {
+                        console.error(error);
+                      } finally {
+                        input.value = "";
+                      }
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => campPosterRightInputRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    <Pencil size={16} />
+                    Zmień prawy plakat
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCampPosterRightFile}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
+                  >
+                    <Trash2 size={16} />
+                    Usuń
+                  </button>
+                </div>
+
+                <PreviewImage
+                  src={draft.assets.campPosterRight}
+                  alt="Prawy plakat"
+                  emptyLabel="Brak prawego plakatu"
+                  className="aspect-[4/6]"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <h2 className="text-lg font-semibold text-slate-900">Podgląd sekcji campa</h2>
+
+            <CampBanner
+              date={draft.campStartDate ?? ""}
+              signupLink={draft.campSignupLink || "#"}
+              bannerImage={draft.assets.campBannerImage}
+              leftPosterImage={draft.assets.campPosterLeft}
+              rightPosterImage={draft.assets.campPosterRight}
+            />
+          </section>
+        </section>
+      );
+    }
+
+    if (activeTab === "scorers") {
+      return (
+        <ScorersManager
+          scorers={draft.scorers ?? []}
+          teams={allTeams}
+          onAddScorer={handleAddScorer}
+          onRemoveScorer={handleRemoveScorer}
+          onUpdateScorer={handleUpdateScorer}
+        />
+      );
+    }
+
     return (
       <EditableGroupTabs
         groups={draft.groups}
@@ -487,7 +1006,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
         onUpdateCell={handleUpdateCell}
       />
     );
-  }, [activeTab, draft, deletePublicIds]);
+  }, [activeTab, draft, allTeams]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -587,4 +1106,5 @@ export function AdminShell({ tournament }: AdminShellProps) {
       </AnimatePresence>
     </div>
   );
-}
+} 
+

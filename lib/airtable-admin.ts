@@ -9,6 +9,7 @@ const AIRTABLE_TOURNAMENTS_TABLE =
   process.env.AIRTABLE_TOURNAMENTS_TABLE ?? "Tournaments";
 const AIRTABLE_TEAMS_TABLE = process.env.AIRTABLE_TEAMS_TABLE ?? "Teams";
 const AIRTABLE_MATCHES_TABLE = process.env.AIRTABLE_MATCHES_TABLE ?? "Matches";
+const AIRTABLE_SCORERS_TABLE = process.env.AIRTABLE_SCORERS_TABLE ?? "Scorers";
 
 type AirtableRecord<TFields> = {
   id: string;
@@ -19,8 +20,17 @@ type TournamentFields = {
   slug?: string;
   title?: string;
   isActive?: boolean;
+
   scheduleImage?: Array<{ url: string; filename?: string }>;
   regulationImage?: Array<{ url: string; filename?: string }>;
+
+  heroBannerImage?: Array<{ url: string; filename?: string }>;
+  campBannerImage?: Array<{ url: string; filename?: string }>;
+  campPosterLeft?: Array<{ url: string; filename?: string }>;
+  campPosterRight?: Array<{ url: string; filename?: string }>;
+
+  campStartDate?: string;
+  campSignupLink?: string;
 };
 
 type TeamFields = {
@@ -41,6 +51,15 @@ type MatchFields = {
   awayTeamId?: string;
   homeScore?: number;
   awayScore?: number;
+};
+
+type ScorerFields = {
+  tournamentSlug?: string;
+  scorerId?: string;
+  playerName?: string;
+  jerseyNumber?: number;
+  goals?: number;
+  teamId?: string;
 };
 
 function slugify(value: string) {
@@ -191,34 +210,52 @@ export async function saveAdminDraft(tournament: Tournament) {
     }
   }
 
+  const tournamentFields: TournamentFields = {
+    slug: nextSlug,
+    title: tournament.title,
+    isActive: true,
+
+    scheduleImage: toAttachment(
+      tournament.assets.scheduleImage,
+      tournament.assets.scheduleImageName || "schedule-file"
+    ),
+    regulationImage: toAttachment(
+      tournament.assets.regulationImage,
+      tournament.assets.regulationImageName || "regulation-file"
+    ),
+
+    heroBannerImage: toAttachment(
+      tournament.assets.heroBannerImage,
+      tournament.assets.heroBannerImageName || "hero-banner"
+    ),
+    campBannerImage: toAttachment(
+      tournament.assets.campBannerImage,
+      tournament.assets.campBannerImageName || "camp-banner"
+    ),
+    campPosterLeft: toAttachment(
+      tournament.assets.campPosterLeft,
+      tournament.assets.campPosterLeftName || "camp-poster-left"
+    ),
+    campPosterRight: toAttachment(
+      tournament.assets.campPosterRight,
+      tournament.assets.campPosterRightName || "camp-poster-right"
+    ),
+
+    campStartDate: tournament.campStartDate || "",
+    campSignupLink: tournament.campSignupLink || "",
+  };
+
   if (activeTournamentRecord) {
-    await airtableUpdate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, activeTournamentRecord.id, {
-      slug: nextSlug,
-      title: tournament.title,
-      isActive: true,
-      scheduleImage: toAttachment(
-        tournament.assets.scheduleImage,
-        tournament.assets.scheduleImageName || "schedule-file"
-      ),
-      regulationImage: toAttachment(
-        tournament.assets.regulationImage,
-        tournament.assets.regulationImageName || "regulation-file"
-      ),
-    });
+    await airtableUpdate<TournamentFields>(
+      AIRTABLE_TOURNAMENTS_TABLE,
+      activeTournamentRecord.id,
+      tournamentFields
+    );
   } else {
-    await airtableCreate<TournamentFields>(AIRTABLE_TOURNAMENTS_TABLE, {
-      slug: nextSlug,
-      title: tournament.title,
-      isActive: true,
-      scheduleImage: toAttachment(
-        tournament.assets.scheduleImage,
-        tournament.assets.scheduleImageName || "schedule-file"
-      ),
-      regulationImage: toAttachment(
-        tournament.assets.regulationImage,
-        tournament.assets.regulationImageName || "regulation-file"
-      ),
-    });
+    await airtableCreate<TournamentFields>(
+      AIRTABLE_TOURNAMENTS_TABLE,
+      tournamentFields
+    );
   }
 
   const existingTeams = await airtableFetch<TeamFields>(AIRTABLE_TEAMS_TABLE, {
@@ -226,6 +263,10 @@ export async function saveAdminDraft(tournament: Tournament) {
   });
 
   const existingMatches = await airtableFetch<MatchFields>(AIRTABLE_MATCHES_TABLE, {
+    filterByFormula: `{tournamentSlug}="${nextSlug}"`,
+  });
+
+  const existingScorers = await airtableFetch<ScorerFields>(AIRTABLE_SCORERS_TABLE, {
     filterByFormula: `{tournamentSlug}="${nextSlug}"`,
   });
 
@@ -243,6 +284,8 @@ export async function saveAdminDraft(tournament: Tournament) {
     }))
   );
 
+  const nextScorers = (tournament.scorers ?? []).map((scorer) => ({ scorer }));
+
   const existingTeamsByTeamId = new Map(
     existingTeams.map((record) => [record.fields.teamId ?? "", record])
   );
@@ -251,8 +294,13 @@ export async function saveAdminDraft(tournament: Tournament) {
     existingMatches.map((record) => [record.fields.matchId ?? "", record])
   );
 
+  const existingScorersByScorerId = new Map(
+    existingScorers.map((record) => [record.fields.scorerId ?? "", record])
+  );
+
   const nextTeamIds = new Set(nextTeams.map((item) => item.team.id));
   const nextMatchIds = new Set(nextMatches.map((item) => item.match.id));
+  const nextScorerIds = new Set(nextScorers.map((item) => item.scorer.id));
 
   const teamIdsToDelete = existingTeams
     .filter((record) => {
@@ -268,12 +316,23 @@ export async function saveAdminDraft(tournament: Tournament) {
     })
     .map((record) => record.id);
 
+  const scorerIdsToDelete = existingScorers
+    .filter((record) => {
+      const scorerId = record.fields.scorerId ?? "";
+      return scorerId && !nextScorerIds.has(scorerId);
+    })
+    .map((record) => record.id);
+
   if (teamIdsToDelete.length) {
     await airtableDelete(AIRTABLE_TEAMS_TABLE, teamIdsToDelete);
   }
 
   if (matchIdsToDelete.length) {
     await airtableDelete(AIRTABLE_MATCHES_TABLE, matchIdsToDelete);
+  }
+
+  if (scorerIdsToDelete.length) {
+    await airtableDelete(AIRTABLE_SCORERS_TABLE, scorerIdsToDelete);
   }
 
   for (const item of nextTeams) {
@@ -316,6 +375,25 @@ export async function saveAdminDraft(tournament: Tournament) {
       await airtableUpdate(AIRTABLE_MATCHES_TABLE, existing.id, fields);
     } else {
       await airtableCreate(AIRTABLE_MATCHES_TABLE, fields);
+    }
+  }
+
+  for (const item of nextScorers) {
+    const fields: ScorerFields = {
+      tournamentSlug: nextSlug,
+      scorerId: item.scorer.id,
+      playerName: item.scorer.playerName,
+      jerseyNumber: item.scorer.jerseyNumber,
+      goals: item.scorer.goals,
+      teamId: item.scorer.teamId,
+    };
+
+    const existing = existingScorersByScorerId.get(item.scorer.id);
+
+    if (existing) {
+      await airtableUpdate(AIRTABLE_SCORERS_TABLE, existing.id, fields);
+    } else {
+      await airtableCreate(AIRTABLE_SCORERS_TABLE, fields);
     }
   }
 

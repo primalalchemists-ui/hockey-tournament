@@ -8,9 +8,9 @@ export async function GET() {
   const airtableData = await getAirtableTournament();
   const tournament = mergeTournamentData(airtableData);
 
-  return NextResponse.json(tournament, {
+    return NextResponse.json(tournament, {
     headers: {
-      "Cache-Control": "s-maxage=60, stale-while-revalidate=300",
+      "Cache-Control": "no-store",
     },
   });
 }

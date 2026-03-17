@@ -21,6 +21,14 @@ export type Match = {
   awayScore: number;
 };
 
+export type Scorer = {
+  id: string;
+  playerName: string;
+  jerseyNumber?: number;
+  goals: number;
+  teamId: string;
+};
+
 export type Group = {
   key: GroupKey;
   name: string;
@@ -38,13 +46,36 @@ export type TournamentAssets = {
   regulationImageType?: string;
   regulationImageName?: string;
   regulationImagePublicId?: string;
+
+  heroBannerImage?: string;
+  heroBannerImageType?: string;
+  heroBannerImageName?: string;
+  heroBannerImagePublicId?: string;
+
+  campBannerImage?: string;
+  campBannerImageType?: string;
+  campBannerImageName?: string;
+  campBannerImagePublicId?: string;
+
+  campPosterLeft?: string;
+  campPosterLeftType?: string;
+  campPosterLeftName?: string;
+  campPosterLeftPublicId?: string;
+
+  campPosterRight?: string;
+  campPosterRightType?: string;
+  campPosterRightName?: string;
+  campPosterRightPublicId?: string;
 };
 
 export type Tournament = {
   id: string;
   title: string;
   groups: Group[];
+  scorers: Scorer[];
   assets: TournamentAssets;
+  campStartDate?: string;
+  campSignupLink?: string;
 };
 
 export type StandingRow = {

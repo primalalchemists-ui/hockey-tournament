@@ -1,16 +1,18 @@
-// components/tournament-shell.tsx
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 
+import { CampBanner } from "@/components/camp-banner";
 import { GroupTabs } from "@/components/group-tabs";
 import { RegulationSection } from "@/components/regulation-section";
 import { ScheduleSection } from "@/components/schedule-section";
+import { ScorersTable } from "@/components/scorers-table";
 import { TournamentHeader } from "@/components/tournament-header";
+
 import type { Tournament } from "@/types/tournament";
 
-type MainTab = "live" | "schedule" | "regulation";
+type MainTab = "live" | "schedule" | "regulation" | "scorers";
 
 type TournamentShellProps = {
   tournament: Tournament;
@@ -18,6 +20,7 @@ type TournamentShellProps = {
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
   { key: "live", label: "Tabela live" },
+  { key: "scorers", label: "Strzelcy" },
   { key: "schedule", label: "Harmonogram" },
   { key: "regulation", label: "Regulamin" },
 ];
@@ -25,33 +28,47 @@ const mainTabs: Array<{ key: MainTab; label: string }> = [
 export function TournamentShell({ tournament }: TournamentShellProps) {
   const [activeTab, setActiveTab] = useState<MainTab>("live");
 
+  const allTeams = useMemo(
+    () => tournament.groups.flatMap((group) => group.teams),
+    [tournament.groups]
+  );
+
   const content = useMemo(() => {
     if (activeTab === "schedule") {
-  return (
-    <ScheduleSection
-      fileUrl={tournament.assets.scheduleImage}
-      fileType={tournament.assets.scheduleImageType}
-      fileName={tournament.assets.scheduleImageName}
-    />
-  );
-}
+      return (
+        <ScheduleSection
+          fileUrl={tournament.assets.scheduleImage}
+          fileType={tournament.assets.scheduleImageType}
+          fileName={tournament.assets.scheduleImageName}
+        />
+      );
+    }
 
-if (activeTab === "regulation") {
-  return (
-    <RegulationSection
-      fileUrl={tournament.assets.regulationImage}
-      fileType={tournament.assets.regulationImageType}
-      fileName={tournament.assets.regulationImageName}
-    />
-  );
-}
+    if (activeTab === "regulation") {
+      return (
+        <RegulationSection
+          fileUrl={tournament.assets.regulationImage}
+          fileType={tournament.assets.regulationImageType}
+          fileName={tournament.assets.regulationImageName}
+        />
+      );
+    }
+
+    if (activeTab === "scorers") {
+      return <ScorersTable scorers={tournament.scorers ?? []} teams={allTeams} />;
+    }
 
     return <GroupTabs groups={tournament.groups} />;
-  }, [activeTab, tournament]);
+  }, [activeTab, tournament, allTeams]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <TournamentHeader title={tournament.title} />
+      <TournamentHeader
+        title={tournament.title}
+        scorers={tournament.scorers ?? []}
+        teams={allTeams}
+        heroBannerImage={tournament.assets.heroBannerImage}
+      />
 
       <nav className="overflow-x-auto">
         <div className="inline-flex min-w-full gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
@@ -88,6 +105,16 @@ if (activeTab === "regulation") {
           {content}
         </motion.div>
       </AnimatePresence>
+
+      {tournament.campStartDate ? (
+        <CampBanner
+          date={tournament.campStartDate}
+          signupLink={tournament.campSignupLink || "#"}
+          bannerImage={tournament.assets.campBannerImage}
+          leftPosterImage={tournament.assets.campPosterLeft}
+          rightPosterImage={tournament.assets.campPosterRight}
+        />
+      ) : null}
     </div>
   );
 }

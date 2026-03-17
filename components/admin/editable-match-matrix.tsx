@@ -7,43 +7,46 @@ type EditableMatchMatrixProps = {
   group: Group;
   onUpdateCell: (
     groupKey: string,
-    homeTeamId: string,
-    awayTeamId: string,
+    teamAId: string,
+    teamBId: string,
     value: string
   ) => void;
 };
 
-function findMatches(group: Group, homeTeamId: string, awayTeamId: string): Match[] {
-  return group.matches.filter(
-    (item) => item.homeTeamId === homeTeamId && item.awayTeamId === awayTeamId
+function findMatch(group: Group, teamAId: string, teamBId: string): Match | null {
+  return (
+    group.matches.find(
+      (item) =>
+        (item.homeTeamId === teamAId && item.awayTeamId === teamBId) ||
+        (item.homeTeamId === teamBId && item.awayTeamId === teamAId)
+    ) ?? null
   );
 }
 
-function buildCellValue(matches: Match[]) {
-  if (matches.length === 0) return "";
-  return `${matches[0].homeScore}:${matches[0].awayScore}`;
+function buildCellValue(match: Match | null, rowTeamId: string) {
+  if (!match) return "";
+
+  const isRowHome = match.homeTeamId === rowTeamId;
+  const leftScore = isRowHome ? match.homeScore : match.awayScore;
+  const rightScore = isRowHome ? match.awayScore : match.homeScore;
+
+  return `${leftScore}:${rightScore}`;
 }
 
-function getTone(matches: Match[], rowTeamId: string) {
-  if (matches.length === 0) {
+function getTone(match: Match | null, rowTeamId: string) {
+  if (!match) {
     return "border-slate-200 bg-slate-50 text-slate-500";
   }
 
-  const totals = matches.reduce(
-    (acc, match) => {
-      const isHome = match.homeTeamId === rowTeamId;
-      acc.scored += isHome ? match.homeScore : match.awayScore;
-      acc.conceded += isHome ? match.awayScore : match.homeScore;
-      return acc;
-    },
-    { scored: 0, conceded: 0 }
-  );
+  const isRowHome = match.homeTeamId === rowTeamId;
+  const scored = isRowHome ? match.homeScore : match.awayScore;
+  const conceded = isRowHome ? match.awayScore : match.homeScore;
 
-  if (totals.scored > totals.conceded) {
+  if (scored > conceded) {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (totals.scored < totals.conceded) {
+  if (scored < conceded) {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
@@ -90,24 +93,39 @@ function TeamLogo({
 
 function EditableCell({
   groupKey,
-  homeTeamId,
-  awayTeamId,
+  rowTeamId,
+  colTeamId,
   initialValue,
   toneClassName,
+  isEditable,
   onUpdateCell,
 }: {
   groupKey: string;
-  homeTeamId: string;
-  awayTeamId: string;
+  rowTeamId: string;
+  colTeamId: string;
   initialValue: string;
   toneClassName: string;
+  isEditable: boolean;
   onUpdateCell: (
     groupKey: string,
-    homeTeamId: string,
-    awayTeamId: string,
+    teamAId: string,
+    teamBId: string,
     value: string
   ) => void;
 }) {
+  if (!isEditable) {
+    return (
+      <div
+        className={[
+          "mx-auto flex min-h-10 min-w-[88px] items-center justify-center rounded-xl border px-2 py-2 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
+          toneClassName,
+        ].join(" ")}
+      >
+        {initialValue || "—"}
+      </div>
+    );
+  }
+
   return (
     <div
       className={[
@@ -118,7 +136,7 @@ function EditableCell({
       <input
         defaultValue={initialValue}
         onChange={(event) =>
-          onUpdateCell(groupKey, homeTeamId, awayTeamId, event.target.value)
+          onUpdateCell(groupKey, rowTeamId, colTeamId, event.target.value)
         }
         placeholder="1:0"
         className="w-full bg-transparent text-center outline-none placeholder:text-slate-400"
@@ -182,8 +200,9 @@ export function EditableMatchMatrix({
 
                 {group.teams.map((colTeam, colIndex) => {
                   const isSame = rowTeam.id === colTeam.id;
-                  const matches = findMatches(group, rowTeam.id, colTeam.id);
+                  const match = findMatch(group, rowTeam.id, colTeam.id);
                   const isLastCol = colIndex === group.teams.length - 1;
+                  const isEditable = rowIndex < colIndex;
 
                   return (
                     <td
@@ -201,10 +220,11 @@ export function EditableMatchMatrix({
                       ) : (
                         <EditableCell
                           groupKey={group.key}
-                          homeTeamId={rowTeam.id}
-                          awayTeamId={colTeam.id}
-                          initialValue={buildCellValue(matches)}
-                          toneClassName={getTone(matches, rowTeam.id)}
+                          rowTeamId={rowTeam.id}
+                          colTeamId={colTeam.id}
+                          initialValue={buildCellValue(match, rowTeam.id)}
+                          toneClassName={getTone(match, rowTeam.id)}
+                          isEditable={isEditable}
                           onUpdateCell={onUpdateCell}
                         />
                       )}

@@ -1,7 +1,6 @@
-// lib/airtable.ts
 import "server-only";
 
-import type { Group, Match, Team, Tournament } from "@/types/tournament";
+import type { Group, Match, Scorer, Team, Tournament } from "@/types/tournament";
 
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
@@ -10,6 +9,7 @@ const AIRTABLE_TOURNAMENTS_TABLE =
   process.env.AIRTABLE_TOURNAMENTS_TABLE ?? "Tournaments";
 const AIRTABLE_TEAMS_TABLE = process.env.AIRTABLE_TEAMS_TABLE ?? "Teams";
 const AIRTABLE_MATCHES_TABLE = process.env.AIRTABLE_MATCHES_TABLE ?? "Matches";
+const AIRTABLE_SCORERS_TABLE = process.env.AIRTABLE_SCORERS_TABLE ?? "Scorers";
 
 type AirtableRecord<TFields> = {
   id: string;
@@ -27,8 +27,17 @@ type TournamentFields = {
   slug?: string;
   title?: string;
   isActive?: boolean;
+
   scheduleImage?: AirtableAttachment[];
   regulationImage?: AirtableAttachment[];
+
+  heroBannerImage?: AirtableAttachment[];
+  campBannerImage?: AirtableAttachment[];
+  campPosterLeft?: AirtableAttachment[];
+  campPosterRight?: AirtableAttachment[];
+
+  campStartDate?: string;
+  campSignupLink?: string;
 };
 
 type TeamFields = {
@@ -53,6 +62,15 @@ type MatchFields = {
   awayTeamIdLookup?: string[];
   homeScore?: number;
   awayScore?: number;
+};
+
+type ScorerFields = {
+  tournamentSlug?: string;
+  scorerId?: string;
+  playerName?: string;
+  jerseyNumber?: number;
+  goals?: number;
+  teamId?: string;
 };
 
 function isAirtableConfigured() {
@@ -170,6 +188,36 @@ function mapMatches(records: AirtableRecord<MatchFields>[]): Match[] {
     .filter(Boolean) as Match[];
 }
 
+function mapScorers(records: AirtableRecord<ScorerFields>[]): Scorer[] {
+  return records
+    .map((record) => {
+      const fields = record.fields;
+
+      if (
+        !fields.scorerId ||
+        !fields.playerName ||
+        !fields.teamId ||
+        typeof fields.goals !== "number"
+      ) {
+        return null;
+      }
+
+      return {
+        id: fields.scorerId,
+        playerName: fields.playerName,
+        jerseyNumber:
+          typeof fields.jerseyNumber === "number" ? fields.jerseyNumber : undefined,
+        goals: fields.goals,
+        teamId: fields.teamId,
+      } satisfies Scorer;
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (b.goals !== a.goals) return b.goals - a.goals;
+      return a.playerName.localeCompare(b.playerName);
+    }) as Scorer[];
+}
+
 export async function getAirtableTournament(): Promise<Partial<Tournament> | null> {
   if (!isAirtableConfigured()) {
     return null;
@@ -211,8 +259,17 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
     "sort[0][direction]": "asc",
   });
 
+  const scorersRecords = await airtableFetch<ScorerFields>(AIRTABLE_SCORERS_TABLE, {
+    filterByFormula: `{tournamentSlug}="${activeSlug}"`,
+    "sort[0][field]": "goals",
+    "sort[0][direction]": "desc",
+    "sort[1][field]": "playerName",
+    "sort[1][direction]": "asc",
+  });
+
   const groups = mapTeams(teamsRecords);
   const matches = mapMatches(matchesRecords);
+  const scorers = mapScorers(scorersRecords);
 
   for (const group of groups) {
     group.matches = matches.filter((match) => match.group === group.key);
@@ -220,18 +277,42 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
 
   const scheduleAttachment = tournamentRecord.fields.scheduleImage?.[0];
   const regulationAttachment = tournamentRecord.fields.regulationImage?.[0];
+  const heroBannerAttachment = tournamentRecord.fields.heroBannerImage?.[0];
+  const campBannerAttachment = tournamentRecord.fields.campBannerImage?.[0];
+  const campPosterLeftAttachment = tournamentRecord.fields.campPosterLeft?.[0];
+  const campPosterRightAttachment = tournamentRecord.fields.campPosterRight?.[0];
 
   return {
     id: activeSlug,
     title: tournamentRecord.fields.title ?? "Turniej Hokejowy",
+    campStartDate: tournamentRecord.fields.campStartDate ?? "",
+    campSignupLink: tournamentRecord.fields.campSignupLink ?? "",
     assets: {
       scheduleImage: scheduleAttachment?.url ?? "",
       scheduleImageType: scheduleAttachment?.type ?? "",
       scheduleImageName: scheduleAttachment?.filename ?? "",
+
       regulationImage: regulationAttachment?.url ?? "",
       regulationImageType: regulationAttachment?.type ?? "",
       regulationImageName: regulationAttachment?.filename ?? "",
+
+      heroBannerImage: heroBannerAttachment?.url ?? "",
+      heroBannerImageType: heroBannerAttachment?.type ?? "",
+      heroBannerImageName: heroBannerAttachment?.filename ?? "",
+
+      campBannerImage: campBannerAttachment?.url ?? "",
+      campBannerImageType: campBannerAttachment?.type ?? "",
+      campBannerImageName: campBannerAttachment?.filename ?? "",
+
+      campPosterLeft: campPosterLeftAttachment?.url ?? "",
+      campPosterLeftType: campPosterLeftAttachment?.type ?? "",
+      campPosterLeftName: campPosterLeftAttachment?.filename ?? "",
+
+      campPosterRight: campPosterRightAttachment?.url ?? "",
+      campPosterRightType: campPosterRightAttachment?.type ?? "",
+      campPosterRightName: campPosterRightAttachment?.filename ?? "",
     },
     groups,
+    scorers,
   };
 }
