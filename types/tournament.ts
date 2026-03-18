@@ -76,6 +76,8 @@ export type Tournament = {
   assets: TournamentAssets;
   campStartDate?: string;
   campSignupLink?: string;
+  tickerMessage?: string;
+  showTopScorerTicker?: boolean;
 };
 
 export type StandingRow = {
@@ -93,6 +95,10 @@ export type StandingRow = {
   goalsAgainst: number;
   goalDifference: number;
   sourceOrder: number;
+
+  isTieUnresolved?: boolean;
+  tieWithTeamIds?: string[];
+  tieNote?: string;
 };
 
 export type AirtableTournamentPayload = Partial<Tournament>;

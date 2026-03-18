@@ -31,6 +31,8 @@ type TournamentFields = {
 
   campStartDate?: string;
   campSignupLink?: string;
+  tickerMessage?: string;
+  showTopScorerTicker?: boolean;
 };
 
 type TeamFields = {
@@ -180,9 +182,7 @@ async function airtableDelete(tableName: string, recordIds: string[]) {
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(
-        `Airtable delete failed: ${tableName} ${response.status} ${text}`
-      );
+      throw new Error(`Airtable delete failed: ${tableName} ${response.status} ${text}`);
     }
   }
 }
@@ -243,6 +243,8 @@ export async function saveAdminDraft(tournament: Tournament) {
 
     campStartDate: tournament.campStartDate || "",
     campSignupLink: tournament.campSignupLink || "",
+    tickerMessage: tournament.tickerMessage || "",
+    showTopScorerTicker: tournament.showTopScorerTicker ?? true,
   };
 
   if (activeTournamentRecord) {

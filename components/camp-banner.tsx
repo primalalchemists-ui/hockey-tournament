@@ -73,7 +73,7 @@ export function CampBanner({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.7 }}
-      className="my-12"
+      className="mb-12"
     >
       <div className="overflow-hidden pb-10">
         <div className="flex flex-col gap-6 lg:gap-8">
@@ -83,7 +83,7 @@ export function CampBanner({
             viewport={{ once: true }}
             transition={{ duration: 0.55, delay: 0.08 }}
           >
-            <div className="relative aspect-[16/8] w-full overflow-hidden md:rounded-[26px] md:border border-amber-300/40 shadow-[0_26px_80px_-30px_rgba(15,23,42,0.4)] sm:aspect-[16/7] lg:aspect-[16/5.2]">
+            <div className="relative aspect-[16/8] w-full overflow-hidden  md:border border-amber-300/40 shadow-[0_26px_80px_-30px_rgba(15,23,42,0.4)] sm:aspect-[16/7] lg:aspect-[16/5.2]">
               <Image
                 src={bannerSrc}
                 alt="Najbliższy obóz"
@@ -143,6 +143,8 @@ export function CampBanner({
               scrollToTop={scrollToTop}
             />
           </div>
+
+          <PoweredBySection />
         </div>
       </div>
     </motion.section>
@@ -234,6 +236,68 @@ function CenterContent({
   );
 }
 
+function PoweredBySection() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.55, delay: 0.2 }}
+      className="pt-4"
+    >
+      <div className="flex flex-col items-center justify-center text-center">
+        <ReflectiveLabel text="Powered by" />
+
+        <motion.div
+          whileHover={{ y: -2, scale: 1.02 }}
+          transition={{ duration: 0.2 }}
+          className="relative mt-4"
+        >
+          <div className="relative h-[130px] w-[190px] sm:h-[155px] sm:w-[225px] lg:h-[185px] lg:w-[270px] xl:h-[210px] xl:w-[300px]">
+            <Image
+              src="/icons/festiwal-logo.png"
+              alt="Festiwal Hokeja"
+              fill
+              className="object-contain"
+            />
+          </div>
+
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 overflow-hidden opacity-20 blur-[2px]"
+          >
+            <div className="relative h-[85px] w-[140px] scale-y-[-1] sm:h-[100px] sm:w-[165px] lg:h-[120px] lg:w-[195px] xl:h-[132px] xl:w-[215px]">
+              <Image
+                src="/icons/festiwal-logo.png"
+                alt=""
+                fill
+                className="object-contain"
+              />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+function ReflectiveLabel({ text }: { text: string }) {
+  return (
+    <div className="relative w-fit">
+      <div className="text-lg font-semibold tracking-[0.08em] text-slate-700 sm:text-xl">
+        {text}
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-0 top-full mt-1 w-full scale-y-[-1] select-none overflow-hidden opacity-20 blur-[1.6px]"
+      >
+        <div className="text-lg font-semibold tracking-[0.08em] text-slate-700 sm:text-xl">
+          {text}
+        </div>
+      </div>
+    </div>
+  );
+}
 function PosterCardMobile({
   src,
   alt,
@@ -371,4 +435,4 @@ function usePrevious<T>(value: T) {
   }, [value]);
 
   return ref.current;
-} 
+}

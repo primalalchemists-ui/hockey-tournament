@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Pencil, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
@@ -13,19 +13,28 @@ import { RegulationSection } from "@/components/regulation-section";
 import { ScheduleSection } from "@/components/schedule-section";
 import type { Tournament } from "@/types/tournament";
 
-type MainTab = "live" | "schedule" | "regulation" | "scorers" | "camp";
+type MainTab =
+  | "live"
+  | "schedule"
+  | "regulation"
+  | "scorers"
+  | "camp"
+  | "ticker";
 
 type AdminShellProps = {
   tournament: Tournament;
 };
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
-  { key: "live", label: "Tabela Live" },
+  { key: "live", label: "Tabela" },
   { key: "scorers", label: "Strzelcy" },
   { key: "schedule", label: "Harmonogram" },
   { key: "regulation", label: "Regulamin" },
   { key: "camp", label: "Camp i bannery" },
+  { key: "ticker", label: "Pasek info" },
 ];
+
+const TICKER_SEPARATOR = " • ";
 
 function cloneTournament(tournament: Tournament): Tournament {
   return JSON.parse(JSON.stringify(tournament)) as Tournament;
@@ -80,7 +89,11 @@ function PreviewImage({
   }
 
   return (
-    <div className={["overflow-hidden rounded-3xl border border-slate-200 bg-white", className].join(" ")}>
+    <div
+      className={["overflow-hidden rounded-3xl border border-slate-200 bg-white", className].join(
+        " "
+      )}
+    >
       <img src={src} alt={alt} className="h-full w-full object-cover" />
     </div>
   );
@@ -90,9 +103,14 @@ export function AdminShell({ tournament }: AdminShellProps) {
   const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
   const [activeTab, setActiveTab] = useState<MainTab>("live");
   const [isPending, startTransition] = useTransition();
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "error">(
+    "idle"
+  );
   const [deletePublicIds, setDeletePublicIds] = useState<string[]>([]);
+  const [separatorCopied, setSeparatorCopied] = useState(false);
 
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const regulationInputRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +128,16 @@ export function AdminShell({ tournament }: AdminShellProps) {
 
     return () => window.clearTimeout(timeout);
   }, [saveStatus]);
+
+  useEffect(() => {
+    if (!separatorCopied) return;
+
+    const timeout = window.setTimeout(() => {
+      setSeparatorCopied(false);
+    }, 1500);
+
+    return () => window.clearTimeout(timeout);
+  }, [separatorCopied]);
 
   function queueDelete(publicId?: string) {
     if (!publicId) return;
@@ -154,9 +182,33 @@ export function AdminShell({ tournament }: AdminShellProps) {
     };
   }
 
+  async function handleCopySeparator() {
+    try {
+      await navigator.clipboard.writeText(TICKER_SEPARATOR);
+      setSeparatorCopied(true);
+    } catch (error) {
+      console.error(error);
+      setSeparatorCopied(false);
+    }
+  }
+
   function handleChangeTitle(value: string) {
     updateDraft((prev) => {
       prev.title = value;
+      return prev;
+    });
+  }
+
+  function handleChangeTickerMessage(value: string) {
+    updateDraft((prev) => {
+      prev.tickerMessage = value;
+      return prev;
+    });
+  }
+
+  function handleToggleShowTopScorerTicker(value: boolean) {
+    updateDraft((prev) => {
+      prev.showTopScorerTicker = value;
       return prev;
     });
   }
@@ -573,6 +625,8 @@ export function AdminShell({ tournament }: AdminShellProps) {
       scorers: [],
       campStartDate: "",
       campSignupLink: "",
+      tickerMessage: "",
+      showTopScorerTicker: true,
       assets: {
         scheduleImage: "",
         scheduleImageType: "",
@@ -619,6 +673,25 @@ export function AdminShell({ tournament }: AdminShellProps) {
   }
 
   const allTeams = draft.groups.flatMap((group) => group.teams);
+
+  const tickerPreview = useMemo(() => {
+    const message = (draft.tickerMessage ?? "").trim();
+    const hasScorer = draft.showTopScorerTicker !== false;
+
+    if (message && hasScorer) {
+      return `${message} 🏒 • 👑 KRÓL STRZELCÓW • PRZYKŁADOWY ZAWODNIK #15 • 6 GOLI • PRZYKŁADOWA DRUŻYNA 🔥`;
+    }
+
+    if (message) {
+      return `${message} 🏒`;
+    }
+
+    if (hasScorer) {
+      return "👑 KRÓL STRZELCÓW • PRZYKŁADOWY ZAWODNIK #15 • 6 GOLI • PRZYKŁADOWA DRUŻYNA 🔥";
+    }
+
+    return "Pasek będzie ukryty, bo nie ma komunikatu i król strzelców jest wyłączony.";
+  }, [draft.tickerMessage, draft.showTopScorerTicker]);
 
   const content = useMemo(() => {
     if (activeTab === "schedule") {
@@ -982,6 +1055,66 @@ export function AdminShell({ tournament }: AdminShellProps) {
       );
     }
 
+    if (activeTab === "ticker") {
+      return (
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-slate-900">Pasek info</h2>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">Separator</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Użyj tego między fragmentami komunikatu: <span className="font-bold">{TICKER_SEPARATOR}</span>
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopySeparator}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+            >
+              {separatorCopied ? <Check size={16} /> : <Copy size={16} />}
+              {separatorCopied ? "Skopiowano" : "Kopiuj separator"}
+            </button>
+          </div>
+
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <input
+              type="checkbox"
+              checked={draft.showTopScorerTicker ?? true}
+              onChange={(event) => handleToggleShowTopScorerTicker(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span className="text-sm font-semibold text-slate-800">
+              Pokaż króla strzelców
+            </span>
+          </label>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700">
+              Treść komunikatu
+            </label>
+            <textarea
+              value={draft.tickerMessage ?? ""}
+              onChange={(event) => handleChangeTickerMessage(event.target.value)}
+              placeholder={`Np. Zapraszamy na finały o 17:30${TICKER_SEPARATOR}Wstęp wolny${TICKER_SEPARATOR}Partner wydarzenia: Festiwal Hokeja`}
+              rows={5}
+              className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
+            />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-3 text-sm font-semibold text-slate-700">Podgląd:</p>
+            <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] text-white overflow-x-auto whitespace-nowrap">
+              {tickerPreview}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
     if (activeTab === "scorers") {
       return (
         <ScorersManager
@@ -1006,7 +1139,7 @@ export function AdminShell({ tournament }: AdminShellProps) {
         onUpdateCell={handleUpdateCell}
       />
     );
-  }, [activeTab, draft, allTeams]);
+  }, [activeTab, draft, allTeams, separatorCopied, tickerPreview]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1106,5 +1239,4 @@ export function AdminShell({ tournament }: AdminShellProps) {
       </AnimatePresence>
     </div>
   );
-} 
-
+}

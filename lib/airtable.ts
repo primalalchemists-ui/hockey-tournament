@@ -38,6 +38,8 @@ type TournamentFields = {
 
   campStartDate?: string;
   campSignupLink?: string;
+  tickerMessage?: string;
+  showTopScorerTicker?: boolean;
 };
 
 type TeamFields = {
@@ -287,6 +289,8 @@ export async function getAirtableTournament(): Promise<Partial<Tournament> | nul
     title: tournamentRecord.fields.title ?? "Turniej Hokejowy",
     campStartDate: tournamentRecord.fields.campStartDate ?? "",
     campSignupLink: tournamentRecord.fields.campSignupLink ?? "",
+    tickerMessage: tournamentRecord.fields.tickerMessage ?? "",
+    showTopScorerTicker: tournamentRecord.fields.showTopScorerTicker ?? true,
     assets: {
       scheduleImage: scheduleAttachment?.url ?? "",
       scheduleImageType: scheduleAttachment?.type ?? "",

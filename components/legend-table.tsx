@@ -1,4 +1,3 @@
-// components/legend-table.tsx
 export function LegendTable() {
   const items = [
     { key: "M", label: "Mecze rozegrane" },
@@ -8,7 +7,12 @@ export function LegendTable() {
     { key: "Pkt", label: "Punkty" },
     { key: "G+", label: "Bramki zdobyte" },
     { key: "G-", label: "Bramki stracone" },
-    { key: "Bil.", label: "Bilans bramek (G+ minus G-)" },
+    { key: "Bil.", label: "Różnica bramek (G+ minus G-)" },
+    // {
+    //   key: "?",
+    //   label:
+    //     "Remis nierozstrzygnięty po zastosowaniu wszystkich kryteriów tabeli — o kolejności decydują rzuty karne.",
+    // },
   ];
 
   return (
@@ -30,9 +34,7 @@ export function LegendTable() {
                 {item.key}
               </span>
 
-              <span className="text-sm text-slate-700">
-                {item.label}
-              </span>
+              <span className="text-sm text-slate-700">{item.label}</span>
             </div>
           ))}
         </div>

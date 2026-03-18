@@ -1,4 +1,3 @@
-// components/standings-table.tsx
 import type { StandingRow } from "@/types/tournament";
 
 type StandingsTableProps = {
@@ -6,8 +5,19 @@ type StandingsTableProps = {
   rows: StandingRow[];
 };
 
-function renderPositionBadge(position: number) {
-  if (position === 1) {
+function renderPositionBadge(row: StandingRow) {
+  if (row.isTieUnresolved) {
+    return (
+      <span
+        title={row.tieNote ?? "Miejsce nierozstrzygnięte"}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-base font-bold text-amber-700 shadow-sm"
+      >
+        ?
+      </span>
+    );
+  }
+
+  if (row.position === 1) {
     return (
       <img
         src="/images/medals/gold.png"
@@ -17,7 +27,7 @@ function renderPositionBadge(position: number) {
     );
   }
 
-  if (position === 2) {
+  if (row.position === 2) {
     return (
       <img
         src="/images/medals/silver.png"
@@ -27,7 +37,7 @@ function renderPositionBadge(position: number) {
     );
   }
 
-  if (position === 3) {
+  if (row.position === 3) {
     return (
       <img
         src="/images/medals/bronze.png"
@@ -39,16 +49,34 @@ function renderPositionBadge(position: number) {
 
   return (
     <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm">
-      {position}
+      {row.position}
     </span>
   );
 }
 
 export function StandingsTable({ groupName, rows }: StandingsTableProps) {
+  const unresolvedRows = rows.filter((row) => row.isTieUnresolved);
+
+  const uniqueNotes = Array.from(
+    new Set(
+      unresolvedRows
+        .map((row) => row.tieNote)
+        .filter((note): note is string => Boolean(note))
+    )
+  );
+
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
         <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
+
+        {uniqueNotes.length > 0 && (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {uniqueNotes.map((note) => (
+              <p key={note}>{note}</p>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="overflow-x-auto">
@@ -75,9 +103,7 @@ export function StandingsTable({ groupName, rows }: StandingsTableProps) {
                 className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}
               >
                 <td className="px-3 py-3 text-center">
-                  <div className="flex justify-center">
-                    {renderPositionBadge(row.position)}
-                  </div>
+                  <div className="flex justify-center">{renderPositionBadge(row)}</div>
                 </td>
 
                 <td className="px-3 py-3">
@@ -96,7 +122,15 @@ export function StandingsTable({ groupName, rows }: StandingsTableProps) {
                       )}
                     </div>
 
-                    <span className="font-medium text-slate-900">{row.teamName}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-slate-900">{row.teamName}</span>
+
+                      {row.isTieUnresolved && row.tieNote && (
+                        <span className="text-xs font-medium text-amber-700">
+                          O miejscu decydują rzuty karne
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
 
