@@ -1,18 +1,16 @@
-// app/layout.tsx
-
 import "./globals.css";
 import type { Metadata } from "next";
-import { Lato } from "next/font/google";
+import { Inter } from "next/font/google";
 
-const lato = Lato({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "700", "900"],
-  variable: "--font-lato",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Tournament App",
+  title: "Wyniki Live",
   description: "Tabela grup, wyniki, harmonogram i regulamin",
 };
 
@@ -23,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pl">
-      <body className={lato.variable}>
+      <body className={inter.variable}>
         {children}
       </body>
     </html>

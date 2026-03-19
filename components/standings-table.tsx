@@ -1,6 +1,10 @@
+"use client";
+
+import { ShareTableButton } from "@/components/ShareTableButton";
 import type { StandingRow } from "@/types/tournament";
 
 type StandingsTableProps = {
+  groupKey: string;
   groupName: string;
   rows: StandingRow[];
 };
@@ -54,7 +58,10 @@ function renderPositionBadge(row: StandingRow) {
   );
 }
 
-export function StandingsTable({ groupName, rows }: StandingsTableProps) {
+export function StandingsTable({
+  groupName,
+  rows,
+}: StandingsTableProps) {
   const unresolvedRows = rows.filter((row) => row.isTieUnresolved);
 
   const uniqueNotes = Array.from(
@@ -68,7 +75,17 @@ export function StandingsTable({ groupName, rows }: StandingsTableProps) {
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
+
+            {groupName ? (
+              <p className="mt-1 text-sm text-slate-500">{groupName}</p>
+            ) : null}
+          </div>
+
+          <ShareTableButton shareText={`Sprawdź ranking grupy ${groupName}`} />
+        </div>
 
         {uniqueNotes.length > 0 && (
           <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

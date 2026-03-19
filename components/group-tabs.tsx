@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { MatchMatrix } from "@/components/match-matrix";
 import { StandingsTable } from "@/components/standings-table";
@@ -18,10 +19,23 @@ import type { Group } from "@/types/tournament";
 
 type GroupTabsProps = {
   groups: Group[];
+  initialGroupKey?: string;
 };
 
-export function GroupTabs({ groups }: GroupTabsProps) {
-  const [activeGroup, setActiveGroup] = useState(groups[0]?.key);
+export function GroupTabs({ groups, initialGroupKey }: GroupTabsProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [activeGroup, setActiveGroup] = useState(
+    searchParams.get("group") || initialGroupKey || groups[0]?.key
+  );
+
+  useEffect(() => {
+    const groupFromUrl = searchParams.get("group");
+    if (groupFromUrl) {
+      setActiveGroup(groupFromUrl);
+    }
+  }, [searchParams]);
 
   const currentGroup = useMemo(
     () => groups.find((group) => group.key === activeGroup) ?? groups[0],
@@ -38,35 +52,45 @@ export function GroupTabs({ groups }: GroupTabsProps) {
     return calculateStandings(displayedGroup);
   }, [displayedGroup]);
 
+  function handleGroupChange(groupKey: string) {
+    setActiveGroup(groupKey);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "live");
+    params.set("group", groupKey);
+
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }
+
   if (!displayedGroup) return null;
 
   return (
     <section className="space-y-4">
       <div className="-mx-4 md:mx-0">
-  <div className="overflow-x-auto">
-    <div className="inline-flex min-w-full gap-2 bg-white p-4 shadow-sm">
-      {groups.map((group) => {
-        const isActive = group.key === displayedGroup.key;
+        <div className="overflow-x-auto">
+          <div className="inline-flex min-w-full gap-2 bg-white p-4 shadow-sm">
+            {groups.map((group) => {
+              const isActive = group.key === displayedGroup.key;
 
-        return (
-          <button
-            key={group.key}
-            type="button"
-            onClick={() => setActiveGroup(group.key)}
-            className={[
-              "rounded-2xl px-4 py-3 text-sm font-semibold whitespace-nowrap transition",
-              isActive
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200",
-            ].join(" ")}
-          >
-            {group.name}
-          </button>
-        );
-      })}
-    </div>
-  </div>
-</div>
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => handleGroupChange(group.key)}
+                  className={[
+                    "whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-semibold transition",
+                    isActive
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                  ].join(" ")}
+                >
+                  {group.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {STANDINGS_TEST_MODE && (
         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
@@ -84,7 +108,12 @@ export function GroupTabs({ groups }: GroupTabsProps) {
           transition={{ duration: 0.2 }}
           className="space-y-4"
         >
-          <StandingsTable groupName={displayedGroup.name} rows={standings} />
+          <StandingsTable
+            groupKey={displayedGroup.key}
+            groupName={displayedGroup.name}
+            rows={standings}
+          />
+
           <LegendTable />
           <MatchMatrix group={displayedGroup} />
         </motion.div>

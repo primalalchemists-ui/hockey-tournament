@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { CampBanner } from "@/components/camp-banner";
 import { GroupTabs } from "@/components/group-tabs";
@@ -16,6 +17,8 @@ type MainTab = "live" | "schedule" | "regulation" | "scorers";
 
 type TournamentShellProps = {
   tournament: Tournament;
+  initialTab?: MainTab;
+  initialGroupKey?: string;
 };
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
@@ -25,14 +28,49 @@ const mainTabs: Array<{ key: MainTab; label: string }> = [
   { key: "regulation", label: "Regulamin" },
 ];
 
-export function TournamentShell({ tournament }: TournamentShellProps) {
-  const [activeTab, setActiveTab] = useState<MainTab>("live");
+export function TournamentShell({
+  tournament,
+  initialTab = "live",
+  initialGroupKey,
+}: TournamentShellProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
   const [headerReady, setHeaderReady] = useState(false);
 
   const allTeams = useMemo(
     () => tournament.groups.flatMap((group) => group.teams),
     [tournament.groups]
   );
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab");
+
+    if (
+      tabFromUrl === "live" ||
+      tabFromUrl === "schedule" ||
+      tabFromUrl === "regulation" ||
+      tabFromUrl === "scorers"
+    ) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  function handleTabChange(tab: MainTab) {
+    setActiveTab(tab);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+
+    if (tab !== "live") {
+      params.delete("group");
+    } else if (!params.get("group") && initialGroupKey) {
+      params.set("group", initialGroupKey);
+    }
+
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }
 
   const content = useMemo(() => {
     if (activeTab === "schedule") {
@@ -56,11 +94,21 @@ export function TournamentShell({ tournament }: TournamentShellProps) {
     }
 
     if (activeTab === "scorers") {
-      return <ScorersTable scorers={tournament.scorers ?? []} teams={allTeams} />;
+      return (
+        <ScorersTable
+          scorers={tournament.scorers ?? []}
+          teams={allTeams}
+        />
+      );
     }
 
-    return <GroupTabs groups={tournament.groups} />;
-  }, [activeTab, tournament, allTeams]);
+    return (
+      <GroupTabs
+        groups={tournament.groups}
+        initialGroupKey={initialGroupKey}
+      />
+    );
+  }, [activeTab, tournament, allTeams, initialGroupKey]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -85,7 +133,7 @@ export function TournamentShell({ tournament }: TournamentShellProps) {
             transition={{ duration: 0.28 }}
             className="space-y-4 sm:space-y-6"
           >
-            <nav className="overflow-x-auto -mx-4 sm:mx-0">
+            <nav className="-mx-4 overflow-x-auto sm:mx-0">
               <div className="inline-flex min-w-full gap-2 bg-white p-4 shadow-sm">
                 {mainTabs.map((tab) => {
                   const isActive = tab.key === activeTab;
@@ -94,9 +142,9 @@ export function TournamentShell({ tournament }: TournamentShellProps) {
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setActiveTab(tab.key)}
+                      onClick={() => handleTabChange(tab.key)}
                       className={[
-                        "rounded-2xl px-4 py-3 text-sm font-semibold whitespace-nowrap transition sm:px-5",
+                        "whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-semibold transition sm:px-5",
                         isActive
                           ? "bg-slate-900 text-white shadow-sm"
                           : "bg-slate-100 text-slate-700 hover:bg-slate-200",

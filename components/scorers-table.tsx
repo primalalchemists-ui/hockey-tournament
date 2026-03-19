@@ -1,3 +1,6 @@
+"use client";
+
+import { ShareTableButton } from "@/components/ShareTableButton";
 import type { Scorer, Team } from "@/types/tournament";
 
 type ScorersTableProps = {
@@ -61,7 +64,11 @@ export function ScorersTable({ scorers, teams }: ScorersTableProps) {
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <h2 className="text-lg font-semibold text-slate-900">Strzelcy</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Strzelcy</h2>
+
+          <ShareTableButton shareText="Sprawdź TOP 5 najlepszych strzelców" />
+        </div>
       </div>
 
       <div className="overflow-x-auto">
