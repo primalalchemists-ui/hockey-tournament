@@ -10,7 +10,9 @@ export async function GET() {
 
     return NextResponse.json(tournament, {
     headers: {
-      "Cache-Control": "no-store",
+      // "Cache-Control": "no-store",
+      // cache na CDN (Vercel edge)
+      "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
     },
   });
 }
