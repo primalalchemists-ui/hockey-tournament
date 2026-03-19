@@ -2,10 +2,16 @@ export type SharePreviewRow = {
   position: string | number;
   label: string;
   secondary?: string;
-  value: string | number;
-  extra?: string;
   logoUrl?: string;
   logoText?: string;
+
+  wins?: string | number;
+  losses?: string | number;
+  points?: string | number;
+  goals?: string | number;
+
+  value?: string | number;
+  extra?: string | number;
 };
 
 export function normalizeLogoUrlForServer(

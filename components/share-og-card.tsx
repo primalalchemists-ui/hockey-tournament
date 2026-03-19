@@ -4,9 +4,71 @@ type ShareOgCardProps = {
   title: string;
   subtitle: string;
   rows: SharePreviewRow[];
+  bannerUrl?: string;
+  mode: "ranking" | "scorers";
 };
 
-export function ShareOgCard({ title, subtitle, rows }: ShareOgCardProps) {
+function HeaderCell({
+  width,
+  label,
+}: {
+  width: string;
+  label: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        width,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+function Cell({
+  width,
+  children,
+  justify = "center",
+  fontSize = 24,
+  fontWeight = 800,
+  color = "#ffffff",
+}: {
+  width: string;
+  children: React.ReactNode;
+  justify?: "center" | "flex-start" | "flex-end";
+  fontSize?: number;
+  fontWeight?: number;
+  color?: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        width,
+        justifyContent: justify,
+        alignItems: "center",
+        fontSize,
+        fontWeight,
+        color,
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function ShareOgCard({
+  title,
+  subtitle,
+  rows,
+  bannerUrl,
+  mode,
+}: ShareOgCardProps) {
   return (
     <div
       style={{
@@ -14,202 +76,343 @@ export function ShareOgCard({ title, subtitle, rows }: ShareOgCardProps) {
         height: "630px",
         display: "flex",
         position: "relative",
-        background:
-          "linear-gradient(135deg, #020617 0%, #0f172a 45%, #172554 100%)",
+        background: "#020617",
         color: "#ffffff",
         fontFamily: "Arial, sans-serif",
+        overflow: "hidden",
       }}
     >
+      {bannerUrl ? (
+        <img
+          src={bannerUrl}
+          alt="Banner"
+          width="1200"
+          height="630"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+      ) : null}
+
       <div
         style={{
+          display: "flex",
           position: "absolute",
           inset: 0,
           background:
-            "radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 30%), radial-gradient(circle at bottom right, rgba(255,255,255,0.06), transparent 25%)",
+            "linear-gradient(135deg, rgba(2,6,23,0.80) 0%, rgba(15,23,42,0.78) 40%, rgba(23,37,84,0.72) 100%)",
         }}
       />
 
       <div
         style={{
+          display: "flex",
           position: "absolute",
-          inset: "38px",
+          inset: "24px",
           borderRadius: "28px",
           border: "1px solid rgba(255,255,255,0.10)",
-          background: "rgba(15,23,42,0.78)",
-          padding: "28px",
-          display: "flex",
+          background: "rgba(15,23,42,0.62)",
+          padding: "24px",
           flexDirection: "column",
         }}
       >
-        <div style={{ marginBottom: "20px" }}>
-          <div style={{ fontSize: "44px", fontWeight: 800 }}>{title}</div>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            marginBottom: "18px",
+          }}
+        >
           <div
             style={{
-              marginTop: "10px",
-              fontSize: "24px",
+              display: "flex",
+              fontSize: "46px",
+              fontWeight: 800,
+              lineHeight: 1,
+            }}
+          >
+            {title}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              marginTop: "12px",
+              fontSize: "22px",
               fontWeight: 600,
-              color: "rgba(255,255,255,0.78)",
+              color: "rgba(255,255,255,0.82)",
             }}
           >
             {subtitle}
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            height: "52px",
-            alignItems: "center",
-            borderRadius: "16px 16px 0 0",
-            background: "rgba(255,255,255,0.12)",
-            padding: "0 18px",
-            fontSize: "20px",
-            fontWeight: 700,
-            color: "rgba(255,255,255,0.86)",
-          }}
-        >
-          <div style={{ width: "90px", textAlign: "center" }}>Poz.</div>
-          <div style={{ flex: 1 }}>Nazwa</div>
-          <div style={{ width: "150px", textAlign: "center" }}>Wartość</div>
-          <div style={{ width: "130px", textAlign: "center" }}>Extra</div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderTop: "none",
-            borderRadius: "0 0 18px 18px",
-            overflow: "hidden",
-          }}
-        >
-          {rows.slice(0, 5).map((row, index) => (
+        {mode === "ranking" ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              width: "100%",
+              borderRadius: "20px",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
             <div
-              key={`${row.label}-${index}`}
               style={{
                 display: "flex",
+                height: "58px",
                 alignItems: "center",
-                minHeight: "76px",
                 padding: "0 18px",
-                background:
-                  index % 2 === 0
-                    ? "rgba(255,255,255,0.03)"
-                    : "rgba(255,255,255,0.01)",
-                borderTop:
-                  index === 0 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.12)",
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "rgba(255,255,255,0.88)",
               }}
             >
+              <HeaderCell width="90px" label="Poz." />
               <div
                 style={{
-                  width: "90px",
-                  textAlign: "center",
-                  fontSize: "30px",
-                  fontWeight: 800,
+                  display: "flex",
+                  width: "560px",
+                  alignItems: "center",
                 }}
               >
-                {row.position}
+                Drużyna
               </div>
+              <HeaderCell width="90px" label="W" />
+              <HeaderCell width="90px" label="P" />
+              <HeaderCell width="110px" label="PKT" />
+              <HeaderCell width="170px" label="Bramki" />
+            </div>
 
+            {rows.slice(0, 5).map((row, index) => (
               <div
+                key={`${row.label}-${index}`}
                 style={{
-                  flex: 1,
                   display: "flex",
                   alignItems: "center",
-                  gap: "14px",
-                  minWidth: 0,
+                  minHeight: "78px",
+                  padding: "0 18px",
+                  background:
+                    index % 2 === 0
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.025)",
+                  borderTop:
+                    index === 0 ? "none" : "1px solid rgba(255,255,255,0.08)",
                 }}
               >
+                <Cell width="90px">{row.position}</Cell>
+
                 <div
                   style={{
-                    width: "48px",
-                    height: "48px",
-                    borderRadius: "12px",
-                    overflow: "hidden",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    background: "rgba(255,255,255,0.08)",
                     display: "flex",
+                    width: "560px",
                     alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    gap: "14px",
+                    overflow: "hidden",
                   }}
                 >
-                  {row.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={row.logoUrl}
-                      alt={row.label}
-                      width="48"
-                      height="48"
-                      style={{ objectFit: "contain" }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: 800,
-                        color: "rgba(255,255,255,0.9)",
-                      }}
-                    >
-                      {row.logoText || "LOGO"}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: "28px",
+                      display: "flex",
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.08)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {row.logoUrl ? (
+                      <img
+                        src={row.logoUrl}
+                        alt={row.label}
+                        width="48"
+                        height="48"
+                        style={{ objectFit: "contain" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          color: "rgba(255,255,255,0.9)",
+                        }}
+                      >
+                        {row.logoText || "LOGO"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      fontSize: "24px",
                       fontWeight: 800,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      maxWidth: "620px",
                     }}
                   >
                     {row.label}
                   </div>
-
-                  {row.secondary ? (
-                    <div
-                      style={{
-                        marginTop: "4px",
-                        fontSize: "17px",
-                        fontWeight: 600,
-                        color: "rgba(255,255,255,0.64)",
-                      }}
-                    >
-                      {row.secondary}
-                    </div>
-                  ) : null}
                 </div>
-              </div>
 
+                <Cell width="90px">{row.wins ?? 0}</Cell>
+                <Cell width="90px">{row.losses ?? 0}</Cell>
+                <Cell width="110px" fontSize={26}>
+                  {row.points ?? 0}
+                </Cell>
+                <Cell
+                  width="170px"
+                  fontSize={20}
+                  fontWeight={700}
+                  color="rgba(255,255,255,0.90)"
+                >
+                  {row.goals ?? "0:0"}
+                </Cell>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              width: "100%",
+              borderRadius: "20px",
+              overflow: "hidden",
+              border: "1px solid rgba(255,255,255,0.10)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                height: "58px",
+                alignItems: "center",
+                padding: "0 18px",
+                background: "rgba(255,255,255,0.12)",
+                fontSize: "18px",
+                fontWeight: 700,
+                color: "rgba(255,255,255,0.88)",
+              }}
+            >
+              <HeaderCell width="90px" label="Poz." />
               <div
                 style={{
-                  width: "150px",
-                  textAlign: "center",
-                  fontSize: "28px",
-                  fontWeight: 800,
+                  display: "flex",
+                  width: "620px",
+                  alignItems: "center",
                 }}
               >
-                {row.value}
+                Zawodnik
               </div>
-
-              <div
-                style={{
-                  width: "130px",
-                  textAlign: "center",
-                  fontSize: "22px",
-                  fontWeight: 700,
-                  color: "rgba(255,255,255,0.86)",
-                }}
-              >
-                {row.extra || "—"}
-              </div>
+              <HeaderCell width="260px" label="Drużyna" />
+              <HeaderCell width="120px" label="Bramki" />
             </div>
-          ))}
-        </div>
+
+            {rows.slice(0, 5).map((row, index) => (
+              <div
+                key={`${row.label}-${index}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "78px",
+                  padding: "0 18px",
+                  background:
+                    index % 2 === 0
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.025)",
+                  borderTop:
+                    index === 0 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                }}
+              >
+                <Cell width="90px">{row.position}</Cell>
+
+                <div
+                  style={{
+                    display: "flex",
+                    width: "620px",
+                    alignItems: "center",
+                    gap: "14px",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "12px",
+                      overflow: "hidden",
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      background: "rgba(255,255,255,0.08)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {row.logoUrl ? (
+                      <img
+                        src={row.logoUrl}
+                        alt={row.label}
+                        width="48"
+                        height="48"
+                        style={{ objectFit: "contain" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          fontSize: "11px",
+                          fontWeight: 800,
+                          color: "rgba(255,255,255,0.9)",
+                        }}
+                      >
+                        {row.logoText || "LOGO"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      fontSize: "24px",
+                      fontWeight: 800,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {row.label}
+                  </div>
+                </div>
+
+                <Cell
+                  width="260px"
+                  fontSize={18}
+                  fontWeight={700}
+                  color="rgba(255,255,255,0.88)"
+                >
+                  {row.secondary ?? "Brak drużyny"}
+                </Cell>
+
+                <Cell width="120px" fontSize={26}>
+                  {row.value ?? 0}
+                </Cell>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

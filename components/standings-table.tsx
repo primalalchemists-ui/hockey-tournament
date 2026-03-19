@@ -75,13 +75,13 @@ export function StandingsTable({
   return (
     <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex   items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
 
-            {groupName ? (
+            {/* {groupName ? (
               <p className="mt-1 text-sm text-slate-500">{groupName}</p>
-            ) : null}
+            ) : null} */}
           </div>
 
           <ShareTableButton shareText={`Sprawdź ranking grupy ${groupName}`} />

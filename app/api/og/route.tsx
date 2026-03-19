@@ -5,7 +5,7 @@ import { mergeTournamentData } from "@/lib/merge-data";
 import { calculateStandings } from "@/lib/standings";
 import { normalizeLogoUrlForServer } from "@/lib/share-preview";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 function getSortedScorers(
   scorers: Array<{
@@ -22,72 +22,88 @@ function getSortedScorers(
 }
 
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const tab = url.searchParams.get("tab") || "live";
-  const groupKey = url.searchParams.get("group") || "";
-  const baseUrl = url.origin;
+  try {
+    const url = new URL(request.url);
+    const tab = url.searchParams.get("tab") || "live";
+    const groupKey = url.searchParams.get("group") || "";
+    const baseUrl = url.origin;
 
-  const airtableData = await getAirtableTournament();
-  const tournament = mergeTournamentData(airtableData);
+    const airtableData = await getAirtableTournament();
+    const tournament = mergeTournamentData(airtableData);
 
-  if (tab === "scorers") {
-    const allTeams = tournament.groups.flatMap((group) => group.teams);
-    const teamMap = new Map(allTeams.map((team) => [team.id, team]));
-    const sortedScorers = getSortedScorers(tournament.scorers ?? []);
+    const bannerUrl = normalizeLogoUrlForServer(
+      tournament.assets.heroBannerImage,
+      baseUrl
+    );
 
-    const rows = sortedScorers.slice(0, 5).map((scorer, index) => {
-      const team = teamMap.get(scorer.teamId);
+    if (tab === "scorers") {
+      const allTeams = tournament.groups.flatMap((group) => group.teams);
+      const teamMap = new Map(allTeams.map((team) => [team.id, team]));
+      const sortedScorers = getSortedScorers(tournament.scorers ?? []);
 
-      return {
-        position: index + 1,
-        label: scorer.playerName,
-        secondary: team?.name || "Brak drużyny",
-        value: scorer.goals,
-        extra: team?.shortName || "—",
-        logoUrl: normalizeLogoUrlForServer(team?.logoUrl, baseUrl),
-        logoText: team?.shortName || team?.logoText || "LOGO",
-      };
-    });
+      const rows = sortedScorers.slice(0, 5).map((scorer, index) => {
+        const team = teamMap.get(scorer.teamId);
+
+        return {
+          position: index + 1,
+          label: scorer.playerName,
+          secondary: team?.name || "Brak drużyny",
+          value: scorer.goals,
+          logoUrl: normalizeLogoUrlForServer(team?.logoUrl, baseUrl),
+          logoText: team?.shortName || team?.logoText || "LOGO",
+        };
+      });
+
+      return new ImageResponse(
+        <ShareOgCard
+          mode="scorers"
+          title="Strzelcy"
+          subtitle="TOP 5 najlepszych strzelców"
+          rows={rows}
+          bannerUrl={bannerUrl}
+        />,
+        {
+          width: 1200,
+          height: 630,
+        }
+      );
+    }
+
+    const selectedGroup =
+      tournament.groups.find((group) => group.key === groupKey) ||
+      tournament.groups[0];
+
+    const standings = selectedGroup ? calculateStandings(selectedGroup) : [];
+
+    const rows = standings.slice(0, 5).map((row) => ({
+      position: row.isTieUnresolved ? "?" : row.position,
+      label: row.teamName,
+      wins: row.wins,
+      losses: row.losses,
+      points: row.points,
+      goals: `${row.goalsFor}:${row.goalsAgainst}`,
+      logoUrl: normalizeLogoUrlForServer(row.logoUrl, baseUrl),
+      logoText: row.logoText ?? "LOGO",
+    }));
 
     return new ImageResponse(
       <ShareOgCard
-        title="Strzelcy"
-        subtitle="TOP 5 najlepszych strzelców"
+        mode="ranking"
+        title="Ranking"
+        subtitle={`TOP 5 • ${selectedGroup?.name || "Grupa"}`}
         rows={rows}
+        bannerUrl={bannerUrl}
       />,
       {
         width: 1200,
         height: 630,
       }
     );
+  } catch (error) {
+    console.error("OG route error:", error);
+
+    return new Response("OG image generation failed", {
+      status: 500,
+    });
   }
-
-  const selectedGroup =
-    tournament.groups.find((group) => group.key === groupKey) ||
-    tournament.groups[0];
-
-  const standings = selectedGroup ? calculateStandings(selectedGroup) : [];
-
-  const rows = standings.slice(0, 5).map((row) => ({
-    position: row.isTieUnresolved ? "?" : row.position,
-    label: row.teamName,
-    secondary: `Bramki ${row.goalsFor}:${row.goalsAgainst}`,
-    value: row.points,
-    extra:
-      row.goalDifference > 0 ? `+${row.goalDifference}` : `${row.goalDifference}`,
-    logoUrl: normalizeLogoUrlForServer(row.logoUrl, baseUrl),
-    logoText: row.logoText ?? "LOGO",
-  }));
-
-  return new ImageResponse(
-    <ShareOgCard
-      title="Ranking"
-      subtitle={`TOP 5 • ${selectedGroup?.name || "Grupa"}`}
-      rows={rows}
-    />,
-    {
-      width: 1200,
-      height: 630,
-    }
-  );
 }
