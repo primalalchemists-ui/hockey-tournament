@@ -88,7 +88,7 @@ export async function getActiveTournamentRow() {
   const rows = await getDb()
     .select({ id: tournaments.id, slug: tournaments.slug, title: tournaments.title })
     .from(tournaments)
-    .where(eq(tournaments.isActive, true))
+    .where(eq(tournaments.isCurrent, true))
     .limit(1);
 
   return rows[0] ?? null;

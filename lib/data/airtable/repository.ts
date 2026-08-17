@@ -1,6 +1,11 @@
 import type { Tournament } from "@/types/tournament";
 
-import type { TournamentLoadResult, TournamentRepository } from "../types";
+import {
+  UnsupportedOperationError,
+  type TournamentLoadResult,
+  type TournamentRepository,
+  type TournamentSummary,
+} from "../types";
 import { slugifyTournamentTitle } from "../slug";
 import { getAirtableConfig, isAirtableConfigured } from "./config";
 import {
@@ -99,7 +104,7 @@ async function fetchActiveTournamentBundle(requestInit: RequestInit) {
   };
 }
 
-async function getActiveTournament(): Promise<TournamentLoadResult> {
+async function getCurrentTournament(): Promise<TournamentLoadResult> {
   if (!isAirtableConfigured()) {
     return {
       status: "error",
@@ -116,7 +121,7 @@ async function getActiveTournament(): Promise<TournamentLoadResult> {
 
     return { status: "ok", tournament: bundle.tournament };
   } catch (error) {
-    console.error("[airtableRepo] getActiveTournament failed:", error);
+    console.error("[airtableRepo] getCurrentTournament failed:", error);
 
     return {
       status: "error",
@@ -126,7 +131,54 @@ async function getActiveTournament(): Promise<TournamentLoadResult> {
   }
 }
 
-async function saveTournament(tournament: Tournament) {
+/**
+ * Airtable jest storage'em LEGACY, obsługującym dokładnie jeden turniej.
+ * Jako identyfikatora używamy jego sluga — Airtable nie ma UUID-ów.
+ */
+async function listTournaments(): Promise<TournamentSummary[]> {
+  const result = await getCurrentTournament();
+
+  if (result.status !== "ok" || !result.tournament.id) return [];
+
+  return [
+    {
+      id: result.tournament.id,
+      title: result.tournament.title ?? "Turniej",
+      slug: result.tournament.id,
+      isCurrent: true,
+      archivedAt: null,
+      createdAt: new Date(0).toISOString(),
+    },
+  ];
+}
+
+async function getTournamentById(id: string): Promise<TournamentLoadResult> {
+  const result = await getCurrentTournament();
+
+  if (result.status !== "ok") return result;
+  if (result.tournament.id !== id) return { status: "empty" };
+
+  return result;
+}
+
+async function createTournament(): Promise<{ id: string; slug: string }> {
+  throw new UnsupportedOperationError("createTournament", "airtable");
+}
+
+async function setCurrentTournament(): Promise<void> {
+  throw new UnsupportedOperationError("setCurrentTournament", "airtable");
+}
+
+async function setTournamentArchived(): Promise<void> {
+  throw new UnsupportedOperationError("setTournamentArchived", "airtable");
+}
+
+/**
+ * Zapis zachowuje dotychczasowe zachowanie (nadpisanie jedynego aktywnego
+ * turnieju). `tournamentId` jest weryfikowany, ale Airtable i tak ma tylko
+ * jeden turniej — to droga awaryjna, nie docelowa.
+ */
+async function saveTournament(_tournamentId: string, tournament: Tournament) {
   const { tables } = getAirtableConfig();
   const nextSlug = slugifyTournamentTitle(tournament.title || "");
 
@@ -338,8 +390,14 @@ async function saveTournament(tournament: Tournament) {
 
 export const airtableRepository: TournamentRepository = {
   name: "airtable",
-  getActiveTournament,
+  supportsMultipleTournaments: false,
+  getCurrentTournament,
+  listTournaments,
+  getTournamentById,
+  createTournament,
   saveTournament,
+  setCurrentTournament,
+  setTournamentArchived,
 };
 
 /** Eksport wyłącznie dla skryptów diagnostycznych / eksportu fixtures. */

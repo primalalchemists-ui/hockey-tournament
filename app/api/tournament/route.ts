@@ -1,11 +1,11 @@
 // app/api/tournament/route.ts
 import { NextResponse } from "next/server";
 
-import { loadActiveTournament } from "@/lib/data";
+import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 
 export async function GET() {
-  const result = await loadActiveTournament();
+  const result = await loadCurrentTournament();
 
   if (result.status === "error") {
     return NextResponse.json(

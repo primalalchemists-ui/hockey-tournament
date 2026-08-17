@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { DataError } from "@/components/data-error";
 import { TournamentShell } from "@/components/tournament-shell";
-import { loadActiveTournament } from "@/lib/data";
+import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 
 type SearchParams = Promise<{
@@ -34,7 +34,7 @@ export async function generateMetadata({
 
   const tab = params.tab === "scorers" ? "scorers" : "live";
 
-  const result = await loadActiveTournament();
+  const result = await loadCurrentTournament();
 
   if (result.status === "error") {
     return {
@@ -98,7 +98,7 @@ export async function generateMetadata({
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const result = await loadActiveTournament();
+  const result = await loadCurrentTournament();
 
   if (result.status === "error") {
     return <DataError />;

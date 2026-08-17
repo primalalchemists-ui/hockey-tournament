@@ -7,6 +7,12 @@ import type { TournamentRepository } from "./types";
 export type {
   TournamentLoadResult,
   TournamentRepository,
+  TournamentSummary,
+} from "./types";
+
+export {
+  TournamentOperationError,
+  UnsupportedOperationError,
 } from "./types";
 
 /**
@@ -37,7 +43,12 @@ export function getTournamentRepository(): TournamentRepository {
   }
 }
 
-/** Skrót używany przez strony i route handlery. */
-export function loadActiveTournament() {
-  return getTournamentRepository().getActiveTournament();
+/**
+ * Skrót dla PUBLICZNYCH powierzchni (strona główna, OG, /api/tournament).
+ *
+ * Zwraca wyłącznie turniej oznaczony jako wyświetlany. Nigdy nie zależy od
+ * tego, który turniej admin ma akurat otwarty w panelu.
+ */
+export function loadCurrentTournament() {
+  return getTournamentRepository().getCurrentTournament();
 }

@@ -77,7 +77,7 @@ describe("brak DATABASE_URL", () => {
     resetDbCache();
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getCurrentTournament();
 
     expect(result.status).toBe("error");
     if (result.status !== "error") return;

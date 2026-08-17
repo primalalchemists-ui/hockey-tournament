@@ -29,6 +29,7 @@ import { airtableRepository } from "@/lib/data/airtable/repository";
 import { postgresRepository } from "@/lib/data/postgres/repository";
 import { buildTournament } from "@/lib/data/airtable/mappers";
 import { mergeTournamentData } from "@/lib/merge-data";
+import { slugifyTournamentTitle } from "@/lib/data/slug";
 import type { Tournament } from "@/types/tournament";
 
 loadEnvFile();
@@ -83,7 +84,7 @@ async function loadFromAirtable(): Promise<{
   tournament: Tournament;
   legacyId: string | null;
 }> {
-  const result = await airtableRepository.getActiveTournament();
+  const result = await airtableRepository.getCurrentTournament();
 
   if (result.status === "error") {
     throw new Error(`Odczyt z Airtable nie powiódł się: ${result.message}`);
@@ -129,9 +130,37 @@ async function main() {
       `${before.matches} meczów, ${before.scorers} strzelców, ${before.assets} assetów`
   );
 
-  const { slug } = await postgresRepository.saveTournament(tournament);
-
+  // Import jest idempotentny: jeśli turniej o tym slugu już istnieje,
+  // aktualizujemy właśnie jego, zachowując UUID i wszystkie relacje.
   const db = getDb();
+  const targetSlug = slugifyTournamentTitle(tournament.title || "");
+
+  const existing = await db
+    .select({ id: tournaments.id })
+    .from(tournaments)
+    .where(eq(tournaments.slug, targetSlug))
+    .limit(1);
+
+  const tournamentId =
+    existing[0]?.id ?? (await postgresRepository.createTournament(tournament.title)).id;
+
+  const { slug } = await postgresRepository.saveTournament(
+    tournamentId,
+    tournament
+  );
+
+  // Pierwszy zaimportowany turniej musi być widoczny publicznie —
+  // inaczej strona główna po migracji byłaby pusta.
+  const currentRows = await db
+    .select({ id: tournaments.id })
+    .from(tournaments)
+    .where(eq(tournaments.isCurrent, true))
+    .limit(1);
+
+  if (!currentRows[0]) {
+    await postgresRepository.setCurrentTournament(tournamentId);
+    console.log("  (ustawiono jako wyświetlany publicznie)");
+  }
 
   if (loaded.legacyId) {
     await db
@@ -141,7 +170,7 @@ async function main() {
   }
 
   // Weryfikacja przez odczyt z Postgresa — nie ufamy zapisowi na słowo.
-  const verification = await postgresRepository.getActiveTournament();
+  const verification = await postgresRepository.getCurrentTournament();
 
   if (verification.status !== "ok") {
     throw new Error(

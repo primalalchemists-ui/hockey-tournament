@@ -53,7 +53,7 @@ afterEach(() => {
   process.env = { ...originalEnv };
 });
 
-describe("airtableRepository.getActiveTournament", () => {
+describe("airtableRepository.getCurrentTournament", () => {
   it("zwraca status 'ok' z danymi turnieju", async () => {
     vi.stubGlobal(
       "fetch",
@@ -84,7 +84,7 @@ describe("airtableRepository.getActiveTournament", () => {
       })
     );
 
-    const result = await airtableRepository.getActiveTournament();
+    const result = await airtableRepository.getCurrentTournament();
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
@@ -97,7 +97,7 @@ describe("airtableRepository.getActiveTournament", () => {
   it("zwraca status 'empty' gdy nie ma aktywnego turnieju", async () => {
     vi.stubGlobal("fetch", routeFetch({ Tournaments: { records: [] } }));
 
-    expect(await airtableRepository.getActiveTournament()).toEqual({
+    expect(await airtableRepository.getCurrentTournament()).toEqual({
       status: "empty",
     });
   });
@@ -110,7 +110,7 @@ describe("airtableRepository.getActiveTournament", () => {
       })
     );
 
-    expect(await airtableRepository.getActiveTournament()).toEqual({
+    expect(await airtableRepository.getCurrentTournament()).toEqual({
       status: "empty",
     });
   });
@@ -123,7 +123,7 @@ describe("airtableRepository.getActiveTournament", () => {
       vi.fn(async () => jsonResponse({ error: "RATE_LIMIT" }, 429))
     );
 
-    const result = await airtableRepository.getActiveTournament();
+    const result = await airtableRepository.getCurrentTournament();
 
     expect(result.status).toBe("error");
   });
@@ -139,7 +139,7 @@ describe("airtableRepository.getActiveTournament", () => {
       })
     );
 
-    const result = await airtableRepository.getActiveTournament();
+    const result = await airtableRepository.getCurrentTournament();
 
     expect(result.status).toBe("error");
   });
@@ -148,7 +148,7 @@ describe("airtableRepository.getActiveTournament", () => {
     delete process.env.AIRTABLE_BASE_ID;
     delete process.env.AIRTABLE_TOKEN;
 
-    const result = await airtableRepository.getActiveTournament();
+    const result = await airtableRepository.getCurrentTournament();
 
     expect(result.status).toBe("error");
   });

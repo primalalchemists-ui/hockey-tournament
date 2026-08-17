@@ -33,7 +33,7 @@ async function main() {
   }
 
   const tournamentRows = await db.execute(sql`
-    select id, slug, title, format, is_active, legacy_airtable_id
+    select id, slug, title, format, is_current, archived_at, legacy_airtable_id
     from tournaments order by created_at
   `);
 
@@ -41,7 +41,8 @@ async function main() {
   for (const row of tournamentRows.rows as Array<Record<string, unknown>>) {
     console.log(
       `  uuid=${row.id} slug=${row.slug} title="${row.title}" ` +
-        `format=${row.format} active=${row.is_active} legacy=${row.legacy_airtable_id ?? "-"}`
+        `format=${row.format} current=${row.is_current} ` +
+        `archived=${row.archived_at ? "tak" : "nie"} legacy=${row.legacy_airtable_id ?? "-"}`
     );
   }
 

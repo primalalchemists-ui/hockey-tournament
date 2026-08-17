@@ -36,7 +36,7 @@ describe.skipIf(!hasDatabase)("Postgres — odczyt aktywnego turnieju", () => {
   let fromPostgres: Tournament;
 
   beforeAll(async () => {
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getCurrentTournament();
 
     if (result.status !== "ok") {
       throw new Error(
@@ -70,7 +70,7 @@ describe.skipIf(!hasDatabase || !hasFixture)(
       const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
       const golden = mergeTournamentData(buildTournament(fixture));
-      const result = await postgresRepository.getActiveTournament();
+      const result = await postgresRepository.getCurrentTournament();
 
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
@@ -99,7 +99,7 @@ describe.skipIf(!hasDatabase || !hasFixture)(
       const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
       const golden = mergeTournamentData(buildTournament(fixture));
 
-      const result = await postgresRepository.getActiveTournament();
+      const result = await postgresRepository.getCurrentTournament();
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
 
@@ -127,8 +127,8 @@ describe.skipIf(!hasDatabase || !hasAirtable)(
   () => {
     it("oba adaptery zwracają semantycznie identyczny turniej", async () => {
       const [airtableResult, postgresResult] = await Promise.all([
-        airtableRepository.getActiveTournament(),
-        postgresRepository.getActiveTournament(),
+        airtableRepository.getCurrentTournament(),
+        postgresRepository.getCurrentTournament(),
       ]);
 
       expect(airtableResult.status).toBe("ok");
@@ -150,8 +150,8 @@ describe.skipIf(!hasDatabase || !hasAirtable)(
 
     it("oba adaptery dają identyczne standings", async () => {
       const [airtableResult, postgresResult] = await Promise.all([
-        airtableRepository.getActiveTournament(),
-        postgresRepository.getActiveTournament(),
+        airtableRepository.getCurrentTournament(),
+        postgresRepository.getCurrentTournament(),
       ]);
 
       if (airtableResult.status !== "ok" || postgresResult.status !== "ok") {

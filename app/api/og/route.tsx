@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 import { ShareOgCard } from "@/components/share-og-card";
-import { loadActiveTournament } from "@/lib/data";
+import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 import { calculateStandings } from "@/lib/standings";
 import { normalizeLogoUrlForServer } from "@/lib/share-preview";
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const groupKey = url.searchParams.get("group") || "";
     const baseUrl = url.origin;
 
-    const result = await loadActiveTournament();
+    const result = await loadCurrentTournament();
 
     if (result.status === "error") {
       return new Response("Tournament data unavailable", { status: 503 });

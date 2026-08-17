@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, ne, notInArray, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { Tournament } from "@/types/tournament";
@@ -14,7 +14,12 @@ import {
   tournaments,
 } from "@/lib/db/schema";
 
-import type { TournamentLoadResult, TournamentRepository } from "../types";
+import {
+  TournamentOperationError,
+  type TournamentLoadResult,
+  type TournamentRepository,
+  type TournamentSummary,
+} from "../types";
 import { slugifyTournamentTitle } from "../slug";
 import {
   ASSET_KINDS,
@@ -29,14 +34,13 @@ type Statement = BatchItem<"pg">;
  * ODCZYT
  * ======================================================================== */
 
-async function readActiveBundle(db: Database) {
-  const activeRows = await db
-    .select()
-    .from(tournaments)
-    .where(eq(tournaments.isActive, true))
-    .limit(1);
+async function readBundleFor(
+  db: Database,
+  where: ReturnType<typeof eq>
+) {
+  const rows = await db.select().from(tournaments).where(where).limit(1);
 
-  const tournament = activeRows[0];
+  const tournament = rows[0];
   if (!tournament) return null;
 
   // Jeden batch = jeden round-trip HTTP na wszystkie tabele zależne.
@@ -63,9 +67,12 @@ async function readActiveBundle(db: Database) {
   };
 }
 
-async function getActiveTournament(): Promise<TournamentLoadResult> {
+async function loadBundle(
+  where: ReturnType<typeof eq>,
+  label: string
+): Promise<TournamentLoadResult> {
   try {
-    const bundle = await readActiveBundle(getDb());
+    const bundle = await readBundleFor(getDb(), where);
 
     if (!bundle) {
       return { status: "empty" };
@@ -73,7 +80,7 @@ async function getActiveTournament(): Promise<TournamentLoadResult> {
 
     return { status: "ok", tournament: buildTournamentFromRows(bundle) };
   } catch (error) {
-    console.error("[postgresRepo] getActiveTournament failed:", error);
+    console.error(`[postgresRepo] ${label} failed:`, error);
 
     return {
       status: "error",
@@ -81,6 +88,155 @@ async function getActiveTournament(): Promise<TournamentLoadResult> {
         error instanceof Error ? error.message : "Nieznany błąd odczytu danych",
     };
   }
+}
+
+/** Publiczny frontend: turniej oznaczony jako wyświetlany. */
+async function getCurrentTournament(): Promise<TournamentLoadResult> {
+  return loadBundle(eq(tournaments.isCurrent, true), "getCurrentTournament");
+}
+
+/** Panel admina: dowolny turniej po UUID, niezależnie od statusu publicznego. */
+async function getTournamentById(id: string): Promise<TournamentLoadResult> {
+  if (!id) return { status: "empty" };
+
+  return loadBundle(eq(tournaments.id, id), "getTournamentById");
+}
+
+async function listTournaments(): Promise<TournamentSummary[]> {
+  const rows = await getDb()
+    .select({
+      id: tournaments.id,
+      title: tournaments.title,
+      slug: tournaments.slug,
+      isCurrent: tournaments.isCurrent,
+      archivedAt: tournaments.archivedAt,
+      createdAt: tournaments.createdAt,
+    })
+    .from(tournaments)
+    .orderBy(desc(tournaments.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    isCurrent: row.isCurrent,
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  }));
+}
+
+/* ==========================================================================
+ * CYKL ŻYCIA TURNIEJU
+ * ======================================================================== */
+
+/** Slug musi być unikalny — dokładamy sufiks, gdy nazwa się powtarza. */
+async function reserveUniqueSlug(
+  db: Database,
+  desiredSlug: string,
+  excludeTournamentId?: string
+) {
+  const taken = await db
+    .select({ slug: tournaments.slug, id: tournaments.id })
+    .from(tournaments);
+
+  const used = new Set(
+    taken
+      .filter((row) => row.id !== excludeTournamentId)
+      .map((row) => row.slug)
+  );
+
+  if (!used.has(desiredSlug)) return desiredSlug;
+
+  for (let suffix = 2; suffix < 500; suffix += 1) {
+    const candidate = `${desiredSlug}-${suffix}`;
+    if (!used.has(candidate)) return candidate;
+  }
+
+  throw new TournamentOperationError(
+    "Nie udało się wygenerować unikalnego adresu dla tego tytułu."
+  );
+}
+
+async function createTournament(title: string) {
+  const trimmed = title.trim();
+
+  if (!trimmed) {
+    throw new TournamentOperationError("Nazwa turnieju nie może być pusta.");
+  }
+
+  const db = getDb();
+  const slug = await reserveUniqueSlug(db, slugifyTournamentTitle(trimmed));
+  const id = randomUUID();
+
+  // Świadomie NIE ustawiamy isCurrent — nowy turniej nie może podmienić
+  // tego, co widzą kibice, dopóki admin tego jawnie nie zrobi.
+  await db.insert(tournaments).values({
+    id,
+    slug,
+    title: trimmed,
+    isCurrent: false,
+  });
+
+  return { id, slug };
+}
+
+async function setCurrentTournament(tournamentId: string) {
+  const db = getDb();
+
+  const rows = await db
+    .select({ id: tournaments.id, archivedAt: tournaments.archivedAt })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+
+  if (!rows[0]) {
+    throw new TournamentOperationError("Turniej nie istnieje.");
+  }
+
+  if (rows[0].archivedAt) {
+    throw new TournamentOperationError(
+      "Nie można wyświetlić zarchiwizowanego turnieju. Najpierw przywróć go z archiwum."
+    );
+  }
+
+  // Atomowo: w jednej transakcji gaśnie stary current i zapala się nowy.
+  // Kolejność ma znaczenie — częściowy indeks unikalny nie dopuściłby
+  // stanu z dwoma wyświetlanymi turniejami.
+  await db.batch([
+    db
+      .update(tournaments)
+      .set({ isCurrent: false })
+      .where(and(eq(tournaments.isCurrent, true), ne(tournaments.id, tournamentId))),
+    db
+      .update(tournaments)
+      .set({ isCurrent: true, updatedAt: new Date() })
+      .where(eq(tournaments.id, tournamentId)),
+  ]);
+}
+
+async function setTournamentArchived(tournamentId: string, archived: boolean) {
+  const db = getDb();
+
+  const rows = await db
+    .select({ id: tournaments.id, isCurrent: tournaments.isCurrent })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+
+  if (!rows[0]) {
+    throw new TournamentOperationError("Turniej nie istnieje.");
+  }
+
+  if (archived && rows[0].isCurrent) {
+    throw new TournamentOperationError(
+      "Ten turniej jest wyświetlany na stronie. Najpierw ustaw inny turniej jako wyświetlany."
+    );
+  }
+
+  await db
+    .update(tournaments)
+    .set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() })
+    .where(eq(tournaments.id, tournamentId));
 }
 
 /* ==========================================================================
@@ -195,20 +351,39 @@ function collectAssets(tournament: Tournament): AssetInput[] {
   return collected;
 }
 
-async function saveTournament(tournament: Tournament) {
+async function saveTournament(tournamentId: string, tournament: Tournament) {
   const db = getDb();
-  const nextSlug = slugifyTournamentTitle(tournament.title || "");
 
-  const activeRows = await db
-    .select({ id: tournaments.id })
+  if (!tournamentId) {
+    throw new TournamentOperationError(
+      "Zapis wymaga jawnego identyfikatora turnieju."
+    );
+  }
+
+  // Turniej MUSI już istnieć. Zapis nigdy nie zgaduje, który turniej
+  // modyfikować, i nigdy nie tworzy nowego przy okazji — tworzenie ma
+  // własną, jawną operację createTournament().
+  const existingRows = await db
+    .select({ id: tournaments.id, isCurrent: tournaments.isCurrent })
     .from(tournaments)
-    .where(eq(tournaments.isActive, true))
+    .where(eq(tournaments.id, tournamentId))
     .limit(1);
 
-  // Tożsamość turnieju NIE zależy od tytułu ani slugu: jeśli turniej już
-  // istnieje, aktualizujemy ten sam wiersz, a wszystkie FK pozostają spięte.
-  const tournamentId = activeRows[0]?.id ?? randomUUID();
-  const isNewTournament = !activeRows[0];
+  const existing = existingRows[0];
+
+  if (!existing) {
+    throw new TournamentOperationError(
+      "Turniej o podanym identyfikatorze nie istnieje."
+    );
+  }
+
+  const nextSlug = await reserveUniqueSlug(
+    db,
+    slugifyTournamentTitle(tournament.title || ""),
+    tournamentId
+  );
+
+  const isNewTournament = false;
 
   const maps = isNewTournament
     ? {
@@ -226,44 +401,22 @@ async function saveTournament(tournament: Tournament) {
 
   /* --- turniej -------------------------------------------------------- */
 
+  // UWAGA: zapis danych NIE dotyka isCurrent ani archivedAt.
+  // Który turniej jest wyświetlany publicznie zmienia wyłącznie
+  // setCurrentTournament() — edycja treści nigdy nie przejmuje strony.
   statements.push(
     db
       .update(tournaments)
-      .set({ isActive: false })
-      .where(
-        and(eq(tournaments.isActive, true), notInArray(tournaments.id, [tournamentId]))
-      ) as Statement
-  );
-
-  const tournamentValues = {
-    id: tournamentId,
-    slug: nextSlug,
-    title: tournament.title,
-    isActive: true,
-    campStartDate: tournament.campStartDate || "",
-    campSignupLink: tournament.campSignupLink || "",
-    tickerMessage: tournament.tickerMessage || "",
-    showTopScorerTicker: tournament.showTopScorerTicker ?? true,
-    updatedAt: new Date(),
-  };
-
-  statements.push(
-    db
-      .insert(tournaments)
-      .values(tournamentValues)
-      .onConflictDoUpdate({
-        target: tournaments.id,
-        set: {
-          slug: tournamentValues.slug,
-          title: tournamentValues.title,
-          isActive: true,
-          campStartDate: tournamentValues.campStartDate,
-          campSignupLink: tournamentValues.campSignupLink,
-          tickerMessage: tournamentValues.tickerMessage,
-          showTopScorerTicker: tournamentValues.showTopScorerTicker,
-          updatedAt: tournamentValues.updatedAt,
-        },
-      }) as Statement
+      .set({
+        slug: nextSlug,
+        title: tournament.title,
+        campStartDate: tournament.campStartDate || "",
+        campSignupLink: tournament.campSignupLink || "",
+        tickerMessage: tournament.tickerMessage || "",
+        showTopScorerTicker: tournament.showTopScorerTicker ?? true,
+        updatedAt: new Date(),
+      })
+      .where(eq(tournaments.id, tournamentId)) as Statement
   );
 
   /* --- assety --------------------------------------------------------- */
@@ -552,8 +705,14 @@ function buildDeleteStale(
 
 export const postgresRepository: TournamentRepository = {
   name: "postgres",
-  getActiveTournament,
+  supportsMultipleTournaments: true,
+  getCurrentTournament,
+  listTournaments,
+  getTournamentById,
+  createTournament,
   saveTournament,
+  setCurrentTournament,
+  setTournamentArchived,
 };
 
-export const __internal = { readActiveBundle, collectAssets };
+export const __internal = { collectAssets, reserveUniqueSlug };

@@ -95,6 +95,7 @@ async function findTournamentBySlug(slug: string) {
 
 describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
   let originalActiveId: string | null = null;
+  let testTournamentId = "";
 
   beforeAll(async () => {
     const db = getDb();
@@ -102,21 +103,15 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     const active = await db
       .select({ id: tournaments.id })
       .from(tournaments)
-      .where(eq(tournaments.isActive, true))
+      .where(eq(tournaments.isCurrent, true))
       .limit(1);
 
     originalActiveId = active[0]?.id ?? null;
 
-    // WAŻNE: saveTournament nadpisuje AKTYWNY turniej (semantyka odziedziczona
-    // po Airtable — zapis nigdy nie zakłada drugiego turnieju). Żeby testy
-    // pracowały na własnym wierszu, a nie na zaimportowanych danych,
-    // dezaktywujemy oryginał na czas testów.
-    if (originalActiveId) {
-      await db
-        .update(tournaments)
-        .set({ isActive: false })
-        .where(eq(tournaments.id, originalActiveId));
-    }
+    // Testy pracują na WŁASNYM turnieju o własnym UUID. Nie trzeba już
+    // niczego dezaktywować — zapis nie wybiera turnieju samodzielnie.
+    const created = await postgresRepository.createTournament(TEST_TITLE);
+    testTournamentId = created.id;
   });
 
   afterAll(async () => {
@@ -137,13 +132,13 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     if (originalActiveId) {
       await db
         .update(tournaments)
-        .set({ isActive: true })
+        .set({ isCurrent: true })
         .where(eq(tournaments.id, originalActiveId));
 
       const restored = await db
         .select({ id: tournaments.id })
         .from(tournaments)
-        .where(eq(tournaments.isActive, true));
+        .where(eq(tournaments.isCurrent, true));
 
       if (restored.length !== 1 || restored[0].id !== originalActiveId) {
         throw new Error(
@@ -155,11 +150,11 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
 
   it("zapisuje pełny turniej i odczytuje go bez zmian", async () => {
     const payload = buildTestTournament(TEST_TITLE);
-    const { slug } = await postgresRepository.saveTournament(payload);
+    const { slug } = await postgresRepository.saveTournament(testTournamentId, payload);
 
     expect(slug).toBe(TEST_SLUG);
 
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getTournamentById(testTournamentId);
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
 
@@ -183,8 +178,8 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
 
     const before = await countsFor(tournament!.id);
 
-    await postgresRepository.saveTournament(buildTestTournament(TEST_TITLE));
-    await postgresRepository.saveTournament(buildTestTournament(TEST_TITLE));
+    await postgresRepository.saveTournament(testTournamentId, buildTestTournament(TEST_TITLE));
+    await postgresRepository.saveTournament(testTournamentId, buildTestTournament(TEST_TITLE));
 
     const after = await countsFor(tournament!.id);
 
@@ -198,7 +193,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
 
     const countsBefore = await countsFor(before!.id);
 
-    await postgresRepository.saveTournament(buildTestTournament(RENAMED_TITLE));
+    await postgresRepository.saveTournament(testTournamentId, buildTestTournament(RENAMED_TITLE));
 
     const renamed = await findTournamentBySlug(RENAMED_SLUG);
 
@@ -213,7 +208,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     // Drużyny i mecze nadal wiszą pod tym samym turniejem.
     expect(await countsFor(renamed!.id)).toEqual(countsBefore);
 
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getTournamentById(testTournamentId);
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
 
@@ -230,7 +225,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
       (match) => match.homeTeamId !== "vt-3" && match.awayTeamId !== "vt-3"
     );
 
-    await postgresRepository.saveTournament(payload);
+    await postgresRepository.saveTournament(testTournamentId, payload);
 
     const tournament = await findTournamentBySlug(RENAMED_SLUG);
     const counts = await countsFor(tournament!.id);
@@ -273,7 +268,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     withLogo.groups[0].teams[0].logoPublicId = "tournaments/vitest/teams/vt-1";
     withLogo.assets.scheduleImagePublicId = "tournaments/vitest/assets/schedule";
 
-    await postgresRepository.saveTournament(withLogo);
+    await postgresRepository.saveTournament(testTournamentId, withLogo);
 
     const tournament = await findTournamentBySlug(RENAMED_SLUG);
     const db = getDb();
@@ -292,7 +287,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     delete withoutPublicId.groups[0].teams[0].logoPublicId;
     delete withoutPublicId.assets.scheduleImagePublicId;
 
-    await postgresRepository.saveTournament(withoutPublicId);
+    await postgresRepository.saveTournament(testTournamentId, withoutPublicId);
 
     const after = await db
       .select({ publicId: teams.logoPublicId, logoUrl: teams.logoUrl })
@@ -315,7 +310,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     payload.groups[0].teams[0].logoUrl = "https://res.cloudinary.com/x/nowe.png";
     payload.groups[0].teams[0].logoPublicId = "tournaments/vitest/teams/vt-1-nowe";
 
-    await postgresRepository.saveTournament(payload);
+    await postgresRepository.saveTournament(testTournamentId, payload);
 
     const tournament = await findTournamentBySlug(RENAMED_SLUG);
 
@@ -331,7 +326,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     const payload = buildTestTournament(RENAMED_TITLE);
     payload.groups[0].teams[0].logoUrl = "";
 
-    await postgresRepository.saveTournament(payload);
+    await postgresRepository.saveTournament(testTournamentId, payload);
 
     const tournament = await findTournamentBySlug(RENAMED_SLUG);
 
@@ -348,7 +343,7 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     const active = await getDb()
       .select({ id: tournaments.id })
       .from(tournaments)
-      .where(eq(tournaments.isActive, true));
+      .where(eq(tournaments.isCurrent, true));
 
     expect(active).toHaveLength(1);
   });

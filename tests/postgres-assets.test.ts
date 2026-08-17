@@ -24,7 +24,7 @@ async function activeTournamentId() {
   const rows = await getDb()
     .select({ id: tournaments.id })
     .from(tournaments)
-    .where(eq(tournaments.isActive, true))
+    .where(eq(tournaments.isCurrent, true))
     .limit(1);
 
   return rows[0]?.id ?? null;
@@ -98,7 +98,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
   });
 
   it("model domenowy z Postgresa nie zawiera już airtableusercontent", async () => {
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getCurrentTournament();
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
@@ -109,7 +109,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
   });
 
   it("liczba assetów zgadza się z liczbą drużyn z logo i slotów turnieju", async () => {
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getCurrentTournament();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
     const tournament = mergeTournamentData(result.tournament);
@@ -123,7 +123,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
 
   it("public_id NIE jest wystawiany w modelu domenowym", async () => {
     // Kontrakt zgodności z adapterem Airtable pozostaje nienaruszony.
-    const result = await postgresRepository.getActiveTournament();
+    const result = await postgresRepository.getCurrentTournament();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
     const team = result.tournament.groups?.[0].teams[0];
@@ -138,7 +138,7 @@ describe.skipIf(!hasDatabase || !hasAirtable)(
   "adapter Airtable po rehoście",
   () => {
     it("nadal działa i nadal serwuje własne URL-e — jest drogą powrotu", async () => {
-      const result = await airtableRepository.getActiveTournament();
+      const result = await airtableRepository.getCurrentTournament();
 
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;

@@ -11,6 +11,8 @@ import { ScorersManager } from "@/components/admin/scorers-manager";
 import { EditableTournamentHeader } from "@/components/admin/editable-tournament-header";
 import { RegulationSection } from "@/components/regulation-section";
 import { ScheduleSection } from "@/components/schedule-section";
+import { TournamentSelector } from "@/components/admin/tournament-selector";
+import type { TournamentSummary } from "@/lib/data/types";
 import type { Tournament } from "@/types/tournament";
 
 type MainTab =
@@ -23,6 +25,10 @@ type MainTab =
 
 type AdminShellProps = {
   tournament: Tournament;
+  /** UUID edytowanego turnieju — jawnie przekazywany do każdego zapisu. */
+  tournamentId: string;
+  tournaments: TournamentSummary[];
+  multiTournamentEnabled: boolean;
 };
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
@@ -99,7 +105,12 @@ function PreviewImage({
   );
 }
 
-export function AdminShell({ tournament }: AdminShellProps) {
+export function AdminShell({
+  tournament,
+  tournamentId,
+  tournaments,
+  multiTournamentEnabled,
+}: AdminShellProps) {
   const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
   const [activeTab, setActiveTab] = useState<MainTab>("live");
   const [isPending, startTransition] = useTransition();
@@ -658,6 +669,9 @@ export function AdminShell({ tournament }: AdminShellProps) {
     startTransition(async () => {
       try {
         const formData = new FormData();
+        // Zapis zawsze wskazuje turniej jawnie — nigdy nie polega na tym,
+        // który turniej storage uzna za "aktywny".
+        formData.set("tournamentId", tournamentId);
         formData.set("payload", JSON.stringify(draft));
         formData.set("deletePublicIds", JSON.stringify(deletePublicIds));
 
@@ -1146,9 +1160,11 @@ export function AdminShell({ tournament }: AdminShellProps) {
       <header className="space-y-4">
         <div className="flex w-full flex-col gap-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="inline-flex shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-              Live tournament
-            </div>
+            <TournamentSelector
+              tournaments={tournaments}
+              selectedId={tournamentId}
+              multiTournamentEnabled={multiTournamentEnabled}
+            />
 
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">

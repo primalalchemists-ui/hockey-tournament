@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -53,7 +54,22 @@ export const tournaments = pgTable(
 
     /** "league" (obecne zachowanie) | "group_playoff" (V2). */
     format: text("format").notNull().default("league"),
-    isActive: boolean("is_active").notNull().default(false),
+
+    /**
+     * Czy TEN turniej jest pokazywany na publicznej stronie.
+     *
+     * To NIE jest "turniej otwarty w adminie" — admin może edytować dowolny
+     * turniej, nie zmieniając tego, co widzą kibice. Maksymalnie jeden wiersz
+     * w całej tabeli może mieć wartość true; pilnuje tego częściowy indeks
+     * unikalny `tournaments_single_current_idx`, a nie warunek w UI.
+     */
+    isCurrent: boolean("is_current").notNull().default(false),
+
+    /**
+     * Znacznik archiwizacji. Archiwizacja niczego nie kasuje — turniej
+     * pozostaje w bazie z kompletem drużyn, meczów, wyników i assetów.
+     */
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
 
     /**
      * Konfiguracja fazy pucharowej — przechowywana, jeszcze nieużywana.
@@ -85,7 +101,14 @@ export const tournaments = pgTable(
   },
   (table) => [
     unique("tournaments_slug_unique").on(table.slug),
-    index("tournaments_is_active_idx").on(table.isActive),
+    /**
+     * Gwarancja bazodanowa: co najwyżej JEDEN turniej wyświetlany publicznie.
+     * Częściowy indeks unikalny — wiersze z is_current=false nie są objęte.
+     */
+    uniqueIndex("tournaments_single_current_idx")
+      .on(table.isCurrent)
+      .where(sql`${table.isCurrent}`),
+    index("tournaments_archived_at_idx").on(table.archivedAt),
     check(
       "tournaments_format_check",
       sql`${table.format} in ('league', 'group_playoff')`
