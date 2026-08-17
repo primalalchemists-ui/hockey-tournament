@@ -3,10 +3,11 @@ import type { Tournament } from "@/types/tournament";
 
 const ENABLE_FALLBACK = false;
 
-function createEmptyTournament(): Tournament {
+export function createEmptyTournament(): Tournament {
   return {
     id: "empty-tournament",
     title: "Nowy turniej",
+    scorers: [],
     assets: {
       scheduleImage: "",
       scheduleImageType: "",

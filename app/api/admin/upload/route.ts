@@ -1,7 +1,25 @@
 import { NextResponse } from "next/server";
+import type { UploadApiResponse } from "cloudinary";
 import cloudinary from "@/lib/cloudinary";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+
+  if (error && typeof error === "object") {
+    const candidate = error as { message?: unknown; error?: { message?: unknown } };
+    if (typeof candidate.message === "string") return candidate.message;
+    if (typeof candidate.error?.message === "string") return candidate.error.message;
+  }
+
+  return "Upload failed";
+}
 
 export async function POST(req: Request) {
+  if (!(await isAdminAuthenticated())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const formData = await req.formData();
   const file = formData.get("file");
 
@@ -13,7 +31,7 @@ export async function POST(req: Request) {
   const buffer = Buffer.from(bytes);
 
   try {
-    const upload = await new Promise<any>((resolve, reject) => {
+    const upload = await new Promise<UploadApiResponse>((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
           {
@@ -24,6 +42,7 @@ export async function POST(req: Request) {
           },
           (error, result) => {
             if (error) reject(error);
+            else if (!result) reject(new Error("Empty Cloudinary response"));
             else resolve(result);
           }
         )
@@ -37,14 +56,9 @@ export async function POST(req: Request) {
       format: upload.format,
       publicId: upload.public_id,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Cloudinary upload error:", err);
 
-    return NextResponse.json(
-      {
-        error: err?.message || err?.error?.message || "Upload failed",
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

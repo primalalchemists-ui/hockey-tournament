@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { DataError } from "@/components/data-error";
 import { TournamentShell } from "@/components/tournament-shell";
-import { getAirtableTournament } from "@/lib/airtable";
+import { loadActiveTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 
 type SearchParams = Promise<{
@@ -33,8 +34,18 @@ export async function generateMetadata({
 
   const tab = params.tab === "scorers" ? "scorers" : "live";
 
-  const airtableData = await getAirtableTournament();
-  const tournament = mergeTournamentData(airtableData);
+  const result = await loadActiveTournament();
+
+  if (result.status === "error") {
+    return {
+      title: "Wyniki live",
+      description: "Trwa przywracanie połączenia z danymi turnieju.",
+    };
+  }
+
+  const tournament = mergeTournamentData(
+    result.status === "ok" ? result.tournament : null
+  );
 
   const selectedGroup =
     tournament.groups.find((group) => group.key === params.group) ||
@@ -87,8 +98,15 @@ export async function generateMetadata({
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   const params = await searchParams;
-  const airtableData = await getAirtableTournament();
-  const tournament = mergeTournamentData(airtableData);
+  const result = await loadActiveTournament();
+
+  if (result.status === "error") {
+    return <DataError />;
+  }
+
+  const tournament = mergeTournamentData(
+    result.status === "ok" ? result.tournament : null
+  );
 
   return (
     <main className="min-h-screen">

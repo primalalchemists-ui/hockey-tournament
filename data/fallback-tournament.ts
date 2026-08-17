@@ -4,6 +4,7 @@ import type { Tournament } from "@/types/tournament";
 export const fallbackTournament: Tournament = {
   id: "gorce-cup-demo",
   title: "Turniej Hokejowy",
+  scorers: [],
   assets: {
     scheduleImage: "/placeholders/schedule-placeholder.png",
     regulationImage: "/placeholders/regulation-placeholder.png",

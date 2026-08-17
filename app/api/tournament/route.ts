@@ -1,16 +1,25 @@
 // app/api/tournament/route.ts
 import { NextResponse } from "next/server";
 
-import { getAirtableTournament } from "@/lib/airtable";
+import { loadActiveTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 
 export async function GET() {
-  const airtableData = await getAirtableTournament();
-  const tournament = mergeTournamentData(airtableData);
+  const result = await loadActiveTournament();
 
-    return NextResponse.json(tournament, {
+  if (result.status === "error") {
+    return NextResponse.json(
+      { error: "tournament_unavailable" },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const tournament = mergeTournamentData(
+    result.status === "ok" ? result.tournament : null
+  );
+
+  return NextResponse.json(tournament, {
     headers: {
-      // "Cache-Control": "no-store",
       // cache na CDN (Vercel edge)
       "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
     },

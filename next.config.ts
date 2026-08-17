@@ -13,8 +13,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-   typescript: {
-    ignoreBuildErrors: true,
+  typescript: {
+    ignoreBuildErrors: false,
   },
 };
 

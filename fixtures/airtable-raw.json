@@ -1,0 +1,1288 @@
+{
+  "exportedAt": "2026-08-17T12:13:18.954Z",
+  "note": "Surowe rekordy Airtable. URL-e zalacznikow zredagowane. Bez sekretow.",
+  "slug": "rabbit-cup",
+  "tournamentRecord": {
+    "id": "rec3rrwGIeY1GCgvn",
+    "fields": {
+      "regulationImage": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "application/pdf"
+        }
+      ],
+      "isActive": true,
+      "campStartDate": "2026-05-01T10:00:00.000Z",
+      "campPosterLeft": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "image/webp"
+        }
+      ],
+      "title": "Rabbit Cup",
+      "campSignupLink": "https://festiwalhokeja.com/zapisz-sie-2/",
+      "showTopScorerTicker": true,
+      "heroBannerImage": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "image/jpeg"
+        }
+      ],
+      "scheduleImage": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "application/pdf"
+        }
+      ],
+      "tickerMessage": "Zapraszamy do bufetu na tarasie lodowiska  • pyszne przekąski dla wszystkich dzieci i rodziców!!!",
+      "campBannerImage": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "image/jpeg"
+        }
+      ],
+      "slug": "rabbit-cup",
+      "campPosterRight": [
+        {
+          "id": "att-fixture-0",
+          "url": "https://fixture.invalid/file",
+          "filename": "file",
+          "type": "image/jpeg"
+        }
+      ]
+    }
+  },
+  "teamRecords": [
+    {
+      "id": "recl3Dc8fhJYJxsFz",
+      "fields": {
+        "shortName": "BS POLONIA BYTOM",
+        "sourceOrder": 1,
+        "teamId": "a-1773351457254",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "BS POLONIA BYTOM"
+      }
+    },
+    {
+      "id": "recrCdZfTWwl9VSdY",
+      "fields": {
+        "shortName": "UKS ZAGŁĘBIE SOSNOWIEC",
+        "sourceOrder": 2,
+        "teamId": "a-1773351490846",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "UKS ZAGŁĘBIE SOSNOWIEC"
+      }
+    },
+    {
+      "id": "recSgrLwfpj45eGyo",
+      "fields": {
+        "shortName": "MKS SOKOŁY TORUŃ",
+        "sourceOrder": 3,
+        "teamId": "a-1773351494834",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "MKS SOKOŁY TORUŃ"
+      }
+    },
+    {
+      "id": "recmNqRb4KufP83Dk",
+      "fields": {
+        "shortName": "UKH UNIA OŚWIĘCIM",
+        "sourceOrder": 4,
+        "teamId": "a-1773351813713",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "UKH UNIA OŚWIĘCIM"
+      }
+    },
+    {
+      "id": "receyiF50qZL885bS",
+      "fields": {
+        "shortName": "NAPRZÓD JANÓW KATOWICE",
+        "sourceOrder": 5,
+        "teamId": "a-1773357702149",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "NAPRZÓD JANÓW KATOWICE"
+      }
+    },
+    {
+      "id": "rece2VXys62aX1jxm",
+      "fields": {
+        "shortName": "GKS KATOWICE 1",
+        "sourceOrder": 6,
+        "teamId": "a-1773405076043",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "GKS KATOWICE 1"
+      }
+    },
+    {
+      "id": "recu3uh5kPhlzlRI0",
+      "fields": {
+        "shortName": "AH LEGIA WARSZAWA",
+        "sourceOrder": 7,
+        "teamId": "a-1773405265204",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "AH LEGIA WARSZAWA"
+      }
+    },
+    {
+      "id": "rec80JNVHoEk7tCPg",
+      "fields": {
+        "shortName": "GAS OLIVIA",
+        "sourceOrder": 8,
+        "teamId": "a-1773405383331",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "GAS OLIVIA"
+      }
+    },
+    {
+      "id": "recxC6rddpMKGW9Tw",
+      "fields": {
+        "shortName": "MUKS ORLIK OPOLE",
+        "sourceOrder": 9,
+        "teamId": "a-1773501626944",
+        "group": "A",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "MUKS ORLIK OPOLE"
+      }
+    },
+    {
+      "id": "recFeGavyx2EUI6BV",
+      "fields": {
+        "shortName": "SANDECJA NOWY SĄCZ",
+        "sourceOrder": 1,
+        "teamId": "b-1773405516679",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "SANDECJA NOWY SĄCZ"
+      }
+    },
+    {
+      "id": "recSA8F50e2Bp8eEH",
+      "fields": {
+        "shortName": "HKS MIŃSKIE JETSIKI",
+        "sourceOrder": 2,
+        "teamId": "b-1773405534742",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "HKS MIŃSKIE JETSIKI"
+      }
+    },
+    {
+      "id": "reciVwM2fK7PxUJXP",
+      "fields": {
+        "shortName": "BKS BYDGOSZCZ",
+        "sourceOrder": 3,
+        "teamId": "b-1773405559598",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "BKS BYDGOSZCZ"
+      }
+    },
+    {
+      "id": "recwy7Vlf9XfyLoUM",
+      "fields": {
+        "shortName": "NAPRZÓD JANÓW KATOWICE 2",
+        "sourceOrder": 4,
+        "teamId": "b-1773405580668",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "NAPRZÓD JANÓW KATOWICE 2"
+      }
+    },
+    {
+      "id": "recaUvHfgovrwqoA2",
+      "fields": {
+        "shortName": "GKS KATOWICE 2",
+        "sourceOrder": 5,
+        "teamId": "b-1773405648230",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "GKS KATOWICE 2"
+      }
+    },
+    {
+      "id": "recONluRnjumTSPSR",
+      "fields": {
+        "shortName": "LHT LUBLIN ",
+        "sourceOrder": 6,
+        "teamId": "b-1773405659848",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "LHT LUBLIN "
+      }
+    },
+    {
+      "id": "recM4z3lkfPWFm4vP",
+      "fields": {
+        "shortName": "WTH WROCŁAW ",
+        "sourceOrder": 7,
+        "teamId": "b-1773405683907",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "WTH WROCŁAW "
+      }
+    },
+    {
+      "id": "recZbTQejhFgdQjbw",
+      "fields": {
+        "shortName": "ŁKH ŁÓDŹ",
+        "sourceOrder": 8,
+        "teamId": "b-1773405701101",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/png"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "ŁKH ŁÓDŹ"
+      }
+    },
+    {
+      "id": "recq0qXi6HmRNgC9H",
+      "fields": {
+        "shortName": "AKADEMIA FABRYKA HOKEJA ZGIERZ ",
+        "sourceOrder": 9,
+        "teamId": "b-1773405711116",
+        "group": "B",
+        "logo": [
+          {
+            "id": "att-fixture-0",
+            "url": "https://fixture.invalid/file",
+            "filename": "file",
+            "type": "image/jpeg"
+          }
+        ],
+        "tournamentSlug": "rabbit-cup",
+        "name": "AKADEMIA FABRYKA HOKEJA ZGIERZ "
+      }
+    }
+  ],
+  "matchRecords": [
+    {
+      "id": "recD6tiOf5o7KiAnb",
+      "fields": {
+        "homeScore": 8,
+        "group": "A",
+        "homeTeamId": "a-1773357702149",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773357702149-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recW6gvOfBBA5bXDG",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 11,
+        "matchId": "A-a-1773351457254-a-1773405076043",
+        "awayTeamId": "a-1773405076043"
+      }
+    },
+    {
+      "id": "recHqjrSh8ZmyPVVI",
+      "fields": {
+        "homeScore": 6,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351494834-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "recKvefMXdbqaXFJv",
+      "fields": {
+        "homeScore": 5,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351490846-a-1773351813713",
+        "awayTeamId": "a-1773351813713"
+      }
+    },
+    {
+      "id": "recro7tWwihetNdjK",
+      "fields": {
+        "homeScore": 11,
+        "group": "A",
+        "homeTeamId": "a-1773405076043",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773405076043-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "recZEyRbs3v0ETW5P",
+      "fields": {
+        "homeScore": 10,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351494834-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "rec7doTaFzs787Y1w",
+      "fields": {
+        "homeScore": 6,
+        "group": "A",
+        "homeTeamId": "a-1773357702149",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "A-a-1773357702149-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "recntoH7d2hN8yaBp",
+      "fields": {
+        "homeScore": 8,
+        "group": "A",
+        "homeTeamId": "a-1773351813713",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "A-a-1773351813713-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "rec6WS0Vsa9m9g8LN",
+      "fields": {
+        "homeScore": 1,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 5,
+        "matchId": "A-a-1773351457254-a-1773351490846",
+        "awayTeamId": "a-1773351490846"
+      }
+    },
+    {
+      "id": "recFRR0kuKkEWmhui",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "A-a-1773351494834-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "recR8LOfoMoQjCmg6",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351457254-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recFkDIuozJmMtFfG",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773351813713",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 6,
+        "matchId": "A-a-1773351813713-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "rec8pjhftxdsYeUBT",
+      "fields": {
+        "homeScore": 5,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351490846-a-1773357702149",
+        "awayTeamId": "a-1773357702149"
+      }
+    },
+    {
+      "id": "recmGWhXLMVgk2M1t",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351494834-a-1773405076043",
+        "awayTeamId": "a-1773405076043"
+      }
+    },
+    {
+      "id": "rec2JW4oJOmeP967I",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351457254-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "recVHQ0UMJlJjx47O",
+      "fields": {
+        "homeScore": 7,
+        "group": "A",
+        "homeTeamId": "a-1773351813713",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 7,
+        "matchId": "A-a-1773351813713-a-1773357702149",
+        "awayTeamId": "a-1773357702149"
+      }
+    },
+    {
+      "id": "recbPKqNrVLIm1tcv",
+      "fields": {
+        "homeScore": 10,
+        "group": "A",
+        "homeTeamId": "a-1773405076043",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773405076043-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recCxVOpaKQ01v63U",
+      "fields": {
+        "homeScore": 15,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351490846-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "recu7dNf75Ht205Vk",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351457254-a-1773357702149",
+        "awayTeamId": "a-1773357702149"
+      }
+    },
+    {
+      "id": "recefbHvfYRgMiQYg",
+      "fields": {
+        "homeScore": 2,
+        "group": "A",
+        "homeTeamId": "a-1773351813713",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "A-a-1773351813713-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recumM88FZvTEDZut",
+      "fields": {
+        "homeScore": 10,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351490846-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "recrJB6DqFltynPAz",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 6,
+        "matchId": "A-a-1773351457254-a-1773351494834",
+        "awayTeamId": "a-1773351494834"
+      }
+    },
+    {
+      "id": "reczioGhLOYgXOjxV",
+      "fields": {
+        "homeScore": 2,
+        "group": "A",
+        "homeTeamId": "a-1773405383331",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773405383331-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recsCXNxWgIvlCU5l",
+      "fields": {
+        "homeScore": 8,
+        "group": "A",
+        "homeTeamId": "a-1773405076043",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "A-a-1773405076043-a-1773405265204",
+        "awayTeamId": "a-1773405265204"
+      }
+    },
+    {
+      "id": "recZamZr4VkbMMYNb",
+      "fields": {
+        "homeScore": 2,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351494834-a-1773351813713",
+        "awayTeamId": "a-1773351813713"
+      }
+    },
+    {
+      "id": "recSL0Dd03jZ8zg0N",
+      "fields": {
+        "homeScore": 12,
+        "group": "A",
+        "homeTeamId": "a-1773357702149",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "A-a-1773357702149-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "recMA3feWwlI8zR2U",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351490846-a-1773405076043",
+        "awayTeamId": "a-1773405076043"
+      }
+    },
+    {
+      "id": "recHZ87uQACiS7Ecq",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 6,
+        "matchId": "A-a-1773351457254-a-1773351813713",
+        "awayTeamId": "a-1773351813713"
+      }
+    },
+    {
+      "id": "recZ5Xl4gKBjtSLym",
+      "fields": {
+        "homeScore": 2,
+        "group": "A",
+        "homeTeamId": "a-1773405265204",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 6,
+        "matchId": "A-a-1773405265204-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recFMd5IeNfNRAN6P",
+      "fields": {
+        "homeScore": 4,
+        "group": "A",
+        "homeTeamId": "a-1773357702149",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773357702149-a-1773405076043",
+        "awayTeamId": "a-1773405076043"
+      }
+    },
+    {
+      "id": "rechEVgWyOTUDdRuT",
+      "fields": {
+        "homeScore": 5,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "A-a-1773351490846-a-1773351494834",
+        "awayTeamId": "a-1773351494834"
+      }
+    },
+    {
+      "id": "recu9W4bbuiiR4f6n",
+      "fields": {
+        "homeScore": 3,
+        "group": "A",
+        "homeTeamId": "a-1773351813713",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351813713-a-1773405076043",
+        "awayTeamId": "a-1773405076043"
+      }
+    },
+    {
+      "id": "recyYItvhPUYQjyCg",
+      "fields": {
+        "homeScore": 8,
+        "group": "A",
+        "homeTeamId": "a-1773405265204",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "A-a-1773405265204-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "rec1uR5ZgIA3bDffd",
+      "fields": {
+        "homeScore": 1,
+        "group": "A",
+        "homeTeamId": "a-1773351494834",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "A-a-1773351494834-a-1773357702149",
+        "awayTeamId": "a-1773357702149"
+      }
+    },
+    {
+      "id": "recDuHTRLbOkFNRmh",
+      "fields": {
+        "homeScore": 5,
+        "group": "A",
+        "homeTeamId": "a-1773351457254",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "A-a-1773351457254-a-1773405383331",
+        "awayTeamId": "a-1773405383331"
+      }
+    },
+    {
+      "id": "rectBtES4H0xsVBsF",
+      "fields": {
+        "homeScore": 10,
+        "group": "A",
+        "homeTeamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "A-a-1773351490846-a-1773501626944",
+        "awayTeamId": "a-1773501626944"
+      }
+    },
+    {
+      "id": "recKJVRgyaFZZkpZZ",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405683907",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 12,
+        "matchId": "B-b-1773405683907-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "rec2Yo59u2m2qp8vM",
+      "fields": {
+        "homeScore": 8,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405516679-b-1773405648230",
+        "awayTeamId": "b-1773405648230"
+      }
+    },
+    {
+      "id": "recRJmbRNZIiBnbvW",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405659848",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405659848-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "recbYddCdOX20Eaqa",
+      "fields": {
+        "homeScore": 0,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 16,
+        "matchId": "B-b-1773405534742-b-1773405559598",
+        "awayTeamId": "b-1773405559598"
+      }
+    },
+    {
+      "id": "recmb9LKT6aRO7gPW",
+      "fields": {
+        "homeScore": 8,
+        "group": "B",
+        "homeTeamId": "b-1773405580668",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405580668-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "recUEOmrOnVdW1E11",
+      "fields": {
+        "homeScore": 5,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405559598-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recjkM8mPwund5zDD",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 6,
+        "matchId": "B-b-1773405534742-b-1773405659848",
+        "awayTeamId": "b-1773405659848"
+      }
+    },
+    {
+      "id": "receJPpQN4iS9kBUH",
+      "fields": {
+        "homeScore": 1,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405516679-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "rec2ikQxol8NZ3dVl",
+      "fields": {
+        "homeScore": 5,
+        "group": "B",
+        "homeTeamId": "b-1773405580668",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405580668-b-1773405648230",
+        "awayTeamId": "b-1773405648230"
+      }
+    },
+    {
+      "id": "rechMgF4SQMiLitZR",
+      "fields": {
+        "homeScore": 8,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405534742-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "recjlIHICTpnzpdXg",
+      "fields": {
+        "homeScore": 7,
+        "group": "B",
+        "homeTeamId": "b-1773405659848",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "B-b-1773405659848-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recZE4eYi2CqdpQnS",
+      "fields": {
+        "homeScore": 4,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 10,
+        "matchId": "B-b-1773405516679-b-1773405559598",
+        "awayTeamId": "b-1773405559598"
+      }
+    },
+    {
+      "id": "reclhrsLwoXl8Q3Bq",
+      "fields": {
+        "homeScore": 4,
+        "group": "B",
+        "homeTeamId": "b-1773405580668",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "B-b-1773405580668-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "recxXtkfzkAgLBH09",
+      "fields": {
+        "homeScore": 17,
+        "group": "B",
+        "homeTeamId": "b-1773405648230",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405648230-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "recrLVLN3YTR1PF2k",
+      "fields": {
+        "homeScore": 5,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "B-b-1773405534742-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recpMpIU38fVaJ4Uq",
+      "fields": {
+        "homeScore": 3,
+        "group": "B",
+        "homeTeamId": "b-1773405580668",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405580668-b-1773405659848",
+        "awayTeamId": "b-1773405659848"
+      }
+    },
+    {
+      "id": "recpDEaUcG7au4daq",
+      "fields": {
+        "homeScore": 6,
+        "group": "B",
+        "homeTeamId": "b-1773405648230",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 4,
+        "matchId": "B-b-1773405648230-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "recKGvgKCl3TJSlse",
+      "fields": {
+        "homeScore": 19,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405516679-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "recG1z1mvVDIkM8ou",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405559598-b-1773405580668",
+        "awayTeamId": "b-1773405580668"
+      }
+    },
+    {
+      "id": "recuheYiRhc8gwgQK",
+      "fields": {
+        "homeScore": 3,
+        "group": "B",
+        "homeTeamId": "b-1773405701101",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405701101-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recsoajdbJ4CIuqL3",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405648230",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 5,
+        "matchId": "B-b-1773405648230-b-1773405659848",
+        "awayTeamId": "b-1773405659848"
+      }
+    },
+    {
+      "id": "recpT5wkEADgTOyeg",
+      "fields": {
+        "homeScore": 11,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405516679-b-1773405534742",
+        "awayTeamId": "b-1773405534742"
+      }
+    },
+    {
+      "id": "recqA4tQugZ9iqINt",
+      "fields": {
+        "homeScore": 12,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405559598-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "reckqXP0Sx2gh8C5c",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405580668",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405580668-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "rec7UTgtkqWb9dXmD",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 9,
+        "matchId": "B-b-1773405516679-b-1773405659848",
+        "awayTeamId": "b-1773405659848"
+      }
+    },
+    {
+      "id": "recHGTUA5vxmgZHRH",
+      "fields": {
+        "homeScore": 12,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405559598-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "recslQH3qsbx5IZOT",
+      "fields": {
+        "homeScore": 4,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 3,
+        "matchId": "B-b-1773405534742-b-1773405648230",
+        "awayTeamId": "b-1773405648230"
+      }
+    },
+    {
+      "id": "recjGI7ujV0SVmkyv",
+      "fields": {
+        "homeScore": 1,
+        "group": "B",
+        "homeTeamId": "b-1773405683907",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 4,
+        "matchId": "B-b-1773405683907-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "reciQfxZfQA0rZobg",
+      "fields": {
+        "homeScore": 6,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405559598-b-1773405659848",
+        "awayTeamId": "b-1773405659848"
+      }
+    },
+    {
+      "id": "reclZKxLGrMNpgWGz",
+      "fields": {
+        "homeScore": 5,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405516679-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recPESLHN3f1zceZq",
+      "fields": {
+        "homeScore": 6,
+        "group": "B",
+        "homeTeamId": "b-1773405559598",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 1,
+        "matchId": "B-b-1773405559598-b-1773405648230",
+        "awayTeamId": "b-1773405648230"
+      }
+    },
+    {
+      "id": "recYbs4X2O9MAXVUm",
+      "fields": {
+        "homeScore": 3,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 7,
+        "matchId": "B-b-1773405534742-b-1773405580668",
+        "awayTeamId": "b-1773405580668"
+      }
+    },
+    {
+      "id": "recCahRx5WUi46GUY",
+      "fields": {
+        "homeScore": 13,
+        "group": "B",
+        "homeTeamId": "b-1773405659848",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 2,
+        "matchId": "B-b-1773405659848-b-1773405683907",
+        "awayTeamId": "b-1773405683907"
+      }
+    },
+    {
+      "id": "rec9ez0T6QKoYg7Ki",
+      "fields": {
+        "homeScore": 1,
+        "group": "B",
+        "homeTeamId": "b-1773405534742",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 7,
+        "matchId": "B-b-1773405534742-b-1773405701101",
+        "awayTeamId": "b-1773405701101"
+      }
+    },
+    {
+      "id": "recj3dfTu8L4Mblk6",
+      "fields": {
+        "homeScore": 1,
+        "group": "B",
+        "homeTeamId": "b-1773405648230",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 4,
+        "matchId": "B-b-1773405648230-b-1773405711116",
+        "awayTeamId": "b-1773405711116"
+      }
+    },
+    {
+      "id": "recHGMQFyfGQuUa8s",
+      "fields": {
+        "homeScore": 2,
+        "group": "B",
+        "homeTeamId": "b-1773405516679",
+        "tournamentSlug": "rabbit-cup",
+        "awayScore": 0,
+        "matchId": "B-b-1773405516679-b-1773405580668",
+        "awayTeamId": "b-1773405580668"
+      }
+    }
+  ],
+  "scorerRecords": [
+    {
+      "id": "rect6aD9TcfURRwt1",
+      "fields": {
+        "jerseyNumber": 15,
+        "playerName": "RABBICIAK ",
+        "goals": 99,
+        "scorerId": "scorer-1773713592886-1fre1s",
+        "teamId": "a-1773351490846",
+        "tournamentSlug": "rabbit-cup"
+      }
+    }
+  ]
+}

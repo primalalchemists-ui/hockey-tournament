@@ -126,7 +126,11 @@ export function EditableGroupTabs({
             onUploadTeamLogo={onUploadTeamLogo}
           />
 
-          <StandingsTable groupName={currentGroup.name} rows={standings} />
+          <StandingsTable
+            groupKey={currentGroup.key}
+            groupName={currentGroup.name}
+            rows={standings}
+          />
 
           <EditableMatchMatrix
             group={currentGroup}

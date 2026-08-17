@@ -605,18 +605,18 @@ export function AdminShell({ tournament }: AdminShellProps) {
   }
 
   function handleClearAll() {
-    for (const group of draft.groups) {
-      for (const team of group.teams) {
-        queueDelete(team.logoPublicId);
-      }
-    }
+    const confirmed = window.confirm(
+      "Wyczyścić CAŁY turniej?\n\n" +
+        "Usunie to z formularza wszystkie grupy, drużyny, mecze i strzelców.\n" +
+        "Zmiany zostaną zapisane w bazie dopiero po kliknięciu „Zapisz”.\n\n" +
+        "Kliknij OK tylko jeśli naprawdę chcesz zacząć od zera."
+    );
 
-    queueDelete(draft.assets.scheduleImagePublicId);
-    queueDelete(draft.assets.regulationImagePublicId);
-    queueDelete(draft.assets.heroBannerImagePublicId);
-    queueDelete(draft.assets.campBannerImagePublicId);
-    queueDelete(draft.assets.campPosterLeftPublicId);
-    queueDelete(draft.assets.campPosterRightPublicId);
+    if (!confirmed) return;
+
+    // Świadomie NIE kolejkujemy tu usunięcia plików z Cloudinary.
+    // Wyczyszczenie draftu bywa pomyłką, a skasowanie assetów jest
+    // nieodwracalne — logotypy i pliki zostają, można je podpiąć ponownie.
 
     setDraft({
       ...draft,

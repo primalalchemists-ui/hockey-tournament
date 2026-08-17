@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "source_order" integer DEFAULT 0 NOT NULL;

@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createAdminSession, destroyAdminSession } from "@/lib/admin-auth";
-import { saveAdminDraft } from "@/lib/airtable-admin";
+import {
+  createAdminSession,
+  destroyAdminSession,
+  requireAdmin,
+} from "@/lib/admin-auth";
+import { safeEquals } from "@/lib/admin-session";
+import { getTournamentRepository } from "@/lib/data";
 import { deleteCloudinaryAssets } from "@/lib/cloudinary";
 import type { Tournament } from "@/types/tournament";
 
@@ -21,12 +26,13 @@ export async function loginAdminAction(
   formData: FormData
 ): Promise<AdminLoginState> {
   const password = getString(formData, "password");
+  const expected = process.env.ADMIN_PASSWORD;
 
-  if (!process.env.ADMIN_PASSWORD) {
+  if (!expected) {
     return { error: "Brak ADMIN_PASSWORD w env" };
   }
 
-  if (password !== process.env.ADMIN_PASSWORD) {
+  if (!safeEquals(password, expected)) {
     return { error: "Nieprawidłowe hasło" };
   }
 
@@ -40,6 +46,10 @@ export async function logoutAdminAction() {
 }
 
 export async function saveAdminDraftAction(formData: FormData) {
+  // Server action jest publicznie wywoływalna — autoryzacja MUSI być tutaj,
+  // a nie tylko w komponencie renderującym panel.
+  await requireAdmin();
+
   const payloadRaw = getString(formData, "payload");
   const deleteRaw = getString(formData, "deletePublicIds");
 
@@ -64,7 +74,7 @@ export async function saveAdminDraftAction(formData: FormData) {
     }
   }
 
-  await saveAdminDraft(payload);
+  await getTournamentRepository().saveTournament(payload);
   await deleteCloudinaryAssets(deletePublicIds);
 
   revalidatePath("/");
