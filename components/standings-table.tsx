@@ -1,6 +1,9 @@
 "use client";
 
 import { ShareTableButton } from "@/components/ShareTableButton";
+import { ColumnHelp } from "@/components/ui/column-help";
+import { EdgeScroller } from "@/components/ui/edge-scroller";
+import { STANDINGS_COLUMNS } from "@/lib/public/column-help";
 import type { StandingRow } from "@/types/tournament";
 
 type StandingsTableProps = {
@@ -52,7 +55,7 @@ function renderPositionBadge(row: StandingRow) {
   }
 
   return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm">
+    <span className="stat-num flex h-9 w-9 items-center justify-center rounded-full border border-[var(--surface-border)] bg-white/80 text-sm font-bold text-slate-700">
       {row.position}
     </span>
   );
@@ -73,11 +76,11 @@ export function StandingsTable({
   );
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <div className="flex   items-center justify-between">
+    <section className="ice-card flush-card">
+      <div className="ice-card-head">
+        <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
+            <h2 className="section-title">Ranking</h2>
 
             {/* {groupName ? (
               <p className="mt-1 text-sm text-slate-500">{groupName}</p>
@@ -96,36 +99,34 @@ export function StandingsTable({
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+      <EdgeScroller label="Tabela rankingu — przewijana w poziomie">
+        <table className="ice-table min-w-full">
+          <thead>
             <tr>
-              <th className="px-3 py-3 text-center font-semibold">Poz.</th>
-              <th className="px-3 py-3 text-left font-semibold">Drużyna</th>
-              <th className="px-3 py-3 text-center font-semibold">M</th>
-              <th className="px-3 py-3 text-center font-semibold">W</th>
-              <th className="px-3 py-3 text-center font-semibold">R</th>
-              <th className="px-3 py-3 text-center font-semibold">P</th>
-              <th className="px-3 py-3 text-center font-semibold">Pkt</th>
-              <th className="px-3 py-3 text-center font-semibold">G+</th>
-              <th className="px-3 py-3 text-center font-semibold">G-</th>
-              <th className="px-3 py-3 text-center font-semibold">Bil.</th>
+              <th className="text-center">Poz.</th>
+              <th className="text-left">Drużyna</th>
+              {/*
+                Znaczenie skrótu żyje NA nagłówku kolumny, nie w osobnym
+                bloku legendy pod tabelą.
+              */}
+              {STANDINGS_COLUMNS.map((code) => (
+                <th key={code} className="text-center">
+                  <ColumnHelp code={code} />
+                </th>
+              ))}
             </tr>
           </thead>
 
           <tbody>
-            {rows.map((row, rowIndex) => (
-              <tr
-                key={row.teamId}
-                className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50"}
-              >
-                <td className="px-3 py-3 text-center">
+            {rows.map((row) => (
+              <tr key={row.teamId}>
+                <td className="text-center">
                   <div className="flex justify-center">{renderPositionBadge(row)}</div>
                 </td>
 
-                <td className="px-3 py-3">
-                  <div className="flex min-w-[180px] items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <td>
+                  <div className="flex min-w-[11rem] items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
                       {row.logoUrl ? (
                         <img
                           src={row.logoUrl}
@@ -140,7 +141,7 @@ export function StandingsTable({
                     </div>
 
                     <div className="flex flex-col">
-                      <span className="font-medium text-slate-900">{row.teamName}</span>
+                      <span className="team-name">{row.teamName}</span>
 
                       {row.isTieUnresolved && row.tieNote && (
                         <span className="text-xs font-medium text-amber-700">
@@ -151,23 +152,19 @@ export function StandingsTable({
                   </div>
                 </td>
 
-                <td className="px-3 py-3 text-center">{row.played}</td>
-                <td className="px-3 py-3 text-center">{row.wins}</td>
-                <td className="px-3 py-3 text-center">{row.draws}</td>
-                <td className="px-3 py-3 text-center">{row.losses}</td>
-                <td className="px-3 py-3 text-center font-bold text-slate-900">
-                  {row.points}
-                </td>
-                <td className="px-3 py-3 text-center">{row.goalsFor}</td>
-                <td className="px-3 py-3 text-center">{row.goalsAgainst}</td>
-                <td className="px-3 py-3 text-center font-semibold">
-                  {row.goalDifference}
-                </td>
+                <td className="text-center">{row.played}</td>
+                <td className="text-center">{row.wins}</td>
+                <td className="text-center">{row.draws}</td>
+                <td className="text-center">{row.losses}</td>
+                <td className="stat-key text-center">{row.points}</td>
+                <td className="text-center">{row.goalsFor}</td>
+                <td className="text-center">{row.goalsAgainst}</td>
+                <td className="text-center font-semibold">{row.goalDifference}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </EdgeScroller>
     </section>
   );
 }

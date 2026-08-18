@@ -8,6 +8,7 @@ import { TournamentOperationError } from "@/lib/data/types";
 import { calculateStandings } from "@/lib/standings";
 import { mergeTournamentData } from "@/lib/merge-data";
 import type { Tournament } from "@/types/tournament";
+import type { TournamentSettings } from "@/types/tournament-config";
 
 /**
  * MULTI-TOURNAMENT — izolacja turniejów i wybór turnieju publicznego.
@@ -18,6 +19,12 @@ import type { Tournament } from "@/types/tournament";
  */
 
 const hasDatabase = Boolean(process.env.DATABASE_URL);
+
+const LEAGUE_GROUPS: TournamentSettings = {
+  structure: "groups",
+  format: "league",
+  playoffConfig: null,
+};
 
 function buildPayload(
   title: string,
@@ -96,8 +103,8 @@ describe.skipIf(!hasDatabase)("multi-tournament", () => {
 
     originalCurrentId = current[0]?.id ?? null;
 
-    tournamentA = (await postgresRepository.createTournament("Vitest Cup A")).id;
-    tournamentB = (await postgresRepository.createTournament("Vitest Cup B")).id;
+    tournamentA = (await postgresRepository.createTournament({"title":"Vitest Cup A", settings: LEAGUE_GROUPS })).id;
+    tournamentB = (await postgresRepository.createTournament({"title":"Vitest Cup B", settings: LEAGUE_GROUPS })).id;
 
     await postgresRepository.saveTournament(
       tournamentA,
@@ -147,14 +154,15 @@ describe.skipIf(!hasDatabase)("multi-tournament", () => {
   it("utworzenie turnieju nie zmienia istniejących", async () => {
     const before = await countsFor(tournamentA);
 
-    const extra = await postgresRepository.createTournament("Vitest Cup C");
+    const extra = await postgresRepository.createTournament({"title":"Vitest Cup C", settings: LEAGUE_GROUPS });
 
     expect(await countsFor(tournamentA)).toEqual(before);
-    expect(await countsFor(extra.id)).toEqual({ groups: 0, teams: 0, matches: 0 });
+    // Nowy turniej "groups" dostaje automatycznie Grupę A, ale zero drużyn.
+    expect(await countsFor(extra.id)).toEqual({ groups: 1, teams: 0, matches: 0 });
   });
 
   it("nowy turniej NIE staje się automatycznie wyświetlany publicznie", async () => {
-    const created = await postgresRepository.createTournament("Vitest Cup D");
+    const created = await postgresRepository.createTournament({"title":"Vitest Cup D", settings: LEAGUE_GROUPS });
 
     const row = await getDb()
       .select({ isCurrent: tournaments.isCurrent })
@@ -166,13 +174,16 @@ describe.skipIf(!hasDatabase)("multi-tournament", () => {
   });
 
   it("nowy turniej startuje pusty — nie kopiuje danych poprzedniego", async () => {
-    const created = await postgresRepository.createTournament("Vitest Cup E");
+    const created = await postgresRepository.createTournament({"title":"Vitest Cup E", settings: LEAGUE_GROUPS });
     const result = await postgresRepository.getTournamentById(created.id);
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
 
-    expect(result.tournament.groups).toEqual([]);
+    // Startowa Grupa A jest pusta — żadne dane nie są kopiowane.
+    expect(result.tournament.groups).toEqual([
+      { key: "A", name: "Grupa A", teams: [], matches: [] },
+    ]);
     expect(result.tournament.scorers).toEqual([]);
   });
 

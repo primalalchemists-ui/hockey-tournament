@@ -1,5 +1,6 @@
 import type { Tournament } from "@/types/tournament";
 
+import { DEFAULT_TOURNAMENT_SETTINGS } from "@/types/tournament-config";
 import {
   UnsupportedOperationError,
   type TournamentLoadResult,
@@ -119,7 +120,14 @@ async function getCurrentTournament(): Promise<TournamentLoadResult> {
       return { status: "empty" };
     }
 
-    return { status: "ok", tournament: bundle.tournament };
+    // Airtable jest storage'em legacy: obsługuje wyłącznie turniej
+    // ligowy z podziałem na grupy. Zwracamy te ustawienia jawnie,
+    // żeby UI nie musiał zgadywać.
+    return {
+      status: "ok",
+      tournament: bundle.tournament,
+      settings: DEFAULT_TOURNAMENT_SETTINGS,
+    };
   } catch (error) {
     console.error("[airtableRepo] getCurrentTournament failed:", error);
 
@@ -146,6 +154,8 @@ async function listTournaments(): Promise<TournamentSummary[]> {
       title: result.tournament.title ?? "Turniej",
       slug: result.tournament.id,
       isCurrent: true,
+      structure: DEFAULT_TOURNAMENT_SETTINGS.structure,
+      format: DEFAULT_TOURNAMENT_SETTINGS.format,
       archivedAt: null,
       createdAt: new Date(0).toISOString(),
     },
@@ -163,6 +173,10 @@ async function getTournamentById(id: string): Promise<TournamentLoadResult> {
 
 async function createTournament(): Promise<{ id: string; slug: string }> {
   throw new UnsupportedOperationError("createTournament", "airtable");
+}
+
+async function updateTournamentSettings(): Promise<void> {
+  throw new UnsupportedOperationError("updateTournamentSettings", "airtable");
 }
 
 async function setCurrentTournament(): Promise<void> {
@@ -395,6 +409,7 @@ export const airtableRepository: TournamentRepository = {
   listTournaments,
   getTournamentById,
   createTournament,
+  updateTournamentSettings,
   saveTournament,
   setCurrentTournament,
   setTournamentArchived,

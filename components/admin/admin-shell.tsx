@@ -12,7 +12,15 @@ import { EditableTournamentHeader } from "@/components/admin/editable-tournament
 import { RegulationSection } from "@/components/regulation-section";
 import { ScheduleSection } from "@/components/schedule-section";
 import { TournamentSelector } from "@/components/admin/tournament-selector";
+import {
+  TournamentSettingsPanel,
+  describeSettings,
+} from "@/components/admin/tournament-settings-panel";
+import { PlayoffPanel } from "@/components/admin/playoff-panel";
+import { PlayoffAssetManager } from "@/components/admin/playoff-asset-manager";
+import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import type { TournamentSummary } from "@/lib/data/types";
+import type { TournamentSettings } from "@/types/tournament-config";
 import type { Tournament } from "@/types/tournament";
 
 type MainTab =
@@ -29,6 +37,9 @@ type AdminShellProps = {
   tournamentId: string;
   tournaments: TournamentSummary[];
   multiTournamentEnabled: boolean;
+  settings: TournamentSettings;
+  /** null dla turniejów ligowych — silnik pucharowy ich nie dotyczy. */
+  playoffState: PlayoffStateView | null;
 };
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
@@ -96,7 +107,7 @@ function PreviewImage({
 
   return (
     <div
-      className={["overflow-hidden rounded-3xl border border-slate-200 bg-white", className].join(
+      className={["overflow-hidden ice-surface rounded-3xl", className].join(
         " "
       )}
     >
@@ -110,6 +121,8 @@ export function AdminShell({
   tournamentId,
   tournaments,
   multiTournamentEnabled,
+  settings,
+  playoffState,
 }: AdminShellProps) {
   const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
   const [activeTab, setActiveTab] = useState<MainTab>("live");
@@ -226,6 +239,9 @@ export function AdminShell({
 
   function handleAddGroup() {
     updateDraft((prev) => {
+      // Przy jednej wspólnej tabeli nie ma czego dodawać — pula już istnieje.
+      if (settings.structure === "single") return prev;
+
       const nextIndex = prev.groups.length + 1;
       const key = String.fromCharCode(64 + nextIndex);
 
@@ -688,6 +704,13 @@ export function AdminShell({
 
   const allTeams = draft.groups.flatMap((group) => group.teams);
 
+  // Struktura jest zablokowana, gdy turniej ma już treść sportową.
+  const hasSportingData =
+    draft.groups.length > 1 ||
+    draft.groups.some(
+      (group) => group.teams.length > 0 || group.matches.length > 0
+    );
+
   const tickerPreview = useMemo(() => {
     const message = (draft.tickerMessage ?? "").trim();
     const hasScorer = draft.showTopScorerTicker !== false;
@@ -815,7 +838,7 @@ export function AdminShell({
     if (activeTab === "camp") {
       return (
         <section className="space-y-6">
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Banner główny</h2>
 
@@ -868,7 +891,7 @@ export function AdminShell({
             />
           </section>
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">
@@ -897,7 +920,7 @@ export function AdminShell({
             </div>
           </section>
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Banner campa</h2>
 
@@ -950,7 +973,7 @@ export function AdminShell({
             />
           </section>
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Plakaty campa</h2>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -1054,7 +1077,26 @@ export function AdminShell({
             </div>
           </section>
 
-          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          {playoffState ? (
+            <>
+              <PlayoffAssetManager
+                tournamentId={tournamentId}
+                tournamentTitle={draft.title}
+                kind="playoff_bracket_background"
+                title="Tło drabinki play-off"
+                currentUrl={playoffState.bracketBackgroundUrl}
+              />
+              <PlayoffAssetManager
+                tournamentId={tournamentId}
+                tournamentTitle={draft.title}
+                kind="podium_background"
+                title="Tło podium"
+                currentUrl={playoffState.podiumBackgroundUrl}
+              />
+            </>
+          ) : null}
+
+          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <h2 className="text-lg font-semibold text-slate-900">Podgląd sekcji campa</h2>
 
             <CampBanner
@@ -1071,7 +1113,7 @@ export function AdminShell({
 
     if (activeTab === "ticker") {
       return (
-        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
           <div className="space-y-2">
             <h2 className="text-lg font-semibold text-slate-900">Pasek info</h2>
           </div>
@@ -1142,7 +1184,15 @@ export function AdminShell({
     }
 
     return (
-      <EditableGroupTabs
+      <>
+        {playoffState ? (
+          <div className="mb-4">
+            <PlayoffPanel tournamentId={tournamentId} state={playoffState} />
+          </div>
+        ) : null}
+
+        <EditableGroupTabs
+        structure={settings.structure}
         groups={draft.groups}
         onAddGroup={handleAddGroup}
         onRemoveGroup={handleRemoveGroup}
@@ -1151,75 +1201,106 @@ export function AdminShell({
         onUpdateTeamName={handleUpdateTeamName}
         onUploadTeamLogo={handleUploadTeamLogo}
         onUpdateCell={handleUpdateCell}
-      />
+        />
+      </>
     );
-  }, [activeTab, draft, allTeams, separatorCopied, tickerPreview]);
+  }, [
+    activeTab,
+    draft,
+    allTeams,
+    separatorCopied,
+    tickerPreview,
+    settings.structure,
+    playoffState,
+    tournamentId,
+  ]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <header className="space-y-4">
-        <div className="flex w-full flex-col gap-4">
-          <div className="flex items-start justify-between gap-3">
+      {/*
+        DESKTOP: jedna linia — tożsamość i operacje przy lewej krawędzi,
+        akcje zapisu przy prawej.
+        TELEFON: kolumna w kolejności akcje → turniej → operacje → opis,
+        wszystko wyrównane do lewej krawędzi, tak jak tytuł niżej.
+
+        Rzędy selektora są na desktopie `display: contents`, więc wpadają
+        do tej samej linii zamiast tworzyć własne wiersze.
+      */}
+      <header className="space-y-3 px-3 sm:px-0 lg:space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-between lg:gap-4">
+          <div className="space-y-2 lg:flex lg:min-w-0 lg:flex-1 lg:flex-wrap lg:items-center lg:gap-2 lg:space-y-0">
             <TournamentSelector
               tournaments={tournaments}
               selectedId={tournamentId}
               multiTournamentEnabled={multiTournamentEnabled}
+              extraActions={
+                multiTournamentEnabled ? (
+                  <TournamentSettingsPanel
+                    tournamentId={tournamentId}
+                    title={draft.title}
+                    settings={settings}
+                    hasSportingData={hasSportingData}
+                  />
+                ) : null
+              }
             />
 
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleClearAll}
-                  className="rounded-2xl border border-rose-300 bg-white px-3 py-2 text-sm font-semibold text-rose-700 shadow-sm transition hover:bg-rose-50"
-                >
-                  Wyczyść
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isPending}
-                  className="rounded-2xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
-                >
-                  Zapisz
-                </button>
-
-                <form action={logoutAdminAction}>
-                  <button
-                    type="submit"
-                    className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                  >
-                    Wyloguj
-                  </button>
-                </form>
+            {multiTournamentEnabled ? (
+              <div className="flex lg:contents">
+                <span className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+                  {describeSettings(settings)}
+                </span>
               </div>
-
-              <div className="h-5 text-right text-sm font-medium">
-                {isPending ? (
-                  <span className="text-slate-600">Zapisywanie...</span>
-                ) : uploadStatus === "uploading" ? (
-                  <span className="text-slate-600">Dodawanie...</span>
-                ) : saveStatus === "saved" ? (
-                  <span className="text-emerald-700">Zapisano</span>
-                ) : saveStatus === "error" || uploadStatus === "error" ? (
-                  <span className="text-rose-700">Błąd</span>
-                ) : (
-                  <span className="invisible">Placeholder</span>
-                )}
-              </div>
-            </div>
+            ) : null}
           </div>
 
-          <EditableTournamentHeader
-            title={draft.title}
-            onChangeTitle={handleChangeTitle}
-          />
+          {/* Na telefonie akcje idą na samą górę. */}
+          <div className="order-first flex flex-col gap-2 lg:order-none lg:shrink-0 lg:items-end">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={handleClearAll} className="btn btn-danger">
+                Wyczyść
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isPending}
+                className="btn btn-primary"
+              >
+                Zapisz
+              </button>
+
+              <form action={logoutAdminAction}>
+                <button type="submit" className="btn btn-quiet">
+                  Wyloguj
+                </button>
+              </form>
+            </div>
+
+            <div className="h-5 text-sm font-medium lg:text-right">
+              {isPending ? (
+                <span className="text-slate-600">Zapisywanie...</span>
+              ) : uploadStatus === "uploading" ? (
+                <span className="text-slate-600">Dodawanie...</span>
+              ) : saveStatus === "saved" ? (
+                <span className="text-emerald-700">Zapisano</span>
+              ) : saveStatus === "error" || uploadStatus === "error" ? (
+                <span className="text-rose-700">Błąd</span>
+              ) : (
+                <span className="invisible">Placeholder</span>
+              )}
+            </div>
+          </div>
         </div>
+
+        <EditableTournamentHeader
+          title={draft.title}
+          onChangeTitle={handleChangeTitle}
+        />
       </header>
 
       <nav className="overflow-x-auto">
-        <div className="inline-flex min-w-full gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="inline-flex min-w-full gap-2 ice-surface flush-card p-2 shadow-sm sm:rounded-3xl">
           {mainTabs.map((tab) => {
             const isActive = tab.key === activeTab;
 

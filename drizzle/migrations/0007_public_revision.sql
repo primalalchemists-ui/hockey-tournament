@@ -1,0 +1,1 @@
+ALTER TABLE "tournaments" ADD COLUMN "public_revision" integer DEFAULT 0 NOT NULL;

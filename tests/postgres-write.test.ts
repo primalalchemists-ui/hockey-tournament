@@ -110,7 +110,10 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
 
     // Testy pracują na WŁASNYM turnieju o własnym UUID. Nie trzeba już
     // niczego dezaktywować — zapis nie wybiera turnieju samodzielnie.
-    const created = await postgresRepository.createTournament(TEST_TITLE);
+    const created = await postgresRepository.createTournament({
+      title: TEST_TITLE,
+      settings: { structure: "groups", format: "league", playoffConfig: null },
+    });
     testTournamentId = created.id;
   });
 

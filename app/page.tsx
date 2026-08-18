@@ -108,11 +108,42 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     result.status === "ok" ? result.tournament : null
   );
 
+  // Jeden spójny snapshot publiczny — ten sam kształt, który klient pobiera
+  // później przy auto-odświeżaniu. Zero duplikacji reguł.
+  let playoffState = null;
+  let tournamentId: string | null = null;
+  let revision = 0;
+
+  if (result.status === "ok") {
+    try {
+      const { getPublicSnapshot } = await import(
+        "@/lib/data/postgres/public-snapshot"
+      );
+
+      const snapshot = await getPublicSnapshot();
+
+      if (snapshot) {
+        playoffState = snapshot.playoffState;
+        tournamentId = snapshot.tournamentId;
+        revision = snapshot.revision;
+      }
+    } catch (error) {
+      // Awaria sekcji pucharowej nie może wywrócić całej strony wyników.
+      console.error("[public] snapshot failed:", error);
+    }
+  }
+
   return (
     <main className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
+      <div className="mx-auto max-w-[1400px] px-0 py-4 sm:px-4 sm:py-6 lg:px-6">
         <TournamentShell
           tournament={tournament}
+          structure={
+            result.status === "ok" ? result.settings.structure : "groups"
+          }
+          playoffState={playoffState}
+          tournamentId={tournamentId}
+          revision={revision}
           initialTab={params.tab === "scorers" ? "scorers" : "live"}
           initialGroupKey={params.group}
         />

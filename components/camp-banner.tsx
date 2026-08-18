@@ -67,46 +67,36 @@ export function CampBanner({
   const leftPosterSrc = leftPosterImage || "/images/lato.jpg";
   const rightPosterSrc = rightPosterImage || "/images/wiosna.jpg";
 
+  /*
+    Banner wchodzi jako JEDEN blok logiczny.
+    Wcześniej każdy element (grafika, plakaty, nagłówek, licznik, przyciski,
+    stopka) miał własne opóźnienie i sekcja składała się kawałek po kawałku.
+  */
   return (
     <motion.section
-      initial={{ opacity: 0, y: 36 }}
+      initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.7 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       className="mb-12"
     >
       <div className="overflow-hidden pb-10">
         <div className="flex flex-col gap-6 lg:gap-8">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.55, delay: 0.08 }}
-          >
-            <div className="relative aspect-[16/8] w-full overflow-hidden  md:border border-amber-300/40 shadow-[0_26px_80px_-30px_rgba(15,23,42,0.4)] sm:aspect-[16/7] lg:aspect-[16/5.2]">
-              <Image
-                src={bannerSrc}
-                alt="Najbliższy obóz"
-                fill
-                priority
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-black/18" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/22 via-transparent to-black/12" />
-            </div>
-          </motion.div>
+          <div className="relative aspect-[16/8] w-full overflow-hidden border-amber-300/40 shadow-[0_26px_80px_-30px_rgba(15,23,42,0.4)] sm:aspect-[16/7] md:border lg:aspect-[16/5.2]">
+            <Image
+              src={bannerSrc}
+              alt="Najbliższy obóz"
+              fill
+              priority
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-black/18" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/22 via-transparent to-black/12" />
+          </div>
 
           <div className="flex flex-col gap-4 lg:hidden">
-            <PosterCardMobile
-              src={leftPosterSrc}
-              alt="Plakat lewy"
-              delay={0.12}
-            />
-            <PosterCardMobile
-              src={rightPosterSrc}
-              alt="Plakat prawy"
-              delay={0.18}
-            />
+            <PosterCardMobile src={leftPosterSrc} alt="Plakat lewy" />
+            <PosterCardMobile src={rightPosterSrc} alt="Plakat prawy" />
           </div>
 
           <div className="hidden lg:grid lg:grid-cols-[300px_minmax(0,1fr)_300px] lg:items-start lg:gap-5 xl:grid-cols-[320px_minmax(0,1fr)_320px] xl:gap-6">
@@ -115,7 +105,6 @@ export function CampBanner({
                 src={leftPosterSrc}
                 alt="Plakat lewy"
                 rotation="-rotate-6"
-                delay={0.12}
               />
             </div>
 
@@ -131,7 +120,6 @@ export function CampBanner({
                 src={rightPosterSrc}
                 alt="Plakat prawy"
                 rotation="rotate-6"
-                delay={0.18}
               />
             </div>
           </div>
@@ -170,13 +158,7 @@ function CenterContent({
           : "px-1 pt-1 pb-2 sm:px-2"
       }`}
     >
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.15 }}
-        className="relative mx-auto w-fit"
-      >
+      <div className="relative mx-auto w-fit">
         <h2 className="text-[1.6rem] font-black uppercase tracking-[0.08em] text-slate-950 sm:text-[2rem] lg:text-[2.45rem] xl:text-[2.8rem]">
           Najbliższy camp
         </h2>
@@ -189,70 +171,44 @@ function CenterContent({
             Najbliższy camp
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.22 }}
-        className="mt-7 flex flex-nowrap items-start justify-center gap-2 sm:gap-3 lg:gap-2.5 xl:gap-3"
-      >
+      <div className="mt-7 flex flex-nowrap items-start justify-center gap-2 sm:gap-3 lg:gap-2.5 xl:gap-3">
         <FlipCountdownCard value={timeLeft.days} label="dni" />
         <FlipCountdownCard value={timeLeft.hours} label="godz" />
         <FlipCountdownCard value={timeLeft.minutes} label="min" />
         <StaticCountdownCard value={timeLeft.seconds} label="sek" />
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className="mt-7 flex flex-row items-center justify-center gap-3"
-      >
-        <motion.a
+      <div className="mt-7 flex flex-row items-center justify-center gap-3">
+        <a
           href={signupLink || "#"}
           target="_blank"
           rel="noopener noreferrer"
-          whileHover={{ y: -2, scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="inline-flex min-w-[150px] items-center justify-center rounded-full bg-slate-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_-14px_rgba(15,23,42,0.55)] transition hover:bg-slate-800 sm:min-w-[170px] sm:px-7"
+          className="btn btn-primary min-w-[150px] sm:min-w-[170px]"
         >
           Zapisz się
-        </motion.a>
+        </a>
 
-        <motion.button
+        <button
           type="button"
           onClick={scrollToTop}
-          whileHover={{ y: -2, scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="inline-flex min-w-[150px] items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50 sm:min-w-[170px] sm:px-7"
+          className="btn btn-quiet min-w-[150px] sm:min-w-[170px]"
         >
           Wróć do góry
-        </motion.button>
-      </motion.div>
+        </button>
+      </div>
     </div>
   );
 }
 
 function PoweredBySection() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.55, delay: 0.2 }}
-      className="pt-4"
-    >
+    <div className="pt-4">
       <div className="flex flex-col items-center justify-center text-center">
         <ReflectiveLabel text="Powered by" />
 
-        <motion.div
-          whileHover={{ y: -2, scale: 1.02 }}
-          transition={{ duration: 0.2 }}
-          className="relative mt-4"
-        >
+        <div className="relative mt-4">
           <div className="relative h-[130px] w-[190px] sm:h-[155px] sm:w-[225px] lg:h-[185px] lg:w-[270px] xl:h-[210px] xl:w-[300px]">
             <Image
               src="/icons/festiwal-logo.png"
@@ -275,9 +231,9 @@ function PoweredBySection() {
               />
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 function ReflectiveLabel({ text }: { text: string }) {
@@ -298,27 +254,13 @@ function ReflectiveLabel({ text }: { text: string }) {
     </div>
   );
 }
-function PosterCardMobile({
-  src,
-  alt,
-  delay,
-}: {
-  src: string;
-  alt: string;
-  delay: number;
-}) {
+function PosterCardMobile({ src, alt }: { src: string; alt: string }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 22 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.55, delay }}
-      className="w-full"
-    >
+    <div className="w-full">
       <div className="relative mx-auto aspect-[4/6] w-full max-w-[420px] overflow-hidden rounded-[24px] border border-slate-200 bg-transparent shadow-[0_22px_50px_-22px_rgba(15,23,42,0.45)]">
         <Image src={src} alt={alt} fill className="object-contain" />
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -326,25 +268,17 @@ function PosterCardDesktop({
   src,
   alt,
   rotation,
-  delay,
 }: {
   src: string;
   alt: string;
   rotation: string;
-  delay: number;
 }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 22 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.55, delay }}
-      className={`mx-auto w-full ${rotation} px-3 md:px-0`}
-    >
+    <div className={`mx-auto w-full ${rotation} px-3 md:px-0`}>
       <div className="relative aspect-[4/6] w-full overflow-hidden rounded-[24px] border border-slate-200 bg-transparent shadow-[0_22px_50px_-22px_rgba(15,23,42,0.45)]">
         <Image src={src} alt={alt} fill className="object-contain" />
       </div>
-    </motion.div>
+    </div>
   );
 }
 

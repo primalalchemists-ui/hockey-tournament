@@ -51,7 +51,7 @@ function renderPositionBadge(position: number) {
   }
 
   return (
-    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm">
+    <span className="flex h-9 w-9 items-center justify-center stat-num rounded-full border border-[var(--surface-border)] bg-white/80 text-sm font-bold text-slate-700">
       {position}
     </span>
   );
@@ -62,24 +62,24 @@ export function ScorersTable({ scorers, teams }: ScorersTableProps) {
   const teamMap = getTeamMap(teams);
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
+    <section className="ice-card flush-card">
+      <div className="ice-card-head">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Strzelcy</h2>
+          <h2 className="section-title">Strzelcy</h2>
 
           <ShareTableButton shareText="Sprawdź TOP 5 najlepszych strzelców" />
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+        <table className="ice-table min-w-full">
+          <thead>
             <tr>
-              <th className="px-3 py-3 text-center font-semibold">Poz.</th>
-              <th className="px-3 py-3 text-left font-semibold">Drużyna</th>
-              <th className="px-3 py-3 text-left font-semibold">Zawodnik</th>
-              <th className="px-3 py-3 text-center font-semibold">Nr</th>
-              <th className="px-3 py-3 text-center font-semibold">Bramki</th>
+              <th className="text-center">Poz.</th>
+              <th className="text-left">Drużyna</th>
+              <th className="text-left">Zawodnik</th>
+              <th className="text-center">Nr</th>
+              <th className="text-center">Bramki</th>
             </tr>
           </thead>
 
@@ -97,15 +97,15 @@ export function ScorersTable({ scorers, teams }: ScorersTableProps) {
 
                 return (
                   <tr key={scorer.id} className="border-t border-slate-100">
-                    <td className="px-3 py-3">
+                    <td>
                       <div className="flex justify-center">
                         {renderPositionBadge(position)}
                       </div>
                     </td>
 
-                    <td className="px-3 py-3">
+                    <td>
                       <div className="flex min-w-[180px] items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
                           {team?.logoUrl ? (
                             <img
                               src={team.logoUrl}
@@ -125,15 +125,15 @@ export function ScorersTable({ scorers, teams }: ScorersTableProps) {
                       </div>
                     </td>
 
-                    <td className="px-3 py-3 font-medium text-slate-900">
+                    <td className="team-name">
                       {scorer.playerName}
                     </td>
 
-                    <td className="px-3 py-3 text-center">
+                    <td className="text-center">
                       {scorer.jerseyNumber ?? "—"}
                     </td>
 
-                    <td className="px-3 py-3 text-center font-bold text-slate-900">
+                    <td className="stat-key text-center">
                       {scorer.goals}
                     </td>
                   </tr>

@@ -10,6 +10,7 @@ import {
   setTournamentArchivedAction,
   type TournamentActionState,
 } from "@/app/admin/actions";
+import { TournamentSettingsFields } from "@/components/admin/tournament-settings-fields";
 import type { TournamentSummary } from "@/lib/data/types";
 
 type TournamentSelectorProps = {
@@ -22,10 +23,11 @@ type TournamentSelectorProps = {
 const initialState: TournamentActionState = { error: null };
 
 export function TournamentSelector({
+  extraActions,
   tournaments,
   selectedId,
   multiTournamentEnabled,
-}: TournamentSelectorProps) {
+}: TournamentSelectorProps & { extraActions?: React.ReactNode }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -100,103 +102,37 @@ export function TournamentSelector({
     );
   }
 
-  return (
-    <div ref={containerRef} className="relative">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-slate-500">Turniej:</span>
-
-        <button
-          type="button"
-          onClick={() => setIsOpen((prev) => !prev)}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
-        >
-          {selected?.title ?? "Wybierz turniej"}
-          <ChevronDown size={16} />
-        </button>
-
-        {selected?.isCurrent ? (
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Wyświetlany na stronie
-          </span>
-        ) : selected && !selected.archivedAt ? (
-          <form
-            action={setCurrentAction}
-            onSubmit={(event) => {
-              if (!confirmSetCurrent(selected)) event.preventDefault();
-            }}
-          >
-            <input type="hidden" name="tournamentId" value={selected.id} />
-            <button
-              type="submit"
-              disabled={isCurrentPending}
-              className="rounded-2xl border border-slate-900 bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-50"
-            >
-              {isCurrentPending ? "Ustawianie..." : "Ustaw jako wyświetlany"}
-            </button>
-          </form>
-        ) : null}
-
-        {selected?.archivedAt ? (
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
-            Zarchiwizowany
-          </span>
-        ) : null}
-
-        {selected ? (
-          <form action={archiveAction}>
-            <input type="hidden" name="tournamentId" value={selected.id} />
-            <input
-              type="hidden"
-              name="archived"
-              value={selected.archivedAt ? "false" : "true"}
-            />
-            <button
-              type="submit"
-              disabled={isArchivePending}
-              className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-            >
-              {selected.archivedAt ? "Przywróć z archiwum" : "Archiwizuj"}
-            </button>
-          </form>
-        ) : null}
-      </div>
-
-      {errorMessage ? (
-        <p className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">
-          {errorMessage}
-        </p>
-      ) : null}
-
-      {isOpen ? (
-        <div className="absolute left-0 top-full z-50 mt-2 w-80 rounded-3xl border border-slate-200 bg-white p-2 shadow-lg">
-          <div className="max-h-72 overflow-y-auto">
-            {active.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => openTournament(item.id)}
-                className={[
-                  "flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left text-sm transition",
-                  item.id === selectedId
-                    ? "bg-slate-100 font-semibold text-slate-900"
-                    : "text-slate-700 hover:bg-slate-50",
-                ].join(" ")}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  {item.id === selectedId ? (
-                    <Check size={14} className="shrink-0" />
-                  ) : (
-                    <span className="w-[14px] shrink-0" />
-                  )}
-                  <span className="truncate">{item.title}</span>
-                </span>
-
-                {item.isCurrent ? (
-                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    Wyświetlany
+  const dropdown = (
+    <>
+        {isOpen ? (
+          <div className="absolute left-0 top-full z-50 mt-2 max-h-[70vh] w-96 overflow-y-auto ice-surface rounded-3xl p-2 shadow-lg">
+            <div className="max-h-72 overflow-y-auto">
+              {active.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => openTournament(item.id)}
+                  className={[
+                    "flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left text-sm transition",
+                    item.id === selectedId
+                      ? "bg-slate-100 font-semibold text-slate-900"
+                      : "text-slate-700 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {item.id === selectedId ? (
+                      <Check size={14} className="shrink-0" />
+                    ) : (
+                      <span className="w-[14px] shrink-0" />
+                    )}
+                    <span className="truncate">{item.title}</span>
                   </span>
-                ) : null}
+  
+                  {item.isCurrent ? (
+                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Wyświetlany
+                    </span>
+                  ) : null}
               </button>
             ))}
 
@@ -234,14 +170,22 @@ export function TournamentSelector({
 
           <div className="mt-2 border-t border-slate-200 pt-2">
             {isCreating ? (
-              <form action={createAction} className="space-y-2 px-1 pb-1">
-                <input
-                  name="title"
-                  autoFocus
-                  required
-                  placeholder="Nazwa turnieju"
-                  className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
-                />
+              <form action={createAction} className="space-y-4 px-1 pb-1">
+                <label className="block space-y-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Nazwa
+                  </span>
+                  <input
+                    name="title"
+                    autoFocus
+                    required
+                    placeholder="Nazwa turnieju"
+                    className="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900"
+                  />
+                </label>
+
+                <TournamentSettingsFields />
+
                 <div className="flex gap-2">
                   <button
                     type="submit"
@@ -276,6 +220,88 @@ export function TournamentSelector({
           </div>
         </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <div ref={containerRef} className="space-y-2 lg:contents">
+      {/* Rzad 1: ktory turniej edytujemy i czy jest publiczny. */}
+      <div className="flex flex-wrap items-center gap-2 lg:contents">
+        <span className="text-sm font-medium text-slate-500">Turniej:</span>
+
+        {/* Lista rozwijana kotwiczy sie do samego przycisku. */}
+        <span className="relative inline-flex">
+          <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className="btn btn-quiet"
+          >
+            {selected?.title ?? "Wybierz turniej"}
+            <ChevronDown size={16} />
+          </button>
+          {dropdown}
+        </span>
+
+        {selected?.isCurrent ? (
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Wyświetlany na stronie
+          </span>
+        ) : selected && !selected.archivedAt ? (
+          <form
+            action={setCurrentAction}
+            onSubmit={(event) => {
+              if (!confirmSetCurrent(selected)) event.preventDefault();
+            }}
+          >
+            <input type="hidden" name="tournamentId" value={selected.id} />
+            <button
+              type="submit"
+              disabled={isCurrentPending}
+              className="btn btn-primary text-xs"
+            >
+              {isCurrentPending ? "Ustawianie..." : "Ustaw jako wyświetlany"}
+            </button>
+          </form>
+        ) : null}
+
+        {selected?.archivedAt ? (
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800">
+            Zarchiwizowany
+          </span>
+        ) : null}
+
+      </div>
+
+      {/* Rzad 2: operacje na turnieju. */}
+      <div className="flex flex-wrap items-center gap-2 lg:contents">
+        {selected ? (
+          <form action={archiveAction}>
+            <input type="hidden" name="tournamentId" value={selected.id} />
+            <input
+              type="hidden"
+              name="archived"
+              value={selected.archivedAt ? "false" : "true"}
+            />
+            <button
+              type="submit"
+              disabled={isArchivePending}
+              className="btn btn-quiet text-xs"
+            >
+              {selected.archivedAt ? "Przywróć z archiwum" : "Archiwizuj"}
+            </button>
+          </form>
+        ) : null}
+
+        {extraActions}
+      </div>
+
+      {errorMessage ? (
+        <p className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 lg:mt-0 lg:basis-full">
+          {errorMessage}
+        </p>
+      ) : null}
+
     </div>
   );
 }

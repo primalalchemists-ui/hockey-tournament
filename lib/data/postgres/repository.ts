@@ -15,12 +15,22 @@ import {
 } from "@/lib/db/schema";
 
 import {
+  MAIN_POOL_KEY,
+  MAIN_POOL_NAME,
+  parseTournamentSettings,
+  readTournamentSettings,
+  type TournamentSettings,
+} from "@/types/tournament-config";
+import {
   TournamentOperationError,
   type TournamentLoadResult,
   type TournamentRepository,
   type TournamentSummary,
+  type CreateTournamentInput,
+  type UpdateTournamentSettingsInput,
 } from "../types";
 import { slugifyTournamentTitle } from "../slug";
+import { bumpPublicRevisionStatement } from "./public-revision";
 import {
   ASSET_KINDS,
   assetFieldPrefix,
@@ -78,7 +88,15 @@ async function loadBundle(
       return { status: "empty" };
     }
 
-    return { status: "ok", tournament: buildTournamentFromRows(bundle) };
+    return {
+      status: "ok",
+      tournament: buildTournamentFromRows(bundle),
+      settings: readTournamentSettings({
+        structure: bundle.tournament.structure,
+        format: bundle.tournament.format,
+        playoffConfig: bundle.tournament.playoffConfig,
+      }),
+    };
   } catch (error) {
     console.error(`[postgresRepo] ${label} failed:`, error);
 
@@ -109,6 +127,8 @@ async function listTournaments(): Promise<TournamentSummary[]> {
       title: tournaments.title,
       slug: tournaments.slug,
       isCurrent: tournaments.isCurrent,
+      structure: tournaments.structure,
+      format: tournaments.format,
       archivedAt: tournaments.archivedAt,
       createdAt: tournaments.createdAt,
     })
@@ -120,6 +140,11 @@ async function listTournaments(): Promise<TournamentSummary[]> {
     title: row.title,
     slug: row.slug,
     isCurrent: row.isCurrent,
+    ...readTournamentSettings({
+      structure: row.structure,
+      format: row.format,
+      playoffConfig: null,
+    }),
     archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   }));
@@ -157,27 +182,162 @@ async function reserveUniqueSlug(
   );
 }
 
-async function createTournament(title: string) {
-  const trimmed = title.trim();
+async function createTournament(input: CreateTournamentInput) {
+  const trimmed = input.title.trim();
 
   if (!trimmed) {
     throw new TournamentOperationError("Nazwa turnieju nie może być pusta.");
   }
 
+  // Walidacja PRZED zapisem — do bazy nie trafia konfiguracja półpoprawna.
+  const settings = parseTournamentSettings(input.settings);
+
   const db = getDb();
   const slug = await reserveUniqueSlug(db, slugifyTournamentTitle(trimmed));
   const id = randomUUID();
 
-  // Świadomie NIE ustawiamy isCurrent — nowy turniej nie może podmienić
-  // tego, co widzą kibice, dopóki admin tego jawnie nie zrobi.
-  await db.insert(tournaments).values({
-    id,
-    slug,
-    title: trimmed,
-    isCurrent: false,
-  });
+  // Turniej i jego struktura startowa powstają w JEDNEJ transakcji —
+  // nie ma momentu, w którym turniej istnieje bez poprawnej konfiguracji.
+  //
+  //  structure = "groups" -> od razu "Grupa A", bez zbędnego klikania,
+  //  structure = "single" -> jedna techniczna pula, niewidoczna w UI,
+  //                          dzięki której calculateStandings działa bez zmian.
+  const isSingle = settings.structure === "single";
+
+  await db.batch([
+    db.insert(tournaments).values({
+      id,
+      slug,
+      title: trimmed,
+      isCurrent: false,
+      structure: settings.structure,
+      format: settings.format,
+      playoffConfig: settings.playoffConfig,
+    }),
+    db.insert(groups).values({
+      id: randomUUID(),
+      tournamentId: id,
+      key: isSingle ? MAIN_POOL_KEY : "A",
+      name: isSingle ? MAIN_POOL_NAME : "Grupa A",
+      sortOrder: 0,
+    }),
+  ]);
 
   return { id, slug };
+}
+
+/**
+ * Zmiana nazwy i konfiguracji turnieju.
+ *
+ * Zmiana structure jest dopuszczalna wyłącznie dla turnieju bez danych —
+ * przeniesienie drużyn i meczów między "jedną tabelą" a "grupami" jest
+ * operacją destrukcyjną i nie zostanie wykonana automatycznie.
+ */
+async function updateTournamentSettings(
+  tournamentId: string,
+  input: UpdateTournamentSettingsInput
+) {
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      id: tournaments.id,
+      title: tournaments.title,
+      structure: tournaments.structure,
+      format: tournaments.format,
+      playoffConfig: tournaments.playoffConfig,
+    })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+
+  const existing = rows[0];
+
+  if (!existing) {
+    throw new TournamentOperationError("Turniej nie istnieje.");
+  }
+
+  const current = readTournamentSettings(existing);
+
+  const nextStructure = input.structure ?? current.structure;
+
+  if (nextStructure !== current.structure) {
+    const [teamRows, matchRows, groupRows] = await db.batch([
+      db
+        .select({ n: sql`count(*)::int` })
+        .from(teams)
+        .where(eq(teams.tournamentId, tournamentId)),
+      db
+        .select({ n: sql`count(*)::int` })
+        .from(matches)
+        .where(eq(matches.tournamentId, tournamentId)),
+      db
+        .select({ n: sql`count(*)::int` })
+        .from(groups)
+        .where(eq(groups.tournamentId, tournamentId)),
+    ]);
+
+    const teamCount = Number(teamRows[0]?.n ?? 0);
+    const matchCount = Number(matchRows[0]?.n ?? 0);
+    const groupCount = Number(groupRows[0]?.n ?? 0);
+
+    if (teamCount > 0 || matchCount > 0 || groupCount > 1) {
+      throw new TournamentOperationError(
+        "Nie można zmienić struktury turnieju, który ma już drużyny, mecze lub więcej niż jedną grupę. " +
+          "Utwórz nowy turniej z właściwą strukturą."
+      );
+    }
+  }
+
+  const settings = parseTournamentSettings({
+    structure: nextStructure,
+    format: input.format ?? current.format,
+    playoffConfig:
+      input.playoffConfig ?? current.playoffConfig ?? undefined,
+  });
+
+  const nextTitle = input.title?.trim() || existing.title;
+  const nextSlug = await reserveUniqueSlug(
+    db,
+    slugifyTournamentTitle(nextTitle),
+    tournamentId
+  );
+
+  const statements: Statement[] = [
+    db
+      .update(tournaments)
+      .set({
+        title: nextTitle,
+        slug: nextSlug,
+        structure: settings.structure,
+        format: settings.format,
+        playoffConfig: settings.playoffConfig,
+        updatedAt: new Date(),
+      })
+      .where(eq(tournaments.id, tournamentId)) as Statement,
+  ];
+
+  // Zmiana structure na pustym turnieju musi też poprawić pulę startową,
+  // żeby nie została po niej "Grupa A" przy strukturze jednotabelowej.
+  if (nextStructure !== current.structure) {
+    const isSingle = nextStructure === "single";
+
+    statements.push(
+      db
+        .update(groups)
+        .set({
+          key: isSingle ? MAIN_POOL_KEY : "A",
+          name: isSingle ? MAIN_POOL_NAME : "Grupa A",
+        })
+        .where(eq(groups.tournamentId, tournamentId)) as Statement
+    );
+  }
+
+  // Tytuł i format są widoczne publicznie — wersja rośnie w tej samej
+  // transakcji co zmiana ustawień.
+  statements.push(bumpPublicRevisionStatement(db, tournamentId));
+
+  await db.batch(statements as [Statement, ...Statement[]]);
 }
 
 async function setCurrentTournament(tournamentId: string) {
@@ -603,15 +763,30 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
     );
   }
 
+  // Payload z panelu zawiera WYŁĄCZNIE mecze fazy grupowej, więc kasowanie
+  // "nieobecnych" musi być ograniczone do stage='group'. Bez tego zwykły
+  // zapis tabeli skasowałby całą wygenerowaną drabinkę i minigrupę.
+  const keptMatchIds = validMatchInputs.map((match) => match.externalId);
+
   statements.push(
-    buildDeleteStale(
-      db,
-      matches,
-      matches.tournamentId,
-      tournamentId,
-      matches.externalId,
-      validMatchInputs.map((match) => match.externalId)
-    )
+    (keptMatchIds.length === 0
+      ? db
+          .delete(matches)
+          .where(
+            and(
+              eq(matches.tournamentId, tournamentId),
+              eq(matches.stage, "group")
+            )
+          )
+      : db
+          .delete(matches)
+          .where(
+            and(
+              eq(matches.tournamentId, tournamentId),
+              eq(matches.stage, "group"),
+              notInArray(matches.externalId, keptMatchIds)
+            )
+          )) as Statement
   );
 
   /* --- strzelcy ------------------------------------------------------- */
@@ -658,6 +833,10 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
       scorerInputs.map((scorer) => scorer.externalId)
     )
   );
+
+  // Publicznie widoczna zmiana (wyniki, drużyny, strzelcy, assety, ticker)
+  // — wersja rośnie w TEJ SAMEJ transakcji co dane.
+  statements.push(bumpPublicRevisionStatement(db, tournamentId));
 
   // Cały zapis w JEDNEJ transakcji i JEDNYM round-tripie.
   // Airtable potrzebował ~89 sekwencyjnych żądań bez żadnej atomowości.
@@ -710,6 +889,7 @@ export const postgresRepository: TournamentRepository = {
   listTournaments,
   getTournamentById,
   createTournament,
+  updateTournamentSettings,
   saveTournament,
   setCurrentTournament,
   setTournamentArchived,

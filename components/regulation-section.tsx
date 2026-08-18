@@ -68,9 +68,9 @@ export function RegulationSection({
     : "";
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <h2 className="text-lg font-semibold text-slate-900">Regulamin</h2>
+    <section className="ice-card flush-card">
+      <div className="ice-card-head">
+        <h2 className="section-title">Regulamin</h2>
       </div>
 
       <div className="w-full">
@@ -101,7 +101,7 @@ export function RegulationSection({
 
                 <a
                   href={downloadUrl}
-                  className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="btn btn-quiet"
                 >
                   Pobierz plik
                 </a>
@@ -118,7 +118,7 @@ export function RegulationSection({
           </div>
         ) : (
           <div className="space-y-4 p-4 sm:p-6">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <div className="ice-panel p-4 sm:p-5">
               <p className="text-sm font-medium text-slate-900">
                 Ten plik nie ma bezpośredniego podglądu w aplikacji.
               </p>
@@ -135,7 +135,7 @@ export function RegulationSection({
 
                 <a
                   href={downloadUrl}
-                  className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="btn btn-quiet"
                 >
                   Pobierz plik
                 </a>

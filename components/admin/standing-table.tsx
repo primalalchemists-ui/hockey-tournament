@@ -8,9 +8,9 @@ type StandingsTableProps = {
 
 export function StandingsTable({ groupName, rows }: StandingsTableProps) {
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
-        <h2 className="text-lg font-semibold text-slate-900">Ranking</h2>
+    <section className="overflow-hidden ice-surface flush-card sm:rounded-3xl">
+      <div className="ice-card-head">
+        <h2 className="section-title">Ranking</h2>
       </div>
 
       <div className="overflow-x-auto">

@@ -8,9 +8,12 @@ import { EditableMatchMatrix } from "@/components/admin/editable-match-matrix";
 import { TeamManager } from "@/components/admin/team-manager";
 import { calculateStandings } from "@/lib/standings";
 import type { Group } from "@/types/tournament";
+import type { TournamentStructure } from "@/types/tournament-config";
 import { StandingsTable } from "@/components/standings-table";
 
 type EditableGroupTabsProps = {
+  /** "single" ukrywa cały język grupowy — pula techniczna nie wycieka do UI. */
+  structure: TournamentStructure;
   groups: Group[];
   onAddGroup: () => void;
   onRemoveGroup: (groupKey: string) => void;
@@ -27,6 +30,7 @@ type EditableGroupTabsProps = {
 };
 
 export function EditableGroupTabs({
+  structure,
   groups,
   onAddGroup,
   onRemoveGroup,
@@ -47,7 +51,7 @@ export function EditableGroupTabs({
     return (
       <section className="space-y-4">
         <div className="overflow-x-auto">
-          <div className="inline-flex min-w-full gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="inline-flex min-w-full gap-2 ice-surface flush-card p-2 shadow-sm sm:rounded-3xl">
             <button
               type="button"
               onClick={onAddGroup}
@@ -64,10 +68,13 @@ export function EditableGroupTabs({
 
   const standings = calculateStandings(currentGroup);
 
+  const showGroupTabs = structure === "groups";
+
   return (
     <section className="space-y-4">
+      {showGroupTabs ? (
       <div className="overflow-x-auto">
-        <div className="inline-flex min-w-full gap-2 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="inline-flex min-w-full gap-2 ice-surface flush-card p-2 shadow-sm sm:rounded-3xl">
           {groups.map((group) => {
             const isActive = group.key === currentGroup.key;
 
@@ -107,6 +114,7 @@ export function EditableGroupTabs({
           </button>
         </div>
       </div>
+      ) : null}
 
       <AnimatePresence mode="wait">
         <motion.div

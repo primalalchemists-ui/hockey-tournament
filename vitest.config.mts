@@ -16,7 +16,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts"],
+    // .tsx: testy kontraktu renderu (react-dom/server) dla komponentów
+    // publicznych — bez DOM, bez jsdom, zwykły Node.
+    include: ["tests/**/*.test.{ts,tsx}"],
     globals: false,
     setupFiles: ["./tests/setup/env.ts"],
     // Testy integracyjne dzielą jedną bazę Neon — równoległe pliki

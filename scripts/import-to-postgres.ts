@@ -142,7 +142,13 @@ async function main() {
     .limit(1);
 
   const tournamentId =
-    existing[0]?.id ?? (await postgresRepository.createTournament(tournament.title)).id;
+    existing[0]?.id ?? (
+      await postgresRepository.createTournament({
+        title: tournament.title,
+        // Import dotyczy historycznego Rabbit Cupa: grupy + liga.
+        settings: { structure: "groups", format: "league", playoffConfig: null },
+      })
+    ).id;
 
   const { slug } = await postgresRepository.saveTournament(
     tournamentId,

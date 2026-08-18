@@ -1,4 +1,9 @@
 import type { Tournament } from "@/types/tournament";
+import type {
+  TournamentFormat,
+  TournamentSettings,
+  TournamentStructure,
+} from "@/types/tournament-config";
 
 /**
  * Wynik odczytu turnieju.
@@ -9,7 +14,18 @@ import type { Tournament } from "@/types/tournament";
  * (którego zapis skasowałby zawartość bazy).
  */
 export type TournamentLoadResult =
-  | { status: "ok"; tournament: Partial<Tournament> }
+  | {
+      status: "ok";
+      tournament: Partial<Tournament>;
+      /**
+       * Konfiguracja turnieju wraca OBOK modelu domenowego, a nie w nim.
+       *
+       * Dzięki temu `Tournament` pozostaje nietknięty: golden master,
+       * equivalence z Airtable i calculateStandings nie widzą żadnej zmiany,
+       * a UI dostaje to, czego potrzebuje do ukrycia grup przy structure=single.
+       */
+      settings: TournamentSettings;
+    }
   | { status: "empty" }
   | { status: "error"; message: string };
 
@@ -25,6 +41,8 @@ export type TournamentSummary = {
   slug: string;
   /** Czy ten turniej jest pokazywany na publicznej stronie. */
   isCurrent: boolean;
+  structure: TournamentStructure;
+  format: TournamentFormat;
   /** ISO 8601 albo null, gdy turniej nie jest zarchiwizowany. */
   archivedAt: string | null;
   createdAt: string;
@@ -61,8 +79,19 @@ export interface TournamentRepository {
 
   /* --- zapis (wymaga autoryzacji admina w warstwie akcji) ---------------- */
 
-  /** Tworzy pusty turniej. NIE ustawia go jako publicznie wyświetlanego. */
-  createTournament(title: string): Promise<{ id: string; slug: string }>;
+  /**
+   * Tworzy pusty turniej z KOMPLETNĄ, poprawną konfiguracją w jednej operacji.
+   * NIE ustawia go jako publicznie wyświetlanego.
+   */
+  createTournament(
+    input: CreateTournamentInput
+  ): Promise<{ id: string; slug: string }>;
+
+  /** Zmienia nazwę i konfigurację turnieju (bez dotykania danych sportowych). */
+  updateTournamentSettings(
+    tournamentId: string,
+    input: UpdateTournamentSettingsInput
+  ): Promise<void>;
 
   /** Zapisuje dane WSKAZANEGO turnieju. Nie dotyka pozostałych. */
   saveTournament(
@@ -82,6 +111,23 @@ export interface TournamentRepository {
     archived: boolean
   ): Promise<void>;
 }
+
+export type CreateTournamentInput = {
+  title: string;
+  settings: TournamentSettings;
+};
+
+export type UpdateTournamentSettingsInput = {
+  title?: string;
+  /**
+   * Zmiana structure jest dozwolona TYLKO dla turnieju bez danych —
+   * przeniesienie drużyn i meczów między strukturami jest operacją
+   * destrukcyjną i wymaga osobnego, świadomego narzędzia.
+   */
+  structure?: TournamentStructure;
+  format?: TournamentFormat;
+  playoffConfig?: unknown;
+};
 
 /** Rzucane, gdy operacja nie jest wspierana przez dany storage. */
 export class UnsupportedOperationError extends Error {

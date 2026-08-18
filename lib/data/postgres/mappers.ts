@@ -133,6 +133,10 @@ export function buildMatches(
   const matches: Match[] = [];
 
   for (const row of [...rows].sort((a, b) => a.sourceOrder - b.sourceOrder)) {
+    // KRYTYCZNE: do klasyfikacji grupy wchodzą WYŁĄCZNIE mecze fazy grupowej.
+    // Mecze drabinki i minigrupy mają własne odczyty i nie mogą zaburzyć
+    // tabeli round-robin.
+    if (row.stage !== "group") continue;
     if (row.homeScore === null || row.awayScore === null) continue;
     if (!row.homeTeamId || !row.awayTeamId || !row.groupId) continue;
 

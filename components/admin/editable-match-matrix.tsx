@@ -149,28 +149,52 @@ function EditableCell({
   );
 }
 
+/* Miary wspólne z publicznym matrixem — patrz components/match-matrix.tsx. */
+const NAME_COLUMN_REM = 9;
+const HEAD_HEIGHT_REM = 4;
+const ROW_HEIGHT_REM = 3.5;
+
+const NAME_COLUMN_STYLE: React.CSSProperties = {
+  width: `${NAME_COLUMN_REM}rem`,
+  minWidth: `${NAME_COLUMN_REM}rem`,
+  maxWidth: `${NAME_COLUMN_REM}rem`,
+};
+
+/*
+  Nakładka jest o włos szersza niż kolumna tabeli.
+  Bez tego zaokrąglenie subpikselowe zostawiało przy pierwszym przesunięciu
+  cienki pasek przewijanej treści na styku kolumn.
+*/
+const NAME_COLUMN_OVERLAY_STYLE: React.CSSProperties = {
+  width: `calc(${NAME_COLUMN_REM}rem + 1px)`,
+};
+
 export function EditableMatchMatrix({
   group,
   onUpdateCell,
 }: EditableMatchMatrixProps) {
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="space-y-3 border-b border-slate-200 px-4 py-4 sm:px-6">
+    <section className="ice-card-solid flush-card rounded-none sm:rounded-3xl">
+      <div className="ice-card-head">
         <div className="flex justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Wyniki</h2>
+          <h2 className="section-title">Wyniki</h2>
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-4">
-        <table className="w-full border-collapse p-16 text-xs sm:text-sm">
+      <div className="relative">
+      <div className="ice-scroll overflow-x-auto pb-4">
+        <table className="matrix-table w-full text-xs sm:text-sm">
           <thead className="w-full">
-            <tr>
-              <th className="sticky left-0 z-10 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600"></th>
+            <tr style={{ height: `${HEAD_HEIGHT_REM}rem` }}>
+              <th
+                className="px-3 py-3 text-left font-semibold text-slate-600"
+                style={NAME_COLUMN_STYLE}
+              />
 
               {group.teams.map((team) => (
                 <th
                   key={team.id}
-                  className="bg-slate-50 px-2 py-3 text-center font-semibold text-slate-600"
+                  className="bg-[var(--surface-head)] px-2 py-3 text-center font-semibold text-[var(--text-secondary)]"
                 >
                   <div className="mx-auto flex w-20 flex-col items-center gap-2">
                     <TeamLogo team={team} size="sm" />
@@ -184,15 +208,14 @@ export function EditableMatchMatrix({
             {group.teams.map((rowTeam, rowIndex) => (
               <tr
                 key={rowTeam.id}
-                className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/40"}
+                className={rowIndex % 2 === 0 ? "" : "bg-[var(--surface-alt)]"}
+                style={{ height: `${ROW_HEIGHT_REM}rem` }}
               >
                 <td
-                  className={[
-                    "sticky left-0 z-30 px-3 py-3 font-medium text-slate-900",
-                    rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50",
-                  ].join(" ")}
+                  className="px-3 py-2 font-medium text-slate-900"
+                  style={NAME_COLUMN_STYLE}
                 >
-                  <div className="relative z-10 flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                     <TeamLogo team={rowTeam} size="sm" />
                     <span className="truncate">{rowTeam.name}</span>
                   </div>
@@ -202,7 +225,13 @@ export function EditableMatchMatrix({
                   const isSame = rowTeam.id === colTeam.id;
                   const match = findMatch(group, rowTeam.id, colTeam.id);
                   const isLastCol = colIndex === group.teams.length - 1;
-                  const isEditable = rowIndex < colIndex;
+                  /*
+                    Wynik wpisuje się w DOLNEJ połowie matrixa.
+                    Górna połowa jest lustrem tej samej pary i celowo
+                    pozostaje tylko do odczytu — jeden mecz, jedno miejsce
+                    wpisania, zero ryzyka sprzecznych edycji.
+                  */
+                  const isEditable = rowIndex > colIndex;
 
                   return (
                     <td
@@ -235,6 +264,39 @@ export function EditableMatchMatrix({
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/*
+        Ta sama nieruchoma kolumna nazw co na stronie publicznej.
+        Wpisywanie wyników przesuwa się dokładnie tak samo jak front.
+      */}
+      <div
+        aria-hidden="true"
+        data-testid="matrix-name-column"
+        className="pointer-events-none absolute left-0 top-0 z-10"
+        style={NAME_COLUMN_OVERLAY_STYLE}
+      >
+        <div
+          className="matrix-name-head"
+          style={{ height: `${HEAD_HEIGHT_REM}rem` }}
+        />
+
+        {group.teams.map((rowTeam, rowIndex) => (
+          <div
+            key={rowTeam.id}
+            className={[
+              "matrix-name-cell flex items-center gap-3 px-3",
+              rowIndex % 2 === 0 ? "" : "matrix-name-cell-alt",
+            ].join(" ")}
+            style={{ height: `${ROW_HEIGHT_REM}rem` }}
+          >
+            <TeamLogo team={rowTeam} size="sm" />
+            <span className="truncate text-xs font-medium text-slate-900 sm:text-sm">
+              {rowTeam.name}
+            </span>
+          </div>
+        ))}
+      </div>
       </div>
     </section>
   );

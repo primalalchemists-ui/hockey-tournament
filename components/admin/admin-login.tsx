@@ -35,7 +35,7 @@ export function AdminLogin() {
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
       <div className="mx-auto max-w-md">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="ice-surface rounded-3xl p-6 shadow-sm">
           <h1 className="text-2xl font-bold text-slate-900">Admin login</h1>
           <p className="mt-2 text-sm text-slate-600">
             Wpisz hasło, aby przejść do panelu edycji wyników.

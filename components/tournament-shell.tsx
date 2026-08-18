@@ -12,11 +12,20 @@ import { ScorersTable } from "@/components/scorers-table";
 import { TournamentHeader } from "@/components/tournament-header";
 
 import type { Tournament } from "@/types/tournament";
+import type { TournamentStructure } from "@/types/tournament-config";
+import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
+import { usePublicAutoRefresh } from "@/components/use-public-auto-refresh";
 
 type MainTab = "live" | "schedule" | "regulation" | "scorers";
 
 type TournamentShellProps = {
   tournament: Tournament;
+  /** Decyduje, czy kibic widzi selektor grup. */
+  structure: TournamentStructure;
+  playoffState: PlayoffStateView | null;
+  /** Punkt startowy dla auto-odświeżania — z renderu serwerowego. */
+  tournamentId: string | null;
+  revision: number;
   initialTab?: MainTab;
   initialGroupKey?: string;
 };
@@ -29,15 +38,26 @@ const mainTabs: Array<{ key: MainTab; label: string }> = [
 ];
 
 export function TournamentShell({
-  tournament,
+  tournament: initialTournament,
+  structure: initialStructure,
+  playoffState: initialPlayoffState,
+  tournamentId,
+  revision,
   initialTab = "live",
   initialGroupKey,
 }: TournamentShellProps) {
+  // Dane publiczne odświeżają się same; UI dostaje zawsze spójny snapshot.
+  const { tournament, structure, playoffState, refreshTick } = usePublicAutoRefresh({
+    initialTournamentId: tournamentId,
+    initialRevision: revision,
+    initialTournament,
+    initialStructure,
+    initialPlayoffState,
+  });
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
-  const [headerReady, setHeaderReady] = useState(false);
 
   const allTeams = useMemo(
     () => tournament.groups.flatMap((group) => group.teams),
@@ -106,9 +126,12 @@ export function TournamentShell({
       <GroupTabs
         groups={tournament.groups}
         initialGroupKey={initialGroupKey}
+        structure={structure}
+        playoffState={playoffState}
+        tournamentId={tournamentId}
       />
     );
-  }, [activeTab, tournament, allTeams, initialGroupKey]);
+  }, [activeTab, tournament, allTeams, initialGroupKey, structure, playoffState]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -120,21 +143,23 @@ export function TournamentShell({
         heroBannerImage={tournament.assets.heroBannerImage}
         tickerMessage={tournament.tickerMessage}
         showTopScorerTicker={tournament.showTopScorerTicker}
-        onHeroReady={() => setHeaderReady(true)}
+        refreshTick={refreshTick}
       />
 
-      <AnimatePresence>
-        {headerReady ? (
-          <motion.div
-            key="tabs-and-content"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.28 }}
-            className="space-y-4 sm:space-y-6"
-          >
-            <nav className="-mx-4 overflow-x-auto sm:mx-0">
-              <div className="inline-flex min-w-full gap-2 bg-white p-4 shadow-sm">
+      {/*
+        Treść publiczna NIE czeka na załadowanie hero.
+        Wolny albo zepsuty obrazek nie może blokować rankingu, matrixa,
+        drabinki ani minigrupy.
+      */}
+      <div className="space-y-4 sm:space-y-6">
+            {/*
+              Pasek zakladek: wlasny scroll poziomy, ZERO ujemnych marginesow.
+              Poprzedni ujemny margines byl szerszy niz padding strony,
+              wystawal poza viewport i wlaczal poziomy scroll CALEGO
+              dokumentu na telefonie.
+            */}
+            <nav className="ice-scroll overflow-x-auto">
+              <div className="ice-panel flush-card inline-flex min-w-full gap-2 p-2">
                 {mainTabs.map((tab) => {
                   const isActive = tab.key === activeTab;
 
@@ -144,10 +169,10 @@ export function TournamentShell({
                       type="button"
                       onClick={() => handleTabChange(tab.key)}
                       className={[
-                        "whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-semibold transition sm:px-5",
+                        "whitespace-nowrap rounded-full px-4 py-3 text-sm font-semibold transition sm:px-5",
                         isActive
                           ? "bg-slate-900 text-white shadow-sm"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                          : "text-[var(--text-secondary)] hover:bg-white/70",
                       ].join(" ")}
                     >
                       {tab.label}
@@ -157,7 +182,7 @@ export function TournamentShell({
               </div>
             </nav>
 
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={activeTab}
                 initial={{ opacity: 0, y: 12 }}
@@ -178,9 +203,7 @@ export function TournamentShell({
                 rightPosterImage={tournament.assets.campPosterRight}
               />
             ) : null}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

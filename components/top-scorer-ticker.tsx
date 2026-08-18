@@ -95,7 +95,7 @@ export function TopScorerTicker({
   }));
 
   return (
-    <div className="relative overflow-hidden -mt-4 md:-mt-6 md:mr-0 md:ml-0 -ml-3 -mr-3 border-amber-300/40 bg-slate-950 py-1 shadow-[0_10px_30px_-12px_rgba(15,23,42,0.55)]">
+    <div className="relative -mt-4 overflow-hidden border-amber-300/40 bg-slate-950 py-1 shadow-[0_10px_30px_-12px_rgba(15,23,42,0.55)] md:-mt-6">
       <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 sm:w-16 bg-gradient-to-r from-slate-950 to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 sm:w-16 bg-gradient-to-l from-slate-950 to-transparent" />
 

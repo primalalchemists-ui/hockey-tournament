@@ -1,0 +1,2 @@
+ALTER TABLE "tournament_assets" DROP CONSTRAINT "tournament_assets_kind_check";--> statement-breakpoint
+ALTER TABLE "tournament_assets" ADD CONSTRAINT "tournament_assets_kind_check" CHECK ("tournament_assets"."kind" in ('schedule', 'regulation', 'hero_banner', 'camp_banner', 'camp_poster_left', 'camp_poster_right', 'playoff_bracket_background', 'podium_background'));

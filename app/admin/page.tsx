@@ -88,9 +88,27 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   const tournament = mergeTournamentData(result.tournament);
 
+  // Stan silnika pucharowego ładujemy TYLKO dla formatu group_playoff —
+  // turniej ligowy nie dostaje ani faz, ani drabinki.
+  let playoffState = null;
+
+  if (
+    result.settings.format === "group_playoff" &&
+    repository.supportsMultipleTournaments
+  ) {
+    try {
+      const { getPlayoffState } = await import(
+        "@/lib/data/postgres/playoff-engine"
+      );
+      playoffState = await getPlayoffState(selectedId);
+    } catch (error) {
+      console.error("[admin] getPlayoffState failed:", error);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
+      <div className="mx-auto max-w-[1400px] px-0 py-4 sm:px-4 sm:py-6 lg:px-6">
         <AdminShell
           // Remount przy zmianie turnieju: AdminShell trzyma draft w useState,
           // bez klucza przełączenie pokazałoby dane poprzedniego turnieju.
@@ -99,6 +117,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           tournamentId={selectedId}
           tournaments={tournaments}
           multiTournamentEnabled={repository.supportsMultipleTournaments}
+          settings={result.settings}
+          playoffState={playoffState}
         />
       </div>
     </main>

@@ -1,0 +1,2 @@
+ALTER TABLE "tournaments" ADD COLUMN "structure" text DEFAULT 'groups' NOT NULL;--> statement-breakpoint
+ALTER TABLE "tournaments" ADD CONSTRAINT "tournaments_structure_check" CHECK ("tournaments"."structure" in ('single', 'groups'));

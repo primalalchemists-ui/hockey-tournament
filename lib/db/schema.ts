@@ -52,8 +52,42 @@ export const tournaments = pgTable(
     slug: text("slug").notNull(),
     title: text("title").notNull(),
 
-    /** "league" (obecne zachowanie) | "group_playoff" (V2). */
+    /**
+     * Struktura uczestników — oś NIEZALEŻNA od formatu.
+     * "single" = jedna wspólna tabela, "groups" = podział na grupy.
+     * Default "groups" backfilluje istniejące turnieje bez zmiany zachowania.
+     */
+    structure: text("structure").notNull().default("groups"),
+
+    /** System rozgrywek: "league" | "group_playoff". */
     format: text("format").notNull().default("league"),
+
+    /**
+     * OFICJALNA faza turnieju. Źródło prawdy jest w bazie, nie w UI.
+     * Software nigdy nie przesuwa jej sam — wyłącznie jawna akcja admina.
+     * Dla format="league" pozostaje na "group_stage" i nic nie znaczy.
+     */
+    phase: text("phase").notNull().default("group_stage"),
+
+    /**
+     * Licznik wersji PUBLICZNIE WIDOCZNEGO stanu turnieju.
+     *
+     * Rośnie o 1 przy każdej mutacji, którą zobaczy kibic. Publiczny
+     * frontend porównuje go w lekkim odpytaniu i dopiero przy zmianie
+     * pobiera pełny snapshot. Nie jest to znacznik czasu — monotoniczny
+     * licznik jest odporny na rozjazd zegarów i cache.
+     */
+    publicRevision: integer("public_revision").notNull().default(0),
+
+    /**
+     * Znacznik OSTATNIEJ finalizacji turnieju.
+     *
+     * Służy jako stabilny token ceremonii podium: po cofnięciu fazy jest
+     * czyszczony, a ponowne zakończenie ustawia nową wartość — dzięki temu
+     * poprawiona klasyfikacja pokazuje reveal jeszcze raz. Celowo NIE jest
+     * to public_revision, bo zmiana bannera nie powinna wznawiać ceremonii.
+     */
+    completedAt: timestamp("completed_at", { withTimezone: true }),
 
     /**
      * Czy TEN turniej jest pokazywany na publicznej stronie.
@@ -110,6 +144,14 @@ export const tournaments = pgTable(
       .where(sql`${table.isCurrent}`),
     index("tournaments_archived_at_idx").on(table.archivedAt),
     check(
+      "tournaments_phase_check",
+      sql`${table.phase} in ('group_stage', 'round_of_16', 'quarterfinal', 'semifinal', 'final', 'completed')`
+    ),
+    check(
+      "tournaments_structure_check",
+      sql`${table.structure} in ('single', 'groups')`
+    ),
+    check(
       "tournaments_format_check",
       sql`${table.format} in ('league', 'group_playoff')`
     ),
@@ -134,7 +176,14 @@ export const tournamentAssets = pgTable(
       .notNull()
       .references(() => tournaments.id, { onDelete: "cascade" }),
 
-    /** schedule | regulation | hero_banner | camp_banner | camp_poster_left | camp_poster_right */
+    /**
+     * schedule | regulation | hero_banner | camp_banner |
+     * camp_poster_left | camp_poster_right |
+     * playoff_bracket_background | podium_background
+     *
+     * Dwa ostatnie to dekoracyjne tła sekcji play-off — per turniej,
+     * dzięki czemu każdy event może mieć własną oprawę wizualną.
+     */
     kind: text("kind").notNull(),
 
     url: text("url").notNull(),
@@ -150,7 +199,7 @@ export const tournamentAssets = pgTable(
     ),
     check(
       "tournament_assets_kind_check",
-      sql`${table.kind} in ('schedule', 'regulation', 'hero_banner', 'camp_banner', 'camp_poster_left', 'camp_poster_right')`
+      sql`${table.kind} in ('schedule', 'regulation', 'hero_banner', 'camp_banner', 'camp_poster_left', 'camp_poster_right', 'playoff_bracket_background', 'podium_background')`
     ),
   ]
 );
@@ -245,11 +294,17 @@ export const bracketRounds = pgTable(
     kind: text("kind").notNull(),
     label: text("label").notNull(),
     matchCount: integer("match_count").notNull(),
+    /** pending | active | completed */
+    status: text("status").notNull().default("pending"),
   },
   (table) => [
     unique("bracket_rounds_bracket_order_unique").on(
       table.bracketId,
       table.order
+    ),
+    check(
+      "bracket_rounds_status_check",
+      sql`${table.status} in ('pending', 'active', 'completed')`
     ),
     check(
       "bracket_rounds_kind_check",
@@ -436,6 +491,11 @@ export const standingsSnapshotRows = pgTable(
     goalsFor: integer("goals_for").notNull(),
     goalsAgainst: integer("goals_against").notNull(),
     goalDifference: integer("goal_difference").notNull(),
+    /** Pełne statystyki, żeby dało się odtworzyć tabelę historycznie. */
+    played: integer("played").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    draws: integer("draws").notNull().default(0),
+    losses: integer("losses").notNull().default(0),
   },
   (table) => [
     unique("standings_snapshot_rows_position_unique").on(
@@ -454,4 +514,8 @@ export type TournamentAssetRow = typeof tournamentAssets.$inferSelect;
 export type GroupRow = typeof groups.$inferSelect;
 export type TeamRow = typeof teams.$inferSelect;
 export type MatchRow = typeof matches.$inferSelect;
+export type BracketRow = typeof brackets.$inferSelect;
+export type BracketRoundRow = typeof bracketRounds.$inferSelect;
+export type StandingsSnapshotRow = typeof standingsSnapshots.$inferSelect;
+export type StandingsSnapshotRowRow = typeof standingsSnapshotRows.$inferSelect;
 export type ScorerRow = typeof scorers.$inferSelect;

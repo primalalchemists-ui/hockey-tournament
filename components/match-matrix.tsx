@@ -4,6 +4,40 @@ import { useEffect, useRef, useState } from "react";
 import type { Group, Match } from "@/types/tournament";
 import { CampBanner } from "./camp-banner";
 
+/*
+  KOLUMNA DRUŻYN BEZ PRZYKLEJANIA.
+
+  Sticky w komórkach tabeli drgało przy przewijaniu w bok mimo kolejnych
+  poprawek (backdrop-filter, transformy, border-collapse). Zamiast zgadywać
+  dalej — kolumna nazw NIE jest już przyklejana. To nieruchoma nakładka
+  ułożona nad tabelą, więc przeglądarka nie ma czego przesuwać co klatkę.
+
+  Efekt uboczny jest tym, o który prosiliście: przewijana treść przejeżdża
+  POD półprzezroczystą kolumną, więc widać, że tabela jest przesunięta.
+
+  Stałe wysokości trzymają nakładkę w idealnej osi z wierszami tabeli.
+*/
+const NAME_COLUMN_REM = 9;
+const HEAD_HEIGHT_REM = 4;
+const ROW_HEIGHT_REM = 3.5;
+
+const NAME_COLUMN_STYLE: React.CSSProperties = {
+  width: `${NAME_COLUMN_REM}rem`,
+  minWidth: `${NAME_COLUMN_REM}rem`,
+  maxWidth: `${NAME_COLUMN_REM}rem`,
+};
+
+/*
+  Nakładka jest o WŁOS szersza niż kolumna tabeli.
+
+  Przy pierwszym przesunięciu w bok zaokrąglenie subpikselowe zostawiało
+  na styku kolumn cienki pasek przewijanej treści. Jeden dodatkowy piksel
+  zakrywa szczelinę i pierwsza kolumna działa jak ściana.
+*/
+const NAME_COLUMN_OVERLAY_STYLE: React.CSSProperties = {
+  width: `calc(${NAME_COLUMN_REM}rem + 1px)`,
+};
+
 type MatchMatrixProps = {
   group: Group;
 };
@@ -52,7 +86,7 @@ function getResultClasses(tone: ResultTone) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  return "border-[var(--surface-border)] bg-white/60 text-slate-600";
 }
 
 function getDisplayScore(match: Match | null, rowTeamId: string) {
@@ -131,28 +165,32 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
     <>
       <section
         ref={containerRef}
-        className="rounded-3xl border border-slate-200 bg-white shadow-sm"
+        className="ice-card-solid flush-card rounded-none sm:rounded-3xl"
         id="results-section"
       >
-        <div className="space-y-3 border-b border-slate-200 px-4 py-4 sm:px-6">
+        <div className="ice-card-head">
           <div className="flex justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Wyniki</h2>
+            <h2 className="section-title">Wyniki</h2>
           </div>
         </div>
 
-        <div className="overflow-x-auto pb-4">
-          <table className="w-full border-collapse p-16 text-xs sm:text-sm">
+        <div className="relative">
+        <div className="ice-scroll overflow-x-auto pb-4">
+          <table className="matrix-table w-full text-xs sm:text-sm">
             <thead className="w-full">
-              <tr>
-                <th className="sticky left-0 z-10 bg-slate-50 px-3 py-3 text-left font-semibold text-slate-600"></th>
+              <tr style={{ height: `${HEAD_HEIGHT_REM}rem` }}>
+                <th
+                  className="px-3 py-3 text-left font-semibold text-[var(--text-secondary)]"
+                  style={NAME_COLUMN_STYLE}
+                />
 
                 {group.teams.map((team) => (
                   <th
                     key={team.id}
-                    className="bg-slate-50 px-2 py-3 text-center font-semibold text-slate-600"
+                    className="bg-[var(--surface-head)] px-2 py-3 text-center font-semibold text-[var(--text-secondary)]"
                   >
                     <div className="mx-auto flex w-20 flex-col items-center gap-2">
-                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
                         {team.logoUrl ? (
                           <img
                             src={team.logoUrl}
@@ -175,24 +213,12 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
               {group.teams.map((rowTeam, rowIndex) => (
                 <tr
                   key={rowTeam.id}
-                  className={rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/40"}
+                  className={rowIndex % 2 === 0 ? "" : "bg-[var(--surface-alt)]"}
+                  style={{ height: `${ROW_HEIGHT_REM}rem` }}
                 >
-                  <td
-                    className={[
-                      "sticky left-0 z-30 px-3 py-3 font-medium text-slate-900",
-                      "overflow-hidden isolate will-change-transform [transform:translateZ(0)] [backface-visibility:hidden]",
-                      "max-w-35 md:max-w-fit",
-                      rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50",
-                    ].join(" ")}
-                  >
-                    <div
-                      className={[
-                        "relative z-10 flex items-center gap-3",
-                        "will-change-transform [transform:translateZ(0)] [backface-visibility:hidden]",
-                        rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50",
-                      ].join(" ")}
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <td className="team-name px-3 py-2" style={NAME_COLUMN_STYLE}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
                         {rowTeam.logoUrl ? (
                           <img
                             src={rowTeam.logoUrl}
@@ -212,7 +238,7 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
                         onClick={(event) =>
                           handleTeamPreviewClick(event, rowTeam.id, rowTeam.name)
                         }
-                        className="min-w-0 text-left"
+                        className="min-w-0 flex-1 rounded-md text-left transition hover:bg-white/70"
                       >
                         <span className="block truncate">{rowTeam.name}</span>
                       </button>
@@ -235,9 +261,9 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
                       >
                         <div
                           className={[
-                            "mx-auto flex min-h-10 flex-col items-center justify-center rounded-xl border text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
+                            "stat-num mx-auto flex min-h-10 min-w-14 flex-col items-center justify-center rounded-xl border text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)] sm:text-sm",
                             isSame
-                              ? "border-slate-200 bg-slate-100 text-slate-400"
+                              ? "border-[var(--surface-border)] bg-white/40 text-slate-400"
                               : getResultClasses(tone),
                           ].join(" ")}
                         >
@@ -250,6 +276,59 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/*
+          NIERUCHOMA kolumna nazw.
+
+          Wizualna kopia pierwszej kolumny tabeli, ułożona dokładnie nad nią.
+          Przy pozycji 0 pokrywa się z oryginałem co do piksela, a podczas
+          przewijania oryginał przejeżdża pod spodem — półprzezroczyste tło
+          pokazuje, co właśnie minęliśmy.
+
+          aria-hidden, bo prawdziwe dane są w tabeli; to warstwa wyłącznie
+          prezentacyjna i nie przechwytuje kliknięć.
+        */}
+        <div
+          aria-hidden="true"
+          data-testid="matrix-name-column"
+          className="pointer-events-none absolute left-0 top-0 z-10"
+          style={NAME_COLUMN_OVERLAY_STYLE}
+        >
+          <div
+            className="matrix-name-head"
+            style={{ height: `${HEAD_HEIGHT_REM}rem` }}
+          />
+
+          {group.teams.map((rowTeam, rowIndex) => (
+            <div
+              key={rowTeam.id}
+              className={[
+                "matrix-name-cell flex items-center gap-3 px-3",
+                rowIndex % 2 === 0 ? "" : "matrix-name-cell-alt",
+              ].join(" ")}
+              style={{ height: `${ROW_HEIGHT_REM}rem` }}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
+                {rowTeam.logoUrl ? (
+                  <img
+                    src={rowTeam.logoUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[9px] font-semibold uppercase text-slate-600">
+                    {rowTeam.logoText ?? "LOGO"}
+                  </span>
+                )}
+              </div>
+
+              <span className="team-name block truncate text-xs sm:text-sm">
+                {rowTeam.name}
+              </span>
+            </div>
+          ))}
+        </div>
         </div>
       </section>
 

@@ -25,18 +25,20 @@ export function TeamManager({
   if (!activeGroup) return null;
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4 sm:px-6">
-        <h2 className="text-lg font-semibold text-slate-900">Drużyny</h2>
+    <section className="overflow-hidden ice-surface flush-card sm:rounded-3xl">
+      <div className="ice-card-head">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="section-title">Drużyny</h2>
 
-        <button
-          type="button"
-          onClick={() => onAddTeam(activeGroup.key)}
-          className="inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
-        >
-          <Plus size={16} />
-          Dodaj drużynę
-        </button>
+          <button
+            type="button"
+            onClick={() => onAddTeam(activeGroup.key)}
+            className="btn btn-primary"
+          >
+            <Plus size={16} />
+            Dodaj drużynę
+          </button>
+        </div>
       </div>
 
       <div className="divide-y divide-slate-200">
