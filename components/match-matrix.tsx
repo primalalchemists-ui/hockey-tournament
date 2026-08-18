@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import type { Group, Match } from "@/types/tournament";
-import { CampBanner } from "./camp-banner";
+import { CellPopover } from "@/components/ui/cell-popover";
 
 /*
   KOLUMNA DRUŻYN BEZ PRZYKLEJANIA.
@@ -43,13 +42,6 @@ type MatchMatrixProps = {
 };
 
 type ResultTone = "neutral" | "win" | "draw" | "loss";
-
-type PreviewState = {
-  teamId: string;
-  teamName: string;
-  top: number;
-  left: number;
-};
 
 function findMatch(group: Group, teamAId: string, teamBId: string): Match | null {
   return (
@@ -100,71 +92,9 @@ function getDisplayScore(match: Match | null, rowTeamId: string) {
 }
 
 export function MatchMatrix({ group }: MatchMatrixProps) {
-  const [preview, setPreview] = useState<PreviewState | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function closePreview(event: MouseEvent | TouchEvent) {
-      if (!containerRef.current) return;
-
-      const target = event.target as Node;
-      if (!containerRef.current.contains(target)) {
-        setPreview(null);
-      }
-    }
-
-    document.addEventListener("mousedown", closePreview);
-    document.addEventListener("touchstart", closePreview);
-
-    return () => {
-      document.removeEventListener("mousedown", closePreview);
-      document.removeEventListener("touchstart", closePreview);
-    };
-  }, []);
-
-  useEffect(() => {
-    function handleViewportChange() {
-      setPreview(null);
-    }
-
-    window.addEventListener("scroll", handleViewportChange, true);
-    window.addEventListener("resize", handleViewportChange);
-
-    return () => {
-      window.removeEventListener("scroll", handleViewportChange, true);
-      window.removeEventListener("resize", handleViewportChange);
-    };
-  }, []);
-
-  function handleTeamPreviewClick(
-    event: React.MouseEvent<HTMLButtonElement>,
-    teamId: string,
-    teamName: string
-  ) {
-    const rect = event.currentTarget.getBoundingClientRect();
-
-    const popupWidth = Math.min(240, window.innerWidth - 24);
-    const desiredLeft = rect.left;
-    const maxLeft = window.innerWidth - popupWidth - 12;
-    const left = Math.max(12, Math.min(desiredLeft, maxLeft));
-    const top = rect.bottom + 8;
-
-    setPreview((prev) =>
-      prev?.teamId === teamId
-        ? null
-        : {
-            teamId,
-            teamName,
-            top,
-            left,
-          }
-    );
-  }
-
   return (
     <>
       <section
-        ref={containerRef}
         className="ice-card-solid flush-card rounded-none sm:rounded-3xl"
         id="results-section"
       >
@@ -187,14 +117,27 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
                 {group.teams.map((team) => (
                   <th
                     key={team.id}
+                    scope="col"
                     className="bg-[var(--surface-head)] px-2 py-3 text-center font-semibold text-[var(--text-secondary)]"
                   >
-                    <div className="mx-auto flex w-20 flex-col items-center gap-2">
-                      <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
+                    {/*
+                      Kolumny są podpisane WYŁĄCZNIE herbem, więc sam herb
+                      musi umieć powiedzieć, czyj jest — kliknięcie rozwija
+                      nazwę drużyny.
+                    */}
+                    <span className="mx-auto flex w-20 flex-col items-center gap-2">
+                      <CellPopover
+                        testId="matrix-column-team"
+                        label={team.name}
+                        content={team.name}
+                        placement="start"
+                        align="below"
+                        className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70 transition hover:border-slate-400"
+                      >
                         {team.logoUrl ? (
                           <img
                             src={team.logoUrl}
-                            alt={team.name}
+                            alt=""
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -202,8 +145,8 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
                             {team.logoText ?? "LOGO"}
                           </span>
                         )}
-                      </div>
-                    </div>
+                      </CellPopover>
+                    </span>
                   </th>
                 ))}
               </tr>
@@ -216,34 +159,18 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
                   className={rowIndex % 2 === 0 ? "" : "bg-[var(--surface-alt)]"}
                   style={{ height: `${ROW_HEIGHT_REM}rem` }}
                 >
-                  <td className="team-name px-3 py-2" style={NAME_COLUMN_STYLE}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
-                        {rowTeam.logoUrl ? (
-                          <img
-                            src={rowTeam.logoUrl}
-                            alt={rowTeam.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-[9px] font-semibold uppercase text-slate-600">
-                            {rowTeam.logoText ?? "LOGO"}
-                          </span>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        title={rowTeam.name}
-                        onClick={(event) =>
-                          handleTeamPreviewClick(event, rowTeam.id, rowTeam.name)
-                        }
-                        className="min-w-0 flex-1 rounded-md text-left transition hover:bg-white/70"
-                      >
-                        <span className="block truncate">{rowTeam.name}</span>
-                      </button>
-                    </div>
-                  </td>
+                  {/*
+                    Komórka trzyma SZEROKOŚĆ kolumny i etykietę wiersza dla
+                    czytnika ekranu. Widoczna, klikalna nazwa żyje w nakładce
+                    poniżej — to ona nie ucieka przy przewijaniu w bok.
+                  */}
+                  <th
+                    scope="row"
+                    className="px-3 py-2 text-left font-normal"
+                    style={NAME_COLUMN_STYLE}
+                  >
+                    <span className="sr-only">{rowTeam.name}</span>
+                  </th>
 
                   {group.teams.map((colTeam, colIndex) => {
                     const isSame = rowTeam.id === colTeam.id;
@@ -279,20 +206,20 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
         </div>
 
         {/*
-          NIERUCHOMA kolumna nazw.
+          NIERUCHOMA, INTERAKTYWNA kolumna nazw.
 
-          Wizualna kopia pierwszej kolumny tabeli, ułożona dokładnie nad nią.
-          Przy pozycji 0 pokrywa się z oryginałem co do piksela, a podczas
-          przewijania oryginał przejeżdża pod spodem — półprzezroczyste tło
-          pokazuje, co właśnie minęliśmy.
+          Nie jest już kopią ozdobną: to jedyna widoczna warstwa z nazwami
+          i jedyna, którą da się kliknąć. Wcześniej przepuszczała zdarzenia
+          wskaźnika na spód, więc po przewinięciu w bok dotyk trafiał
+          w komórki wyników, a nazwa rozwijała się tylko przy skrajnie
+          lewej pozycji tabeli.
 
-          aria-hidden, bo prawdziwe dane są w tabeli; to warstwa wyłącznie
-          prezentacyjna i nie przechwytuje kliknięć.
+          Semantykę wiersza niesie ukryty nagłówek `th scope="row"` w tabeli,
+          więc czytnik ekranu nie słyszy nazwy dwa razy.
         */}
         <div
-          aria-hidden="true"
           data-testid="matrix-name-column"
-          className="pointer-events-none absolute left-0 top-0 z-10"
+          className="absolute left-0 top-0 z-10"
           style={NAME_COLUMN_OVERLAY_STYLE}
         >
           <div
@@ -304,46 +231,50 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
             <div
               key={rowTeam.id}
               className={[
-                "matrix-name-cell flex items-center gap-3 px-3",
+                "matrix-name-cell flex items-center gap-2 px-3",
                 rowIndex % 2 === 0 ? "" : "matrix-name-cell-alt",
               ].join(" ")}
               style={{ height: `${ROW_HEIGHT_REM}rem` }}
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
-                {rowTeam.logoUrl ? (
-                  <img
-                    src={rowTeam.logoUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-[9px] font-semibold uppercase text-slate-600">
-                    {rowTeam.logoText ?? "LOGO"}
-                  </span>
-                )}
-              </div>
+              {/*
+                Herb i nazwa rozwijają pełną nazwę drużyny — tak samo jak
+                skróty kolumn w Rankingu. Na wąskim ekranie nazwa jest
+                ucięta, więc to jedyny sposób, żeby ją w całości zobaczyć.
+              */}
+              <CellPopover
+                testId="matrix-team"
+                onlyWhenTruncated
+                label={rowTeam.name}
+                content={rowTeam.name}
+                className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-white/70"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--surface-border)] bg-white/70">
+                  {rowTeam.logoUrl ? (
+                    <img
+                      src={rowTeam.logoUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[9px] font-semibold uppercase text-slate-600">
+                      {rowTeam.logoText ?? "LOGO"}
+                    </span>
+                  )}
+                </span>
 
-              <span className="team-name block truncate text-xs sm:text-sm">
-                {rowTeam.name}
-              </span>
+                <span
+                  data-truncate
+                  className="team-name block truncate text-xs sm:text-sm"
+                >
+                  {rowTeam.name}
+                </span>
+              </CellPopover>
             </div>
           ))}
         </div>
         </div>
       </section>
 
-      {preview ? (
-        <div
-          className="fixed z-[9999] rounded-xl bg-slate-900 px-3 py-2 text-left text-xs font-medium text-white shadow-lg sm:hidden"
-          style={{
-            top: preview.top,
-            left: preview.left,
-            maxWidth: "240px",
-          }}
-        >
-          {preview.teamName}
-        </div>
-      ) : null}
     </>
   );
 }

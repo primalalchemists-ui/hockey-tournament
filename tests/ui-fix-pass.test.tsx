@@ -164,10 +164,10 @@ describe("G: kolumna drużyn nie może drgać", () => {
     expect(code).not.toContain("backface-visibility");
   });
 
-  it("nakładka jest warstwą prezentacyjną, nie przechwytuje kliknięć", () => {
+  it("nakładka jest jedyną widoczną i klikalną kolumną nazw", () => {
     expect(code).toContain('data-testid="matrix-name-column"');
-    expect(code).toContain('aria-hidden="true"');
-    expect(code).toContain("pointer-events-none");
+    // Semantykę wiersza niesie ukryty nagłówek w tabeli, nie nakładka.
+    expect(code).toContain('scope="row"');
   });
 
   it("wysokości nakładki i wierszy tabeli pochodzą z tych samych stałych", () => {
@@ -574,5 +574,106 @@ describe("miejsca w tabeli przed pierwszym meczem", () => {
     expect(podium).toContain("rounded-none");
     expect(podium).toContain("sm:rounded-3xl");
     expect(podium).toContain("flush-card");
+  });
+});
+
+describe("tabela wyników: nazwy i herby są klikalne", () => {
+  const code = source("components/match-matrix.tsx");
+
+  it("kolumna nazw przechwytuje kliknięcia także po przewinięciu", () => {
+    /*
+      Nakładka była `pointer-events-none`, więc po przesunięciu tabeli
+      w bok dotyk trafiał w komórki wyników — rozwinięcie nazwy działało
+      tylko przy skrajnie lewej pozycji.
+    */
+    expect(code).not.toContain("pointer-events-none");
+    expect(code).toContain('testId="matrix-team"');
+  });
+
+  it("herb w nagłówku kolumny mówi, czyj jest", () => {
+    expect(code).toContain('testId="matrix-column-team"');
+    // Dymek rozwija się w prawo, żeby nie schować się pod kolumną nazw.
+    expect(code).toContain('placement="start"');
+  });
+
+  it("nazwa wiersza zostaje dostępna dla czytnika ekranu", () => {
+    // Nakładka jest widoczna, semantykę wiersza niesie ukryty nagłówek.
+    expect(code).toContain('scope="row"');
+    expect(code).toContain('<span className="sr-only">{rowTeam.name}</span>');
+    // Żadnego interaktywnego elementu w warstwie ukrytej przed czytnikiem.
+    expect(code).not.toContain('aria-hidden="true"');
+  });
+
+  it("wszystkie trzy miejsca używają jednego prymitywu", () => {
+    const popover = source("components/ui/cell-popover.tsx");
+
+    expect(code).toContain("CellPopover");
+    expect(source("components/standings-table.tsx")).toContain("CellPopover");
+    expect(source("components/ui/column-help.tsx")).toContain("CellPopover");
+    expect(popover).toContain('placement === "start"');
+  });
+});
+
+describe("dymki nie gubią się pod krawędzią", () => {
+  const css = source("app/globals.css");
+  const popover = source("components/ui/cell-popover.tsx");
+
+  it("kierunek dymka jest stylem inline, nie klasą CSS", () => {
+    /*
+      Warianty pozycji jako klasy zależały od kolejności reguł w arkuszu
+      i od tego, czy bundler zdążył przebudować CSS. Styl inline wygrywa
+      zawsze — ta sama lekcja, co przy zaokrągleniach kart.
+    */
+    expect(popover).toContain('top: "calc(100% + 0.375rem)"');
+    expect(popover).toContain('bottom: "calc(100% + 0.375rem)"');
+    expect(popover).not.toContain("column-help-popover-below");
+    expect(popover).not.toContain("column-help-popover-start");
+
+    const rule = css.slice(
+      css.indexOf(".column-help-popover {"),
+      css.indexOf(".column-help-code")
+    );
+
+    // W arkuszu zostaje sam wygląd.
+    expect(rule).not.toContain("top:");
+    expect(rule).not.toContain("bottom:");
+    expect(rule).toContain("background: #0f172a");
+  });
+
+  it("nagłówki otwierają w dół, wiersze w górę", () => {
+    // Nad nagłówkiem jest już tylko krawędź karty; pod ostatnim wierszem
+    // kończy się karta — stąd dwa różne kierunki.
+    expect(source("components/ui/column-help.tsx")).toContain('align="below"');
+    expect(source("components/match-matrix.tsx")).toContain('align="below"');
+
+    const standings = source("components/standings-table.tsx");
+    const teamName = standings.indexOf('testId="team-name"');
+    const nextProp = standings.indexOf("label=", teamName);
+
+    // Wiersz nie deklaruje align — korzysta z domyślnego „above".
+    expect(standings.slice(teamName, nextProp)).not.toContain("align=");
+  });
+
+  it("pełna, widoczna nazwa nie dostaje dymka", () => {
+    expect(popover).toContain("onlyWhenTruncated");
+    expect(popover).toContain("scrollWidth > target.clientWidth");
+    // Hover, klik i focus są nieaktywne, dopóki tekst się mieści.
+    expect(popover).toContain("isTruncated && setOpen");
+    expect(popover).toContain("open && isTruncated");
+  });
+
+  it("pomiar trafia w element, który faktycznie ucina tekst", () => {
+    expect(popover).toContain('querySelector<HTMLElement>("[data-truncate]")');
+    expect(source("components/match-matrix.tsx")).toContain("data-truncate");
+  });
+
+  it("nazwy drużyn korzystają z pomiaru, skróty kolumn nie", () => {
+    expect(source("components/standings-table.tsx")).toContain("onlyWhenTruncated");
+    expect(source("components/match-matrix.tsx")).toContain("onlyWhenTruncated");
+
+    // Skrót „Pkt" ma być wyjaśniany zawsze — nie jest ucięty, tylko krótki.
+    expect(source("components/ui/column-help.tsx")).not.toContain(
+      "onlyWhenTruncated"
+    );
   });
 });

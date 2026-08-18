@@ -19,6 +19,7 @@ export function ColumnHelp({ code }: ColumnHelpProps) {
   return (
     <CellPopover
       testId="column-help"
+      align="below"
       label={`${code} — ${description}`}
       className="column-help-trigger"
       content={

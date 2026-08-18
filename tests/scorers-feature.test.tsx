@@ -204,3 +204,97 @@ describe.skipIf(!hasDatabase)("E/F: dane i wersja publiczna", () => {
     expect(result.settings.scorersEnabled).toBe(false);
   });
 });
+
+describe.skipIf(!hasDatabase)("audyt własności: zapis z ukrytą zakładką", () => {
+  let originalCurrentId: string | null = null;
+  let tournamentId = "";
+
+  beforeAll(async () => {
+    originalCurrentId = await readCurrentTournamentId();
+
+    const created = await postgresRepository.createTournament({
+      title: "Vitest Scorers Ownership",
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        // Zakładka strzelców jest UKRYTA w panelu.
+        scorersEnabled: false,
+      },
+    });
+
+    tournamentId = created.id;
+  });
+
+  afterAll(async () => {
+    try {
+      await deleteOwnFixtures("vitest-scorers", originalCurrentId);
+    } finally {
+      await restoreCurrentTournament(originalCurrentId);
+    }
+  });
+
+  it("strzelcy przeżywają zapis turnieju, choć panel ich nie pokazuje", async () => {
+    const payload = {
+      id: tournamentId,
+      title: "Vitest Scorers Ownership",
+      scorers: [
+        {
+          id: "vso-1",
+          playerName: "Ukryty Strzelec",
+          jerseyNumber: 7,
+          goals: 5,
+          teamId: "vso-a1",
+        },
+      ],
+      assets: {
+        scheduleImage: "",
+        scheduleImageType: "",
+        scheduleImageName: "",
+        regulationImage: "",
+        regulationImageType: "",
+        regulationImageName: "",
+      },
+      groups: [
+        {
+          key: "A",
+          name: "Grupa A",
+          teams: [
+            { id: "vso-a1", name: "Vitest A1", shortName: "A1", logoText: "A1", sourceOrder: 1 },
+            { id: "vso-a2", name: "Vitest A2", shortName: "A2", logoText: "A2", sourceOrder: 2 },
+          ],
+          matches: [],
+        },
+      ],
+    };
+
+    await postgresRepository.saveTournament(tournamentId, payload);
+
+    /*
+      Kluczowe pytanie audytu własności: czy payload panelu POTRAFI wyrazić
+      strzelców, gdy ich zakładka jest ukryta? Tak — draft powstaje z
+      odczytu, a odczyt zwraca strzelców niezależnie od scorersEnabled.
+      Kolejny zapis przenosi ich z powrotem, więc brak w UI nie oznacza
+      braku w payloadzie.
+    */
+    const loaded = await postgresRepository.getTournamentById(tournamentId);
+    if (loaded.status !== "ok") throw new Error("brak turnieju");
+
+    expect(loaded.tournament.scorers).toHaveLength(1);
+    expect(loaded.settings.scorersEnabled).toBe(false);
+
+    // Zapis odczytanego stanu — dokładnie to robi przycisk „Zapisz".
+    await postgresRepository.saveTournament(tournamentId, {
+      ...payload,
+      scorers: loaded.tournament.scorers ?? [],
+    });
+
+    const after = await getDb()
+      .select({ id: scorers.id, goals: scorers.goals })
+      .from(scorers)
+      .where(eq(scorers.tournamentId, tournamentId));
+
+    expect(after).toHaveLength(1);
+    expect(after[0].goals).toBe(5);
+  });
+});

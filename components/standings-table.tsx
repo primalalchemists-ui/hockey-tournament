@@ -192,6 +192,7 @@ export function StandingsTable({
                       */}
                       <CellPopover
                         testId="team-name"
+                        onlyWhenTruncated
                         label={row.teamName}
                         className="team-name block max-w-[10rem] truncate text-left sm:max-w-none"
                         content={row.teamName}
