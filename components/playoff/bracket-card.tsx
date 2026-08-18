@@ -20,6 +20,8 @@ type BracketCardProps = {
   awayScore: number | null;
   winnerTeamId: string | null;
   tone: "active" | "completed" | "pending";
+  /** Token etapu — cienki akcent odróżniający rundy od siebie. */
+  accent?: string;
 };
 
 function TeamLogo({ team }: { team: BracketTeamView | null }) {
@@ -108,6 +110,7 @@ export function BracketCard({
   awayScore,
   winnerTeamId,
   tone,
+  accent,
 }: BracketCardProps) {
   const isFinished = homeScore !== null && awayScore !== null;
 
@@ -120,7 +123,12 @@ export function BracketCard({
 
   return (
     <div
-      className={["bracket-card flex flex-col", toneClass].join(" ")}
+      className={[
+        "bracket-card flex flex-col",
+        toneClass,
+        // Akcent rundy: krawędź i cienki pasek, nigdy pełna płachta koloru.
+        accent ? `round-accent-${accent} bracket-card-accent` : "",
+      ].join(" ")}
       style={{ height: `${CARD_HEIGHT_REM}rem` }}
     >
       <TeamRow

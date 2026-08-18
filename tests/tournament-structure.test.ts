@@ -9,6 +9,7 @@ import { TournamentConfigError, MAIN_POOL_KEY } from "@/types/tournament-config"
 import { calculateStandings } from "@/lib/standings";
 import { mergeTournamentData } from "@/lib/merge-data";
 import type { Tournament } from "@/types/tournament";
+import { loadRabbitCup } from "./helpers/rabbit-cup";
 
 /**
  * STRUKTURA I FORMAT TURNIEJU na prawdziwej bazie.
@@ -25,6 +26,7 @@ async function readRow(id: string) {
       structure: tournaments.structure,
       format: tournaments.format,
       playoffConfig: tournaments.playoffConfig,
+      scorersEnabled: tournaments.scorersEnabled,
     })
     .from(tournaments)
     .where(eq(tournaments.id, id))
@@ -66,13 +68,19 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("A: single + league tworzy techniczną pulę, nie 'Grupa A'", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Single League",
-      settings: { structure: "single", format: "league", playoffConfig: null },
+      settings: {
+        structure: "single",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     expect(await readRow(created.id)).toMatchObject({
       structure: "single",
       format: "league",
       playoffConfig: null,
+      scorersEnabled: true,
     });
 
     const result = await postgresRepository.getTournamentById(created.id);
@@ -89,7 +97,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("B: groups + league dostaje automatycznie Grupę A", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Groups League",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     expect(await readRow(created.id)).toMatchObject({
@@ -116,7 +129,7 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
           thirdPlaceMatch: true,
           placementMode: "none",
           tieBreaker: "penalties",
-        },
+        }, scorersEnabled: true,
       },
     });
 
@@ -145,7 +158,7 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
           thirdPlaceMatch: true,
           placementMode: "placement_group",
           tieBreaker: "penalties",
-        },
+        }, scorersEnabled: true,
       },
     });
 
@@ -176,7 +189,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("single działa z niezmienionym calculateStandings", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Single Standings",
-      settings: { structure: "single", format: "league", playoffConfig: null },
+      settings: {
+        structure: "single",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     const payload: Tournament = {
@@ -233,7 +251,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("structure MOŻNA zmienić, dopóki turniej jest pusty", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Switchable",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.updateTournamentSettings(created.id, {
@@ -252,7 +275,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("structure NIE MOŻE zostać zmienione, gdy turniej ma dane", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Locked",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.saveTournament(created.id, {
@@ -294,7 +322,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("format i konfigurację play-off można edytować przed startem drabinki", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Editable Format",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.updateTournamentSettings(created.id, {
@@ -328,7 +361,12 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
   it("zmiana nazwy przez ustawienia zachowuje tożsamość", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Rename Settings",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.updateTournamentSettings(created.id, {
@@ -359,7 +397,7 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
           thirdPlaceMatch: true,
           placementMode: "placement_group",
           tieBreaker: "penalties",
-        },
+        }, scorersEnabled: true,
       },
     });
 
@@ -372,7 +410,7 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
 
   /* --- 14: backfill Rabbit Cupa ---------------------------------------- */
 
-  it("Rabbit Cup po migracji ma structure=groups i format=league", async () => {
+  it("Rabbit Cup po migracji ma spójną konfigurację", async () => {
     const rows = await getDb()
       .select({
         structure: tournaments.structure,
@@ -385,16 +423,26 @@ describe.skipIf(!hasDatabase)("struktura i format turnieju", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].structure).toBe("groups");
-    expect(rows[0].format).toBe("league");
-    expect(rows[0].playoffConfig).toBeNull();
 
-    const result = await postgresRepository.getCurrentTournament();
+    /*
+      FORMAT jest ustawieniem, które administrator może świadomie zmienić
+      w panelu — test pilnuje SPÓJNOŚCI, nie zamraża decyzji produktowej.
+      Integralności danych Rabbit Cupa broni osobny zestaw.
+    */
+    if (rows[0].format === "league") {
+      expect(rows[0].playoffConfig).toBeNull();
+    } else {
+      expect(rows[0].format).toBe("group_playoff");
+      expect(rows[0].playoffConfig).not.toBeNull();
+    }
+
+    // Odczyt adresuje Rabbit Cupa wprost — nie „turniej publiczny",
+    // bo ten wybiera administrator.
+    const result = await loadRabbitCup();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
-    expect(result.settings).toEqual({
-      structure: "groups",
-      format: "league",
-      playoffConfig: null,
-    });
+    expect(result.settings.structure).toBe("groups");
+    expect(result.settings.scorersEnabled).toBe(true);
+    expect(result.settings.format).toBe(rows[0].format);
   });
 });

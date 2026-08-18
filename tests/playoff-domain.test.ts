@@ -393,7 +393,7 @@ describe("podgląd rozstawienia w fazie grupowej", () => {
     expect(preview.warnings.join(" ")).toContain("4");
   });
 
-  it("sygnalizuje nierozstrzygniętą kolejność w strefie awansu", () => {
+  it("nie straszy kibica nierozstrzygniętym remisem w strefie awansu", () => {
     const ambiguous = [
       standingRow(1, "t1"),
       standingRow(2, "t2", { isTieUnresolved: true }),
@@ -407,7 +407,25 @@ describe("podgląd rozstawienia w fazie grupowej", () => {
       qualifiedTeamCount: 4,
     });
 
-    expect(preview.isReliable).toBe(false);
+    /*
+      To jest problem ADMINISTRACYJNY: zamknięcie fazy grupowej i tak
+      zostanie zablokowane, a admin dostanie dokładny powód. Publiczny
+      podgląd nie może wyglądać jak błąd aplikacji.
+    */
+    expect(preview.warnings).toEqual([]);
+
+    // Admin nadal jest zatrzymany i wie dlaczego.
+    const issues = validateGroupStageCompletion({
+      scopeLabel: "Grupa A",
+      teamCount: 4,
+      playedMatchCount: 6,
+      standings: ambiguous,
+      qualifiedTeamCount: 4,
+    });
+
+    expect(issues.some((issue) => issue.reason.includes("granicy awansu"))).toBe(
+      true
+    );
   });
 
   it("dla 8 drużyn zwraca cztery pary", () => {

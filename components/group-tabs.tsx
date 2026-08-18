@@ -17,11 +17,7 @@ import {
 import type { Group } from "@/types/tournament";
 import type { TournamentStructure } from "@/types/tournament-config";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
-import { PhaseBanner } from "@/components/playoff/phase-banner";
-import {
-  PlayoffBracket,
-  PlayoffPreview,
-} from "@/components/playoff/playoff-bracket";
+import { PlayoffBracket } from "@/components/playoff/playoff-bracket";
 import { PlacementSection } from "@/components/playoff/placement-section";
 import { PodiumSection } from "@/components/playoff/podium-section";
 
@@ -144,32 +140,31 @@ export function GroupTabs({
           transition={{ duration: 0.2 }}
           className="space-y-4"
         >
+          {/*
+            W formacie z play-offem Ranking pokazuje statystyki CAŁEGO
+            turnieju (grupa + drabinka + minigrupa) i kolejność zależną od
+            etapu — jedno i drugie liczy serwer. Liga zostaje przy
+            klasycznym calculateStandings.
+          */}
           <StandingsTable
             groupKey={displayedGroup.key}
             groupName={displayedGroup.name}
-            rows={standings}
+            rows={playoffScope?.ranking?.length ? playoffScope.ranking : standings}
+            stage={playoffState?.format === "group_playoff" ? playoffState.stage : null}
           />
 
           <MatchMatrix group={displayedGroup} />
 
           {playoffScope ? (
             <>
-              <PhaseBanner
-                phaseLabel={playoffState!.phaseLabel}
-                isCompleted={playoffState!.isCompleted}
+              {/*
+                Jedna drabinka na wszystkie etapy: pełna topologia istnieje
+                od początku, a puste sloty czekają na rozstrzygnięcia.
+              */}
+              <PlayoffBracket
+                scope={playoffScope}
+                backgroundUrl={playoffState!.bracketBackgroundUrl}
               />
-
-              {playoffState!.phase === "group_stage" ? (
-                <PlayoffPreview
-                  scope={playoffScope}
-                  backgroundUrl={playoffState!.bracketBackgroundUrl}
-                />
-              ) : (
-                <PlayoffBracket
-                  scope={playoffScope}
-                  backgroundUrl={playoffState!.bracketBackgroundUrl}
-                />
-              )}
 
               {playoffScope.placement ? (
                 <PlacementSection placement={playoffScope.placement} />

@@ -33,6 +33,7 @@ function teamRow(overrides: Partial<TeamRow> = {}): TeamRow {
     logoName: null,
     logoType: null,
     logoPublicId: null,
+    logoAssetId: null,
     sourceOrder: 1,
     ...overrides,
   };
@@ -225,6 +226,7 @@ describe("buildTournamentFromRows", () => {
     title: "Rabbit Cup",
     structure: "groups",
     format: "league",
+    scorersEnabled: true,
     phase: "group_stage",
     publicRevision: 0,
     completedAt: null,

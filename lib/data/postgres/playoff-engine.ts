@@ -35,6 +35,7 @@ import {
   isBracketPhase,
   PHASE_LABELS,
   type BracketRoundKind,
+  type BracketRoundStatus,
   type TournamentPhase,
 } from "@/lib/playoff/phases";
 import {
@@ -50,6 +51,19 @@ import {
   validateGroupStageCompletion,
   type PlayoffPreview,
 } from "@/lib/playoff/rules";
+import {
+  buildBracketTopology,
+  type TopologyRound,
+} from "@/lib/playoff/topology";
+import {
+  describeStage,
+  type StagePresentation,
+  type StageTone,
+} from "@/lib/playoff/stage";
+import {
+  aggregateTeamStats,
+  buildRankingRows,
+} from "@/lib/playoff/aggregate-stats";
 import { TournamentOperationError } from "../types";
 import {
   bumpPublicRevision,
@@ -75,6 +89,8 @@ export type BracketTeamView = {
 
 export type PlayoffMatchView = {
   externalId: string;
+  /** true = skład wynika z niezamrożonej tabeli i może się jeszcze zmienić. */
+  provisional: boolean;
   kind: BracketRoundKind;
   roundOrder: number;
   slotIndex: number;
@@ -94,6 +110,8 @@ export type PlayoffRoundView = {
   label: string;
   order: number;
   status: string;
+  /** Token tonalny rundy — prezentacja, nie logika sportowa. */
+  tone: StageTone;
   matches: PlayoffMatchView[];
 };
 
@@ -116,6 +134,18 @@ export type PlacementView = {
 export type PlayoffScopeView = {
   groupKey: string;
   groupName: string;
+  /**
+   * Czy w TEJ grupie padł już jakikolwiek wynik.
+   *
+   * Rozstrzygane per grupa, nie globalnie: grupa A z jednym wynikiem
+   * pokazuje rozstawienie, a grupa B bez wyników nadal znaki zapytania.
+   */
+  hasAnyGroupResult: boolean;
+  /**
+   * Ranking prezentowany kibicowi: KOLEJNOŚĆ zależy od etapu turnieju,
+   * a LICZBY są sumą wszystkich rozegranych meczów drużyny.
+   */
+  ranking: StandingRow[];
   teams: Team[];
   groupStandings: StandingRow[];
   /** Dostępny wyłącznie w fazie grupowej — nigdy nie jest zapisywany. */
@@ -149,6 +179,8 @@ export type PlayoffStateView = {
   format: "league" | "group_playoff";
   phase: TournamentPhase;
   phaseLabel: string;
+  /** Etap turnieju do plakietki przy Rankingu: nazwa + ton koloru. */
+  stage: StagePresentation;
   groupStageFrozen: boolean;
   isCompleted: boolean;
   config: PlayoffConfig | null;
@@ -264,7 +296,7 @@ function buildDomainGroup(context: Context, groupRow: { id: string; key: string;
   const groupTeams = context.teams
     .filter((team) => team.groupId === groupRow.id)
     .sort((a, b) => a.sourceOrder - b.sourceOrder)
-    .map(buildTeam);
+    .map((row) => buildTeam(row));
 
   const externalByUuid = new Map(context.teams.map((t) => [t.id, t.externalId]));
 
@@ -378,57 +410,95 @@ export async function getPlayoffState(
     );
     const teamView = makeTeamViewFactory(context, seedByExternalId);
 
-    /* --- drabinka --- */
-    const rounds: PlayoffRoundView[] = [];
+    /* --- drabinka: PEŁNA topologia od pierwszej sekundy turnieju --- */
 
-    if (bracket) {
-      const bracketRoundList = context.rounds
-        .filter((round) => round.bracketId === bracket.id)
-        .sort((a, b) => a.order - b.order);
+    /*
+      Kibic widzi cały format od razu — półfinały, finał i mecz o 3. miejsce
+      istnieją jako sloty, zanim ktokolwiek zagra. Uczestnicy pojawiają się
+      wyłącznie tam, gdzie są NAPRAWDĘ znani.
+    */
+    const bracketRoundList = bracket
+      ? context.rounds
+          .filter((round) => round.bracketId === bracket.id)
+          .sort((a, b) => a.order - b.order)
+      : [];
 
-      for (const round of bracketRoundList) {
-        const roundMatches = context.matches
-          .filter((match) => match.bracketRoundId === round.id)
-          .sort((a, b) => (a.slotIndex ?? 0) - (b.slotIndex ?? 0))
-          .map((match) => {
-            const homeTeamId = match.homeTeamId
-              ? (externalByUuid.get(match.homeTeamId) ?? null)
-              : null;
-            const awayTeamId = match.awayTeamId
-              ? (externalByUuid.get(match.awayTeamId) ?? null)
-              : null;
+    const roundIdSet = new Set(bracketRoundList.map((round) => round.id));
 
-            return {
-              externalId: match.externalId,
-              kind: round.kind as BracketRoundKind,
-              roundOrder: round.order,
-              slotIndex: match.slotIndex ?? 0,
-              home: teamView(homeTeamId),
-              away: teamView(awayTeamId),
-              homeLabel: describeSlot(match.homeSource, null, nameByExternal),
-              awayLabel: describeSlot(match.awaySource, null, nameByExternal),
-              homeScore: match.homeScore,
-              awayScore: match.awayScore,
-              winnerTeamId: getWinner({
-                homeTeamId,
-                awayTeamId,
-                homeScore: match.homeScore,
-                awayScore: match.awayScore,
-              }),
-              isFinished:
-                match.homeScore !== null && match.awayScore !== null,
-            };
-          });
+    const officialMatches = context.matches
+      .filter((match) => match.bracketRoundId && roundIdSet.has(match.bracketRoundId))
+      .map((match) => ({
+        externalId: match.externalId,
+        homeTeamId: match.homeTeamId
+          ? (externalByUuid.get(match.homeTeamId) ?? null)
+          : null,
+        awayTeamId: match.awayTeamId
+          ? (externalByUuid.get(match.awayTeamId) ?? null)
+          : null,
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+      }));
 
-        rounds.push({
-          kind: round.kind as BracketRoundKind,
-          label: round.label,
-          order: round.order,
-          status: round.status,
-          matches: roundMatches,
-        });
-      }
+    const roundStatusByKind = new Map(
+      bracketRoundList.map((round) => [
+        round.kind as BracketRoundKind,
+        round.status as BracketRoundStatus,
+      ])
+    );
+
+    // Pierwszy wynik W TEJ GRUPIE — nie globalny stan turnieju.
+    const hasAnyGroupResult = domainGroup.matches.length > 0;
+
+    /*
+      Przed zamrożeniem rozstawienie bierzemy z bieżącej tabeli, ale dopiero
+      gdy padł pierwszy wynik. Wcześniej kolejność wierszy w bazie nie ma
+      żadnego znaczenia sportowego i pokazywanie jej byłoby kłamstwem.
+    */
+    const liveSeeding =
+      hasAnyGroupResult && phase === "group_stage"
+        ? new Map(groupStandings.map((row) => [row.position, row.teamId]))
+        : null;
+
+    let topology: TopologyRound[] = [];
+
+    if (settings.format === "group_playoff" && settings.playoffConfig) {
+      topology = buildBracketTopology({
+        scopeKey: groupRow.key,
+        size: settings.playoffConfig.qualifiedTeamCount,
+        thirdPlaceMatch: settings.playoffConfig.thirdPlaceMatch,
+        officialMatches,
+        roundStatusByKind,
+        liveSeeding,
+      });
     }
+
+    const rounds: PlayoffRoundView[] = topology.map((round) => ({
+      kind: round.kind,
+      label: round.label,
+      order: round.order,
+      status: round.status,
+      tone: round.tone,
+      matches: round.matches.map((match) => ({
+        externalId: match.externalId,
+        kind: match.kind,
+        roundOrder: match.roundOrder,
+        slotIndex: match.slotIndex,
+        provisional: match.provisional,
+        home: teamView(match.homeTeamId),
+        away: teamView(match.awayTeamId),
+        homeLabel: describeSlot(match.homeSource, null, nameByExternal),
+        awayLabel: describeSlot(match.awaySource, null, nameByExternal),
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+        winnerTeamId: getWinner({
+          homeTeamId: match.homeTeamId,
+          awayTeamId: match.awayTeamId,
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+        }),
+        isFinished: match.homeScore !== null && match.awayScore !== null,
+      })),
+    }));
 
     /* --- minigrupa --- */
     const placementMatches = context.matches.filter(
@@ -526,8 +596,71 @@ export async function getPlayoffState(
             thirdPlaceMatch: settings.playoffConfig.thirdPlaceMatch,
             placementStandings: placement?.standings ?? null,
             placementComplete: placement?.complete ?? true,
+            /*
+              Zamrożona tabela grupowa rozstrzyga dwa przypadki, w których
+              nie ma meczu: przegranych półfinałów bez meczu o 3. miejsce
+              oraz drużyn spoza play-off bez minigrupy. Dzięki temu po
+              zakończeniu turnieju nikt nie zostaje bez miejsca.
+            */
+            frozenOrder: (snapshotEntries ?? []).map((entry) => entry.teamId),
           })
         : null;
+
+    /* --- ranking całego turnieju --- */
+
+    /*
+      STATYSTYKI: suma wszystkich rozegranych meczów drużyny — grupowych,
+      pucharowych, meczu o 3. miejsce i minigrupy.
+      KOLEJNOŚĆ: zależy od etapu i jest ustalana niżej.
+    */
+    const playedBracketMatches = rounds.flatMap((round) =>
+      round.matches
+        .filter(
+          (match) =>
+            match.home && match.away && match.isFinished
+        )
+        .map((match) => ({
+          homeTeamId: match.home!.teamId,
+          awayTeamId: match.away!.teamId,
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+        }))
+    );
+
+    const playedPlacementMatches = (placement?.matches ?? [])
+      .filter((match) => match.homeScore !== null && match.awayScore !== null)
+      .map((match) => ({
+        homeTeamId: match.home.teamId,
+        awayTeamId: match.away.teamId,
+        homeScore: match.homeScore,
+        awayScore: match.awayScore,
+      }));
+
+    const stats = aggregateTeamStats({
+      teamIds: domainGroup.teams.map((team) => team.id),
+      matches: [
+        ...domainGroup.matches.map((match) => ({
+          homeTeamId: match.homeTeamId,
+          awayTeamId: match.awayTeamId,
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+        })),
+        ...playedBracketMatches,
+        ...playedPlacementMatches,
+      ],
+    });
+
+    const presentation = new Map(
+      domainGroup.teams.map((team) => [
+        team.id,
+        {
+          teamName: team.name,
+          logoText: team.logoText,
+          logoUrl: team.logoUrl,
+          sourceOrder: team.sourceOrder,
+        },
+      ])
+    );
 
     const classification: ClassificationView | null = rawClassification
       ? {
@@ -558,9 +691,52 @@ export async function getPlayoffState(
           })
         : [];
 
+    /*
+      KOLEJNOŚĆ WIERSZY RANKINGU — trzy różne etapy, trzy różne źródła:
+
+      1. faza grupowa  → calculateStandings, dokładnie jak dotąd,
+      2. po zamrożeniu → zamrożony snapshot; tabela stoi w miejscu,
+         chociaż liczby żyją (inaczej skakałaby po każdym meczu play-off),
+      3. po zakończeniu → oficjalna klasyfikacja końcowa, żeby Ranking
+         i podium opowiadały tę samą historię.
+
+      Punkty NIGDY nie wyłaniają mistrza — o miejscu decyduje przebieg
+      turnieju, a Pkt są statystyką występu.
+    */
+    const teamIdsInGroup = domainGroup.teams.map((team) => team.id);
+
+    let orderedTeamIds: string[] = groupStandings.map((row) => row.teamId);
+
+    if (phase === "completed" && classification?.complete) {
+      const classified = classification.entries
+        .filter((entry) => entry.position !== null)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+        .map((entry) => entry.team.teamId);
+
+      orderedTeamIds = [
+        ...classified,
+        ...teamIdsInGroup.filter((teamId) => !classified.includes(teamId)),
+      ];
+    } else if (snapshotEntries && snapshotEntries.length > 0) {
+      const frozen = snapshotEntries.map((entry) => entry.teamId);
+
+      orderedTeamIds = [
+        ...frozen,
+        ...teamIdsInGroup.filter((teamId) => !frozen.includes(teamId)),
+      ];
+    }
+
+    const ranking = buildRankingRows({
+      orderedTeamIds,
+      stats,
+      presentation,
+    });
+
     scopes.push({
       groupKey: groupRow.key,
       groupName: groupRow.name,
+      hasAnyGroupResult,
+      ranking,
       teams: domainGroup.teams,
       groupStandings,
       preview,
@@ -576,6 +752,7 @@ export async function getPlayoffState(
     format: settings.format,
     phase,
     phaseLabel: PHASE_LABELS[phase] ?? phase,
+    stage: describeStage(phase),
     groupStageFrozen: context.snapshots.length > 0,
     isCompleted: phase === "completed",
     config: settings.playoffConfig,

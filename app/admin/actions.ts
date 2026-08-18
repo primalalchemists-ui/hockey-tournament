@@ -117,6 +117,8 @@ function readSettingsFromForm(formData: FormData) {
   return parseTournamentSettings({
     structure: getString(formData, "structure"),
     format,
+    // Checkbox nieodhaczony w ogóle nie trafia do FormData.
+    scorersEnabled: getString(formData, "scorersEnabled") === "true",
     playoffConfig:
       format === "group_playoff"
         ? {
@@ -179,6 +181,7 @@ export async function updateTournamentSettingsAction(
       structure: settings.structure,
       format: settings.format,
       playoffConfig: settings.playoffConfig ?? undefined,
+      scorersEnabled: settings.scorersEnabled,
     });
   } catch (error) {
     return { error: toMessage(error) };

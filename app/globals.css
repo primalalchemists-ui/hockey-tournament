@@ -518,6 +518,126 @@ button {
 }
 
 /* ==========================================================================
+   ETAP TURNIEJU
+
+   Neutralna, globalna paleta sportowa — zero kolorystyki konkretnego
+   turnieju. Ranga rośnie od spokojnego lodu w fazie grupowej do złota
+   w finale; wszystko stonowane, broadcastowe, bez neonu.
+   ========================================================================== */
+
+@layer components {
+  .stage-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--stage-border);
+    background: var(--stage-surface);
+    color: var(--stage-ink);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .stage-badge::before {
+    content: "";
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--stage-dot);
+  }
+
+  /* Faza grupowa — ton zaakceptowany wcześniej, zostaje bez zmian. */
+  .stage-group {
+    --stage-surface: rgba(224, 240, 252, 0.75);
+    --stage-border: rgba(125, 184, 224, 0.45);
+    --stage-ink: #0b4a6f;
+    --stage-dot: #0284c7;
+  }
+
+  .stage-round_of_16 {
+    --stage-surface: rgba(224, 244, 248, 0.8);
+    --stage-border: rgba(103, 172, 190, 0.45);
+    --stage-ink: #0d4f5c;
+    --stage-dot: #0e7490;
+  }
+
+  .stage-quarterfinal {
+    --stage-surface: rgba(222, 235, 254, 0.85);
+    --stage-border: rgba(120, 160, 226, 0.45);
+    --stage-ink: #1e3a8a;
+    --stage-dot: #2563eb;
+  }
+
+  .stage-semifinal {
+    --stage-surface: rgba(226, 228, 252, 0.85);
+    --stage-border: rgba(129, 133, 214, 0.45);
+    --stage-ink: #312e81;
+    --stage-dot: #4338ca;
+  }
+
+  /* Finał — jedyny akcent „premium” w całym systemie. */
+  .stage-final {
+    --stage-surface: rgba(253, 243, 216, 0.9);
+    --stage-border: rgba(202, 158, 74, 0.5);
+    --stage-ink: #7c5310;
+    --stage-dot: #b45309;
+  }
+
+  .stage-third_place {
+    --stage-surface: rgba(246, 234, 224, 0.9);
+    --stage-border: rgba(184, 138, 106, 0.45);
+    --stage-ink: #7b4a2d;
+    --stage-dot: #a16207;
+  }
+
+  .stage-completed {
+    --stage-surface: rgba(240, 240, 236, 0.9);
+    --stage-border: rgba(163, 155, 132, 0.45);
+    --stage-ink: #4a4636;
+    --stage-dot: #8a7f5c;
+  }
+
+  /*
+    Ten sam system na scenie drabinki, gdzie tłem jest ciemny artwork.
+    Karty rund różnią się akcentem, ale zostają jedną rodziną komponentów.
+  */
+  .round-accent-group,
+  .round-accent-round_of_16 {
+    --round-accent: rgba(125, 211, 252, 0.55);
+  }
+  .round-accent-quarterfinal {
+    --round-accent: rgba(147, 178, 255, 0.55);
+  }
+  .round-accent-semifinal {
+    --round-accent: rgba(165, 165, 255, 0.6);
+  }
+  .round-accent-final {
+    --round-accent: rgba(252, 211, 129, 0.7);
+  }
+  .round-accent-third_place {
+    --round-accent: rgba(226, 173, 132, 0.6);
+  }
+  .round-accent-completed {
+    --round-accent: rgba(226, 226, 214, 0.5);
+  }
+
+  .round-label-accent {
+    color: var(--round-accent, rgba(255, 255, 255, 0.62));
+  }
+
+  /* Karta rundy: akcent wchodzi cienką krawędzią, nie płachtą koloru. */
+  .bracket-card-accent {
+    border-color: color-mix(in srgb, var(--round-accent) 55%, transparent);
+    box-shadow:
+      inset 3px 0 0 0 var(--round-accent),
+      0 0.75rem 1.5rem -0.9rem rgba(2, 6, 23, 0.9);
+  }
+}
+
+/* ==========================================================================
    SCENA DRABINKI
 
    Karty mają wyglądać jak umieszczone NAD grafiką turnieju, nie wtopione

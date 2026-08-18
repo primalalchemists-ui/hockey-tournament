@@ -25,6 +25,7 @@ export function round(
     label: "Półfinały",
     order: 1,
     status: "active",
+    tone: "semifinal",
     matches: [],
     ...overrides,
   };
@@ -41,6 +42,7 @@ export function semiFinalRound(): PlayoffRoundView {
       slotIndex: slot,
       home: team(`h${slot}`, `Home ${slot}`),
       away: team(`a${slot}`, `Away ${slot}`),
+      provisional: false,
       homeLabel: "Zwycięzca",
       awayLabel: "Zwycięzca",
       homeScore: 3,
@@ -60,6 +62,7 @@ export function finalRound(): PlayoffRoundView {
     matches: [
       {
         externalId: "final-1",
+        provisional: false,
         kind: "final" as const,
         roundOrder: 2,
         slotIndex: 1,
@@ -80,6 +83,8 @@ export function scope(overrides: Partial<PlayoffScopeView> = {}): PlayoffScopeVi
   return {
     groupKey: "A",
     groupName: "Grupa A",
+    hasAnyGroupResult: true,
+    ranking: [],
     teams: [],
     groupStandings: [],
     preview: null,

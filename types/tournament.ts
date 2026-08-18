@@ -9,6 +9,14 @@ export type Team = {
   logoName?: string;
   logoType?: string;
   logoPublicId?: string;
+  /**
+   * Slug logo z globalnej biblioteki (np. "gks-katowice").
+   *
+   * Świadomie NIE jest to UUID: identyfikatory bazy nie wychodzą poza
+   * warstwę danych, a slug jest stabilny i czytelny w payloadzie panelu.
+   * Puste = drużyna korzysta jeszcze z historycznego logo w logoUrl.
+   */
+  logoAssetSlug?: string;
   sourceOrder: number;
 };
 

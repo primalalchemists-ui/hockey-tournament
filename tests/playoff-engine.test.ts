@@ -16,6 +16,11 @@ import {
 import { TournamentOperationError } from "@/lib/data/types";
 import type { Group, Match, Team, Tournament } from "@/types/tournament";
 import type { PlayoffConfig } from "@/types/tournament-config";
+import {
+  deleteOwnFixtures,
+  readCurrentTournamentId,
+  restoreCurrentTournament,
+} from "./helpers/current-tournament";
 
 /**
  * SILNIK FAZY PUCHAROWEJ na prawdziwej bazie.
@@ -111,6 +116,7 @@ async function createPlayoffTournament(
       structure: options.groupKeys.length > 1 ? "groups" : "groups",
       format: "group_playoff",
       playoffConfig: options.config ?? CONFIG,
+      scorersEnabled: true,
     },
   });
 
@@ -123,24 +129,13 @@ async function createPlayoffTournament(
 }
 
 async function cleanupVitestTournaments(originalCurrentId: string | null) {
-  const db = getDb();
-
-  await db
-    .delete(tournaments)
-    .where(
-      originalCurrentId
-        ? and(
-            like(tournaments.slug, "vitest-%"),
-            sql`${tournaments.id} <> ${originalCurrentId}`
-          )
-        : like(tournaments.slug, "vitest-%")
-    );
-
-  if (originalCurrentId) {
-    await db
-      .update(tournaments)
-      .set({ isCurrent: true })
-      .where(eq(tournaments.id, originalCurrentId));
+  try {
+    await deleteOwnFixtures("vitest-", originalCurrentId);
+  } finally {
+    // Przywrócenie stanu publicznego jest niezależne od powodzenia
+    // sprzątania — inaczej kolejność plików testowych decydowałaby
+    // o tym, który turniej widzi kibic.
+    await restoreCurrentTournament(originalCurrentId);
   }
 }
 
@@ -149,13 +144,7 @@ describe.skipIf(!hasDatabase)("silnik play-off — scenariusz referencyjny", () 
   let tournamentId = "";
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
 
     tournamentId = await createPlayoffTournament("Vitest Reference Cup", {
       groupKeys: ["A", "B"],
@@ -183,9 +172,20 @@ describe.skipIf(!hasDatabase)("silnik play-off — scenariusz referencyjny", () 
       ["a2", "a3"],
     ]);
 
-    // Podgląd nie jest zapisywany — brak snapshotu i drabinki.
+    // Podgląd nie jest zapisywany — brak snapshotu.
     expect(scopeA.snapshot).toBeNull();
-    expect(scopeA.rounds).toEqual([]);
+
+    /*
+      Drabinka ISTNIEJE od początku turnieju (pełna topologia), ale jest
+      prowizoryczna: uczestników ma wyłącznie pierwsza runda.
+    */
+    expect(scopeA.rounds.map((round) => round.kind)).toEqual([
+      "semifinal",
+      "final",
+      "third_place",
+    ]);
+    expect(scopeA.rounds[0].matches.every((match) => match.provisional)).toBe(true);
+    expect(scopeA.rounds[1].matches[0].home).toBeNull();
   });
 
   it("zamyka fazę grupową: snapshot + drabinka + minigrupa", async () => {
@@ -509,13 +509,7 @@ describe.skipIf(!hasDatabase)("cofanie faz", () => {
   let originalCurrentId: string | null = null;
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
   });
 
   afterAll(async () => {
@@ -540,7 +534,12 @@ describe.skipIf(!hasDatabase)("cofanie faz", () => {
 
     expect(state.phase).toBe("group_stage");
     expect(state.groupStageFrozen).toBe(false);
-    expect(state.scopes[0].rounds).toEqual([]);
+    // Topologia wraca do stanu prowizorycznego — oficjalnych meczów nie ma.
+    expect(
+      state.scopes[0].rounds.every((round) =>
+        round.matches.every((match) => match.provisional)
+      )
+    ).toBe(true);
     expect(state.scopes[0].placement).toBeNull();
     expect(state.scopes[0].snapshot).toBeNull();
 
@@ -653,13 +652,7 @@ describe.skipIf(!hasDatabase)("warianty konfiguracji", () => {
   let originalCurrentId: string | null = null;
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
   });
 
   afterAll(async () => {
@@ -746,7 +739,7 @@ describe.skipIf(!hasDatabase)("warianty konfiguracji", () => {
       settings: {
         structure: "groups",
         format: "group_playoff",
-        playoffConfig: CONFIG,
+        playoffConfig: CONFIG, scorersEnabled: true,
       },
     });
 
@@ -762,8 +755,12 @@ describe.skipIf(!hasDatabase)("warianty konfiguracji", () => {
     // Nic nie zostało zapisane częściowo.
     const state = await getPlayoffState(created.id);
     expect(state.phase).toBe("group_stage");
-    expect(state.scopes[0].rounds).toEqual([]);
     expect(state.scopes[0].snapshot).toBeNull();
+    expect(
+      state.scopes[0].rounds.every((round) =>
+        round.matches.every((match) => match.provisional)
+      )
+    ).toBe(true);
   });
 
   it("blokuje zamknięcie przy zbyt małej liczbie drużyn", async () => {
@@ -772,7 +769,7 @@ describe.skipIf(!hasDatabase)("warianty konfiguracji", () => {
       settings: {
         structure: "groups",
         format: "group_playoff",
-        playoffConfig: CONFIG,
+        playoffConfig: CONFIG, scorersEnabled: true,
       },
     });
 
@@ -789,7 +786,12 @@ describe.skipIf(!hasDatabase)("warianty konfiguracji", () => {
   it("turniej ligowy nie ma dostępu do silnika pucharowego", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest League Only",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await expect(completeGroupStage(created.id)).rejects.toThrow(

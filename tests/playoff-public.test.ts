@@ -14,6 +14,11 @@ import {
 } from "@/lib/data/postgres/playoff-engine";
 import type { Group, Match, Team, Tournament } from "@/types/tournament";
 import type { PlayoffConfig } from "@/types/tournament-config";
+import {
+  deleteOwnFixtures,
+  readCurrentTournamentId,
+  restoreCurrentTournament,
+} from "./helpers/current-tournament";
 
 /**
  * READ MODEL DLA PUBLICZNEGO FRONTENDU.
@@ -95,7 +100,12 @@ async function makeTournament(
 ) {
   const created = await postgresRepository.createTournament({
     title,
-    settings: { structure: "groups", format: "group_playoff", playoffConfig: config },
+    settings: {
+      structure: "groups",
+      format: "group_playoff",
+      playoffConfig: config,
+      scorersEnabled: true,
+    },
   });
 
   await postgresRepository.saveTournament(
@@ -111,13 +121,7 @@ describe.skipIf(!hasDatabase)("read model publicznego frontendu", () => {
   let refId = "";
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
 
     refId = await makeTournament("Vitest Public Cup", ["A", "B"], 7);
   });
@@ -125,22 +129,10 @@ describe.skipIf(!hasDatabase)("read model publicznego frontendu", () => {
   afterAll(async () => {
     const db = getDb();
 
-    await db
-      .delete(tournaments)
-      .where(
-        originalCurrentId
-          ? and(
-              like(tournaments.slug, "vitest-%"),
-              sql`${tournaments.id} <> ${originalCurrentId}`
-            )
-          : like(tournaments.slug, "vitest-%")
-      );
-
-    if (originalCurrentId) {
-      await db
-        .update(tournaments)
-        .set({ isCurrent: true })
-        .where(eq(tournaments.id, originalCurrentId));
+    try {
+      await deleteOwnFixtures("vitest-", originalCurrentId);
+    } finally {
+      await restoreCurrentTournament(originalCurrentId);
     }
   });
 
@@ -154,7 +146,11 @@ describe.skipIf(!hasDatabase)("read model publicznego frontendu", () => {
     expect(state.isCompleted).toBe(false);
 
     const scope = state.scopes[0];
-    expect(scope.rounds).toEqual([]);
+
+    // Cała topologia jest widoczna od początku, ale tylko pierwsza runda
+    // zna uczestników — i to prowizorycznie.
+    expect(scope.rounds.length).toBeGreaterThan(0);
+    expect(scope.rounds[0].matches.every((match) => match.provisional)).toBe(true);
     expect(scope.preview).not.toBeNull();
 
     const pair = scope.preview!.pairs[0];
@@ -427,34 +423,16 @@ describe.skipIf(!hasDatabase)("warianty prezentacji", () => {
   let originalCurrentId: string | null = null;
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
   });
 
   afterAll(async () => {
     const db = getDb();
 
-    await db
-      .delete(tournaments)
-      .where(
-        originalCurrentId
-          ? and(
-              like(tournaments.slug, "vitest-%"),
-              sql`${tournaments.id} <> ${originalCurrentId}`
-            )
-          : like(tournaments.slug, "vitest-%")
-      );
-
-    if (originalCurrentId) {
-      await db
-        .update(tournaments)
-        .set({ isCurrent: true })
-        .where(eq(tournaments.id, originalCurrentId));
+    try {
+      await deleteOwnFixtures("vitest-", originalCurrentId);
+    } finally {
+      await restoreCurrentTournament(originalCurrentId);
     }
   });
 
@@ -498,6 +476,7 @@ describe.skipIf(!hasDatabase)("warianty prezentacji", () => {
         structure: "single",
         format: "group_playoff",
         playoffConfig: { ...CONFIG, placementMode: "none" },
+      scorersEnabled: true,
       },
     });
 
@@ -552,7 +531,7 @@ describe.skipIf(!hasDatabase)("warianty prezentacji", () => {
 
   /* --- S: shared 3-4 bez meczu o 3. miejsce ------------------------------ */
 
-  it("bez meczu o 3. miejsce klasyfikacja zwraca miejsce dzielone", async () => {
+  it("bez meczu o 3. miejsce rozstrzyga zamrożona tabela grupowa", async () => {
     const id = await makeTournament("Vitest Shared Third", ["A"], 4, {
       ...CONFIG,
       thirdPlaceMatch: false,
@@ -586,14 +565,33 @@ describe.skipIf(!hasDatabase)("warianty prezentacji", () => {
     state = await getPlayoffState(id);
 
     const classification = state.scopes[0].classification!;
-    const shared = classification.entries.filter((entry) => entry.shared);
 
-    expect(shared).toHaveLength(2);
-    expect(shared.every((entry) => entry.position === null)).toBe(true);
-    // Frontend nie może wymyślić brązowego medalisty.
-    expect(
-      classification.entries.some((entry) => entry.position === 3)
-    ).toBe(false);
+    /*
+      ZMIANA REGUŁY DOMENOWEJ.
+
+      Wcześniej przegrani półfinałów dzielili miejsca 3-4. Teraz szereguje
+      ich zamrożona tabela grupowa — bez rozgrywania fikcyjnego meczu
+      i bez wymyślania wyniku. Dzięki temu klasyfikacja nie ma dziur.
+    */
+    const positions = classification.entries
+      .map((entry) => entry.position)
+      .filter((position): position is number => position !== null)
+      .sort((a, b) => a - b);
+
+    expect(positions).toEqual([1, 2, 3, 4]);
+    expect(classification.entries.every((entry) => !entry.shared)).toBe(true);
+
+    const snapshotOrder = (state.scopes[0].snapshot ?? []).map(
+      (entry) => entry.teamId
+    );
+
+    const third = classification.entries.find((entry) => entry.position === 3)!;
+    const fourth = classification.entries.find((entry) => entry.position === 4)!;
+
+    // Trzecie miejsce należy do tego półfinalisty, który był wyżej w grupie.
+    expect(snapshotOrder.indexOf(third.team.teamId)).toBeLessThan(
+      snapshotOrder.indexOf(fourth.team.teamId)
+    );
   });
 
   /* --- A, X: liga bez sekcji pucharowych --------------------------------- */
@@ -601,7 +599,12 @@ describe.skipIf(!hasDatabase)("warianty prezentacji", () => {
   it("turniej ligowy nie ma stanu pucharowego", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest League Public",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     const state = await getPlayoffState(created.id);

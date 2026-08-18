@@ -126,6 +126,17 @@ export function AdminShell({
 }: AdminShellProps) {
   const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
   const [activeTab, setActiveTab] = useState<MainTab>("live");
+
+  /*
+    Turniej bez klasyfikacji strzelców nie pokazuje ich edytora.
+    Kod pozostaje nietknięty — Rabbit Cup z niego korzysta.
+  */
+  const visibleTabs = mainTabs.filter(
+    (tab) => tab.key !== "scorers" || settings.scorersEnabled
+  );
+
+  const effectiveTab: MainTab =
+    activeTab === "scorers" && !settings.scorersEnabled ? "live" : activeTab;
   const [isPending, startTransition] = useTransition();
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
@@ -261,10 +272,10 @@ export function AdminShell({
       const group = prev.groups.find((item) => item.key === groupKey);
 
       if (group) {
-        for (const team of group.teams) {
-          queueDelete(team.logoPublicId);
-        }
-
+        /*
+          Herby NIE są kasowane razem z grupą: należą do wspólnej
+          biblioteki i mogą być używane przez inne drużyny i turnieje.
+        */
         prev.scorers = prev.scorers.filter((scorer) =>
           !group.teams.some((team) => team.id === scorer.teamId)
         );
@@ -275,7 +286,10 @@ export function AdminShell({
     });
   }
 
-  function handleAddTeam(groupKey: string) {
+  function handleCreateTeam(
+    groupKey: string,
+    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+  ) {
     updateDraft((prev) => {
       const group = prev.groups.find((item) => item.key === groupKey);
       if (!group) return prev;
@@ -285,15 +299,42 @@ export function AdminShell({
 
       group.teams.push({
         id: teamId,
-        name: `Nowa drużyna ${nextIndex}`,
-        shortName: `Team ${nextIndex}`,
+        name: draft.name,
+        shortName: draft.name,
         logoText: "LOGO",
-        logoUrl: "",
+        logoUrl: draft.logoUrl,
         logoName: "",
         logoType: "",
+        // Wybór z biblioteki — warstwa danych podmieni URL i public_id
+        // na te z assetu, więc nie duplikujemy pliku.
+        logoAssetSlug: draft.logoAssetSlug || undefined,
         sourceOrder: nextIndex,
       });
 
+      return prev;
+    });
+  }
+
+  function handleSaveTeam(
+    groupKey: string,
+    teamId: string,
+    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+  ) {
+    updateDraft((prev) => {
+      const group = prev.groups.find((item) => item.key === groupKey);
+      const team = group?.teams.find((item) => item.id === teamId);
+      if (!team) return prev;
+
+      team.name = draft.name;
+      team.shortName = draft.name;
+      team.logoUrl = draft.logoUrl;
+      team.logoAssetSlug = draft.logoAssetSlug || undefined;
+
+      /*
+        ŚWIADOMIE nie kolejkujemy tu usunięcia starego pliku z Cloudinary.
+        Logo należy do współdzielonej biblioteki — ten sam herb może być
+        używany przez inną drużynę i inny turniej.
+      */
       return prev;
     });
   }
@@ -303,47 +344,13 @@ export function AdminShell({
       const group = prev.groups.find((item) => item.key === groupKey);
       if (!group) return prev;
 
-      const team = group.teams.find((item) => item.id === teamId);
-      if (team) {
-        queueDelete(team.logoPublicId);
-      }
-
+      // Usunięcie drużyny nie kasuje herbu — patrz komentarz wyżej.
       group.teams = group.teams.filter((team) => team.id !== teamId);
       group.matches = group.matches.filter(
         (match) => match.homeTeamId !== teamId && match.awayTeamId !== teamId
       );
       prev.scorers = prev.scorers.filter((scorer) => scorer.teamId !== teamId);
 
-      return prev;
-    });
-  }
-
-  function handleUpdateTeamName(groupKey: string, teamId: string, value: string) {
-    updateDraft((prev) => {
-      const group = prev.groups.find((item) => item.key === groupKey);
-      const team = group?.teams.find((item) => item.id === teamId);
-      if (!team) return prev;
-
-      team.name = value;
-      team.shortName = value;
-      return prev;
-    });
-  }
-
-  async function handleUploadTeamLogo(groupKey: string, teamId: string, file: File) {
-    const uploaded = await uploadFileToCloudinary(file);
-
-    updateDraft((prev) => {
-      const group = prev.groups.find((item) => item.key === groupKey);
-      const team = group?.teams.find((item) => item.id === teamId);
-      if (!team) return prev;
-
-      queueDelete(team.logoPublicId);
-
-      team.logoUrl = uploaded.url;
-      team.logoName = uploaded.name;
-      team.logoType = file.type || "image/*";
-      team.logoPublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
@@ -731,7 +738,7 @@ export function AdminShell({
   }, [draft.tickerMessage, draft.showTopScorerTicker]);
 
   const content = useMemo(() => {
-    if (activeTab === "schedule") {
+    if (effectiveTab === "schedule") {
       return (
         <section className="space-y-4">
           <div className="flex justify-end gap-2">
@@ -783,7 +790,7 @@ export function AdminShell({
       );
     }
 
-    if (activeTab === "regulation") {
+    if (effectiveTab === "regulation") {
       return (
         <section className="space-y-4">
           <div className="flex justify-end gap-2">
@@ -835,7 +842,7 @@ export function AdminShell({
       );
     }
 
-    if (activeTab === "camp") {
+    if (effectiveTab === "camp") {
       return (
         <section className="space-y-6">
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
@@ -1111,7 +1118,7 @@ export function AdminShell({
       );
     }
 
-    if (activeTab === "ticker") {
+    if (effectiveTab === "ticker") {
       return (
         <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
           <div className="space-y-2">
@@ -1171,7 +1178,7 @@ export function AdminShell({
       );
     }
 
-    if (activeTab === "scorers") {
+    if (effectiveTab === "scorers") {
       return (
         <ScorersManager
           scorers={draft.scorers ?? []}
@@ -1196,16 +1203,15 @@ export function AdminShell({
         groups={draft.groups}
         onAddGroup={handleAddGroup}
         onRemoveGroup={handleRemoveGroup}
-        onAddTeam={handleAddTeam}
+        onCreateTeam={handleCreateTeam}
         onRemoveTeam={handleRemoveTeam}
-        onUpdateTeamName={handleUpdateTeamName}
-        onUploadTeamLogo={handleUploadTeamLogo}
+        onSaveTeam={handleSaveTeam}
         onUpdateCell={handleUpdateCell}
         />
       </>
     );
   }, [
-    activeTab,
+    effectiveTab,
     draft,
     allTeams,
     separatorCopied,
@@ -1301,8 +1307,8 @@ export function AdminShell({
 
       <nav className="overflow-x-auto">
         <div className="inline-flex min-w-full gap-2 ice-surface flush-card p-2 shadow-sm sm:rounded-3xl">
-          {mainTabs.map((tab) => {
-            const isActive = tab.key === activeTab;
+          {visibleTabs.map((tab) => {
+            const isActive = tab.key === effectiveTab;
 
             return (
               <button
@@ -1325,7 +1331,7 @@ export function AdminShell({
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={activeTab}
+          key={effectiveTab}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}

@@ -13,6 +13,11 @@ import {
   savePlayoffMatchResult,
 } from "@/lib/data/postgres/playoff-engine";
 import type { Match, Team, Tournament } from "@/types/tournament";
+import {
+  deleteOwnFixtures,
+  readCurrentTournamentId,
+  restoreCurrentTournament,
+} from "./helpers/current-tournament";
 
 /**
  * TOKEN FINALIZACJI (completed_at) — klucz ceremonii podium.
@@ -84,13 +89,11 @@ describe.skipIf(!hasDatabase)("token finalizacji", () => {
   let id = "";
 
   beforeAll(async () => {
-    const current = await getDb().select({ id: tournaments.id }).from(tournaments)
-      .where(eq(tournaments.isCurrent, true)).limit(1);
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
 
     const created = await postgresRepository.createTournament({
       title: "Vitest Completion Token",
-      settings: { structure: "groups", format: "group_playoff",
+      settings: { structure: "groups", format: "group_playoff", scorersEnabled: true,
         playoffConfig: { qualifiedTeamCount: 4, thirdPlaceMatch: true,
           placementMode: "placement_group", tieBreaker: "penalties" } },
     });
@@ -101,14 +104,11 @@ describe.skipIf(!hasDatabase)("token finalizacji", () => {
   });
 
   afterAll(async () => {
-    const db = getDb();
-    await db.delete(tournaments).where(
-      originalCurrentId
-        ? and(like(tournaments.slug, "vitest-%"), sql`${tournaments.id} <> ${originalCurrentId}`)
-        : like(tournaments.slug, "vitest-%"));
-    if (originalCurrentId) {
-      await db.update(tournaments).set({ isCurrent: true })
-        .where(eq(tournaments.id, originalCurrentId));
+    try {
+      await deleteOwnFixtures("vitest-", originalCurrentId);
+    } finally {
+      // Stan sprzed testów wraca ZAWSZE — także po wyjątku.
+      await restoreCurrentTournament(originalCurrentId);
     }
   });
 
@@ -155,7 +155,12 @@ describe.skipIf(!hasDatabase)("token finalizacji", () => {
   it("S: turniej ligowy nie dostaje szkieletu podium", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest League No Podium",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.saveTournament(

@@ -63,6 +63,18 @@ export const tournaments = pgTable(
     format: text("format").notNull().default("league"),
 
     /**
+     * Czy turniej prowadzi klasyfikację strzelców.
+     *
+     * Cecha POJEDYNCZEGO turnieju, nie globalne ustawienie: Rabbit Cup
+     * strzelców liczy, SUN CUP U8/U10 nie. Domyślne `true` sprawia, że
+     * istniejące turnieje zachowują dotychczasowe zachowanie.
+     *
+     * Wyłączenie UKRYWA klasyfikację, ale NIE kasuje danych — powrót do
+     * `true` przywraca wpisane wcześniej gole.
+     */
+    scorersEnabled: boolean("scorers_enabled").notNull().default(true),
+
+    /**
      * OFICJALNA faza turnieju. Źródło prawdy jest w bazie, nie w UI.
      * Software nigdy nie przesuwa jej sam — wyłącznie jawna akcja admina.
      * Dla format="league" pozostaje na "group_stage" i nic nie znaczy.
@@ -248,6 +260,16 @@ export const teams = pgTable(
     logoType: text("logo_type"),
     /** Cloudinary public_id — w Airtable nigdy nie był zapisywany. */
     logoPublicId: text("logo_public_id"),
+
+    /**
+     * Wskazanie na wiersz biblioteki. NULL = drużyna korzysta jeszcze
+     * z historycznego logo zapisanego bezpośrednio w kolumnach powyżej.
+     * Kolumny logo_url/logo_public_id ZOSTAJĄ zsynchronizowane z assetem,
+     * więc odczyt bez biblioteki nadal zwraca poprawny herb.
+     */
+    logoAssetId: uuid("logo_asset_id").references(() => teamLogoAssets.id, {
+      onDelete: "set null",
+    }),
 
     sourceOrder: integer("source_order").notNull().default(999),
   },
@@ -508,6 +530,94 @@ export const standingsSnapshotRows = pgTable(
     ),
   ]
 );
+
+/* ==========================================================================
+ * BIBLIOTEKA LOGOTYPÓW DRUŻYN
+ *
+ * GLOBALNA, nie per turniej. Ten sam herb obsługuje Rabbit Cup, SUN CUP U8
+ * i każdy kolejny turniej — jeden plik w Cloudinary zamiast kopii na turniej.
+ *
+ * Tożsamością assetu jest wiersz w tej tabeli, a NIE nazwa drużyny ani URL.
+ * Dzięki temu zmiana nazwy drużyny nigdy nie gubi ani nie duplikuje herbu.
+ * ======================================================================== */
+
+export const teamLogoAssets = pgTable(
+  "team_logo_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+
+    /** Nazwa dla człowieka, z polskimi znakami: "UKS Zagłębie Sosnowiec". */
+    canonicalName: text("canonical_name").notNull(),
+    /** Forma porównywalna — patrz lib/logos/normalize.ts. */
+    normalizedName: text("normalized_name").notNull(),
+    /** Stabilny identyfikator prezentacyjny; nigdy nie pokazujemy UUID-a. */
+    slug: text("slug").notNull(),
+
+    url: text("url").notNull(),
+    cloudinaryPublicId: text("cloudinary_public_id"),
+
+    /**
+     * SHA-256 oryginalnego pliku. Pozwala rozpoznać, że wgrywany obraz już
+     * jest w bibliotece, i nie tworzyć drugiej kopii w Cloudinary.
+     * NULL dla assetów zaimportowanych z istniejących danych, których
+     * zawartości nie liczyliśmy.
+     */
+    contentHash: text("content_hash"),
+
+    width: integer("width"),
+    height: integer("height"),
+    format: text("format"),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("team_logo_assets_slug_unique").on(table.slug),
+    uniqueIndex("team_logo_assets_normalized_name_unique").on(
+      table.normalizedName
+    ),
+    // Częściowy: wiele assetów bez policzonego hasha jest w porządku,
+    // ale dwa o tej samej zawartości już nie.
+    uniqueIndex("team_logo_assets_content_hash_unique")
+      .on(table.contentHash)
+      .where(sql`${table.contentHash} is not null`),
+  ]
+);
+
+/**
+ * Warianty nazw prowadzące do tego samego herbu:
+ * "GKS Katowice 1", "GKS Katowice 2" → jeden asset "GKS Katowice".
+ *
+ * Alias powstaje wyłącznie po ŚWIADOMYM przypisaniu logo przez admina.
+ */
+export const teamLogoAliases = pgTable(
+  "team_logo_aliases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    logoAssetId: uuid("logo_asset_id")
+      .notNull()
+      .references(() => teamLogoAssets.id, { onDelete: "cascade" }),
+
+    alias: text("alias").notNull(),
+    normalizedAlias: text("normalized_alias").notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // Jedna nazwa nie może prowadzić do dwóch różnych herbów.
+    uniqueIndex("team_logo_aliases_normalized_unique").on(table.normalizedAlias),
+    index("team_logo_aliases_asset_idx").on(table.logoAssetId),
+  ]
+);
+
+export type TeamLogoAssetRow = typeof teamLogoAssets.$inferSelect;
+export type TeamLogoAliasRow = typeof teamLogoAliases.$inferSelect;
 
 export type TournamentRow = typeof tournaments.$inferSelect;
 export type TournamentAssetRow = typeof tournamentAssets.$inferSelect;

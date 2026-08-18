@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq, ne, notInArray, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  ne,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
 import type { Tournament } from "@/types/tournament";
@@ -9,6 +18,7 @@ import {
   groups,
   matches,
   scorers,
+  teamLogoAssets,
   teams,
   tournamentAssets,
   tournaments,
@@ -31,6 +41,7 @@ import {
 } from "../types";
 import { slugifyTournamentTitle } from "../slug";
 import { bumpPublicRevisionStatement } from "./public-revision";
+import { learnAlias, resolveLogoAssetIds } from "./logo-library";
 import {
   ASSET_KINDS,
   assetFieldPrefix,
@@ -67,6 +78,30 @@ async function readBundleFor(
       db.select().from(scorers).where(eq(scorers.tournamentId, tournament.id)),
     ]);
 
+  /*
+    Slugi logotypów dociągamy tylko wtedy, gdy jakaś drużyna faktycznie
+    korzysta już z biblioteki. Turnieje sprzed migracji nie płacą za to
+    ani jednym dodatkowym zapytaniem.
+  */
+  const assetIds = [
+    ...new Set(
+      teamRows
+        .map((row) => row.logoAssetId)
+        .filter((value): value is string => Boolean(value))
+    ),
+  ];
+
+  let logoSlugByAssetId: Map<string, string> | undefined;
+
+  if (assetIds.length > 0) {
+    const logoRows = await db
+      .select({ id: teamLogoAssets.id, slug: teamLogoAssets.slug })
+      .from(teamLogoAssets)
+      .where(inArray(teamLogoAssets.id, assetIds));
+
+    logoSlugByAssetId = new Map(logoRows.map((row) => [row.id, row.slug]));
+  }
+
   return {
     tournament,
     assets: assetRows,
@@ -74,6 +109,7 @@ async function readBundleFor(
     teams: teamRows,
     matches: matchRows,
     scorers: scorerRows,
+    logoSlugByAssetId,
   };
 }
 
@@ -95,6 +131,7 @@ async function loadBundle(
         structure: bundle.tournament.structure,
         format: bundle.tournament.format,
         playoffConfig: bundle.tournament.playoffConfig,
+        scorersEnabled: bundle.tournament.scorersEnabled,
       }),
     };
   } catch (error) {
@@ -213,6 +250,7 @@ async function createTournament(input: CreateTournamentInput) {
       structure: settings.structure,
       format: settings.format,
       playoffConfig: settings.playoffConfig,
+      scorersEnabled: settings.scorersEnabled,
     }),
     db.insert(groups).values({
       id: randomUUID(),
@@ -246,6 +284,7 @@ async function updateTournamentSettings(
       structure: tournaments.structure,
       format: tournaments.format,
       playoffConfig: tournaments.playoffConfig,
+      scorersEnabled: tournaments.scorersEnabled,
     })
     .from(tournaments)
     .where(eq(tournaments.id, tournamentId))
@@ -294,6 +333,7 @@ async function updateTournamentSettings(
     format: input.format ?? current.format,
     playoffConfig:
       input.playoffConfig ?? current.playoffConfig ?? undefined,
+    scorersEnabled: input.scorersEnabled ?? current.scorersEnabled,
   });
 
   const nextTitle = input.title?.trim() || existing.title;
@@ -312,6 +352,7 @@ async function updateTournamentSettings(
         structure: settings.structure,
         format: settings.format,
         playoffConfig: settings.playoffConfig,
+        scorersEnabled: settings.scorersEnabled,
         updatedAt: new Date(),
       })
       .where(eq(tournaments.id, tournamentId)) as Statement,
@@ -416,6 +457,7 @@ async function readIdentityMaps(db: Database, tournamentId: string) {
           id: teams.id,
           externalId: teams.externalId,
           logoPublicId: teams.logoPublicId,
+          logoAssetId: teams.logoAssetId,
         })
         .from(teams)
         .where(eq(teams.tournamentId, tournamentId)),
@@ -450,6 +492,15 @@ async function readIdentityMaps(db: Database, tournamentId: string) {
     ),
     assetIdByKind: new Map(assetRows.map((row) => [row.kind, row.id])),
 
+    /**
+     * Dotychczasowe przypisanie do biblioteki. Payload panelu MOŻE go nie
+     * zawierać (np. zapis z widoku bez dialogu drużyny) — wtedy zostaje
+     * to, co już jest, zamiast po cichu zrywać powiązanie.
+     */
+    teamLogoAssetIdByExternalId: new Map(
+      teamRows.map((row) => [row.externalId, row.logoAssetId])
+    ),
+
     // Model domenowy NIE przenosi public_id przy odczycie (adapter Airtable
     // go nie zwraca), więc payload zapisu z panelu go nie zawiera. Bez
     // zapamiętania obecnych wartości zwykły zapis wyzerowałby identyfikatory
@@ -478,6 +529,49 @@ function resolvePublicId(
   if (!hasAsset) return null;
   if (incoming) return incoming;
   return existing ?? null;
+}
+
+/**
+ * Kolumny logo drużyny.
+ *
+ * Reguła bezpieczeństwa: wybór z biblioteki jest źródłem prawdy, ale
+ * logo_url i logo_public_id ZOSTAJĄ wypełnione tą samą wartością. Dzięki
+ * temu odczyt bez biblioteki (rollback, legacy, awaria) nadal zwraca
+ * dokładnie ten sam herb, a publiczna strona nie zauważa różnicy.
+ */
+function buildTeamLogoColumns(
+  team: Tournament["groups"][number]["teams"][number],
+  context: {
+    asset: { id: string; url: string; publicId: string | null } | null;
+    existingPublicId: string | null | undefined;
+    existingAssetId: string | null | undefined;
+  }
+) {
+  if (context.asset) {
+    return {
+      logoUrl: context.asset.url,
+      logoName: team.logoName || null,
+      logoType: team.logoType || null,
+      logoPublicId: context.asset.publicId,
+      logoAssetId: context.asset.id,
+    };
+  }
+
+  const hasAsset = Boolean(team.logoUrl);
+
+  return {
+    logoUrl: team.logoUrl || null,
+    logoName: team.logoName || null,
+    logoType: team.logoType || null,
+    logoPublicId: resolvePublicId(
+      team.logoPublicId,
+      context.existingPublicId,
+      hasAsset
+    ),
+    // Payload bez slugu nie zrywa istniejącego powiązania; usunięcie logo
+    // (pusty URL) zrywa je świadomie.
+    logoAssetId: hasAsset ? context.existingAssetId ?? null : null,
+  };
 }
 
 type AssetInput = {
@@ -553,9 +647,24 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
         scorerIdByExternalId: new Map<string, string>(),
         assetIdByKind: new Map<string, string>(),
         teamLogoPublicIdByExternalId: new Map<string, string | null>(),
+        teamLogoAssetIdByExternalId: new Map<string, string | null>(),
         assetPublicIdByKind: new Map<string, string | null>(),
       }
     : await readIdentityMaps(db, tournamentId);
+
+  /*
+    BIBLIOTEKA LOGOTYPÓW.
+
+    Panel przysyła slug wybranego herbu; tożsamością w bazie jest UUID.
+    Rozwiązujemy je raz, jednym zapytaniem, przed zapisem.
+  */
+  const logoSlugs = tournament.groups.flatMap((group) =>
+    group.teams
+      .map((team) => team.logoAssetSlug)
+      .filter((slug): slug is string => Boolean(slug))
+  );
+
+  const logoAssetBySlug = await resolveLogoAssetIds(logoSlugs);
 
   const statements: Statement[] = [];
 
@@ -614,15 +723,37 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
     );
   }
 
+  /*
+    KASOWANIE ASSETÓW NIEOBECNYCH W PAYLOADZIE — tylko rodzaje, które
+    payload w ogóle POTRAFI wyrazić.
+
+    Model domenowy (TournamentAssets) zna sześć slotów: harmonogram,
+    regulamin, hero i trzy grafiki campu. Tła drabinki i podium żyją w tej
+    samej tabeli, ale mają własną, jawną mutację (setPlayoffAsset) i nigdy
+    nie trafiają do draftu panelu.
+
+    Bez tego ograniczenia każde kliknięcie „Zapisz" kasowało oba tła
+    play-off: admin wgrywał grafikę, widział podgląd, zapisywał turniej —
+    i grafika znikała, a w Cloudinary zostawał osierocony plik.
+  */
+  const keptAssetKinds = assetInputs.map((asset) => asset.kind);
+
+  const managedAssetsOfThisTournament = and(
+    eq(tournamentAssets.tournamentId, tournamentId),
+    inArray(tournamentAssets.kind, ASSET_KINDS as unknown as string[])
+  );
+
   statements.push(
-    buildDeleteStale(
-      db,
-      tournamentAssets,
-      tournamentAssets.tournamentId,
-      tournamentId,
-      tournamentAssets.kind,
-      assetInputs.map((asset) => asset.kind)
-    )
+    (keptAssetKinds.length === 0
+      ? db.delete(tournamentAssets).where(managedAssetsOfThisTournament)
+      : db
+          .delete(tournamentAssets)
+          .where(
+            and(
+              managedAssetsOfThisTournament,
+              notInArray(tournamentAssets.kind, keptAssetKinds)
+            )
+          )) as Statement
   );
 
   /* --- grupy ---------------------------------------------------------- */
@@ -668,14 +799,13 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
       externalId: team.id,
       name: team.name,
       shortName: team.shortName || null,
-      logoUrl: team.logoUrl || null,
-      logoName: team.logoName || null,
-      logoType: team.logoType || null,
-      logoPublicId: resolvePublicId(
-        team.logoPublicId,
-        maps.teamLogoPublicIdByExternalId.get(team.id),
-        Boolean(team.logoUrl)
-      ),
+      ...buildTeamLogoColumns(team, {
+        asset: team.logoAssetSlug
+          ? logoAssetBySlug.get(team.logoAssetSlug) ?? null
+          : null,
+        existingPublicId: maps.teamLogoPublicIdByExternalId.get(team.id),
+        existingAssetId: maps.teamLogoAssetIdByExternalId.get(team.id),
+      }),
       sourceOrder: team.sourceOrder,
     }))
   );
@@ -699,6 +829,7 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
             logoName: sql`excluded.logo_name`,
             logoType: sql`excluded.logo_type`,
             logoPublicId: sql`excluded.logo_public_id`,
+            logoAssetId: sql`excluded.logo_asset_id`,
             sourceOrder: sql`excluded.source_order`,
           },
         }) as Statement
@@ -763,27 +894,37 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
     );
   }
 
-  // Payload z panelu zawiera WYŁĄCZNIE mecze fazy grupowej, więc kasowanie
-  // "nieobecnych" musi być ograniczone do stage='group'. Bez tego zwykły
-  // zapis tabeli skasowałby całą wygenerowaną drabinkę i minigrupę.
+  /*
+    KASOWANIE MECZÓW NIEOBECNYCH W PAYLOADZIE — dwa ograniczenia.
+
+    1. Tylko stage='group'. Payload panelu nie zna drabinki ani minigrupy,
+       więc zwykły zapis tabeli nie może ich skasować.
+
+    2. Tylko mecze, które MAJĄ już wynik.
+
+       Model domenowy przenosi wyłącznie mecze rozegrane, więc terminarz
+       (mecz zaplanowany, wyniki NULL) jest dla payloadu niewidzialny.
+       Bez tego warunku jedno kliknięcie „Zapisz" w panelu kasowało cały
+       rozpisany terminarz SUN CUP — 42 i 90 meczów — bo żaden z nich nie
+       miał jeszcze wyniku. Brak meczu w payloadzie oznacza „wyczyszczono
+       wynik", a nie „usuń zaplanowany mecz".
+  */
   const keptMatchIds = validMatchInputs.map((match) => match.externalId);
+
+  const deletableGroupMatch = and(
+    eq(matches.tournamentId, tournamentId),
+    eq(matches.stage, "group"),
+    isNotNull(matches.homeScore)
+  );
 
   statements.push(
     (keptMatchIds.length === 0
-      ? db
-          .delete(matches)
-          .where(
-            and(
-              eq(matches.tournamentId, tournamentId),
-              eq(matches.stage, "group")
-            )
-          )
+      ? db.delete(matches).where(deletableGroupMatch)
       : db
           .delete(matches)
           .where(
             and(
-              eq(matches.tournamentId, tournamentId),
-              eq(matches.stage, "group"),
+              deletableGroupMatch,
               notInArray(matches.externalId, keptMatchIds)
             )
           )) as Statement
@@ -841,6 +982,26 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
   // Cały zapis w JEDNEJ transakcji i JEDNYM round-tripie.
   // Airtable potrzebował ~89 sekwencyjnych żądań bez żadnej atomowości.
   await db.batch(statements as [Statement, ...Statement[]]);
+
+  /*
+    NAUKA ALIASÓW — po fakcie i celowo poza transakcją.
+
+    Admin świadomie przypisał herb do drużyny o danej nazwie, więc
+    „GKS Katowice 2" ma następnym razem trafić dokładnie w ten sam asset.
+    To metadane wygody: gdyby zapis aliasu się nie powiódł, dane turnieju
+    i tak są już bezpieczne, a dopasowanie po prostu zadziała słabiej.
+  */
+  for (const group of tournament.groups) {
+    for (const team of group.teams) {
+      if (!team.logoAssetSlug || !team.name?.trim()) continue;
+
+      try {
+        await learnAlias(team.logoAssetSlug, team.name);
+      } catch (error) {
+        console.warn("[logo-library] alias learning failed:", error);
+      }
+    }
+  }
 
   return { slug: nextSlug };
 }

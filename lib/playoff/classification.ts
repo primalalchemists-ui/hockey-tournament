@@ -5,9 +5,18 @@ import { getLoser, getWinner } from "./rules";
 /**
  * KOŃCOWA KLASYFIKACJA jednej puli / grupy — czysta funkcja.
  *
- * Miejsca 1-4 pochodzą z drabinki, dalsze z minigrupy klasyfikacyjnej.
- * Gdy nie ma meczu o 3. miejsce, miejsca 3-4 są dzielone i jawnie
- * oznaczone jako nierozstrzygnięte — nie wymyślamy kolejności.
+ * Miejsca z czoła tabeli pochodzą z drabinki, dalsze z minigrupy albo
+ * z zamrożonej tabeli grupowej. Zasada nadrzędna: po zakończeniu turnieju
+ * KAŻDA drużyna ma swoje miejsce i nie ma dziur w numeracji.
+ *
+ * Dwa przypadki rozstrzygamy REGUŁĄ MIEJSCA, nie zmyślonym meczem:
+ *
+ *  - brak meczu o 3. miejsce → przegrani półfinałów według zamrożonej
+ *    tabeli grupowej (lepsze miejsce w grupie = wyższa lokata),
+ *  - brak minigrupy → drużyny spoza play-off według tej samej tabeli.
+ *
+ * W obu przypadkach nie powstaje żaden wynik meczu — to jest wyłącznie
+ * uszeregowanie, dokładnie tak jak rozstrzyga się je regulaminowo.
  */
 
 export type ClassificationEntry = {
@@ -15,7 +24,13 @@ export type ClassificationEntry = {
   position: number | null;
   teamId: string;
   /** Skąd wynika to miejsce — do prezentacji i diagnostyki. */
-  source: "final" | "third_place" | "semifinal" | "placement_group";
+  source:
+    | "final"
+    | "third_place"
+    | "semifinal"
+    | "placement_group"
+    /** Uszeregowanie zamrożoną tabelą grupową, bez rozgrywania meczu. */
+    | "group_standings";
   /** true, gdy miejsce jest dzielone z inną drużyną. */
   shared: boolean;
 };
@@ -44,6 +59,12 @@ export function buildFinalClassification(input: {
   placementStandings: StandingRow[] | null;
   /** Czy wszystkie mecze minigrupy zostały rozegrane. */
   placementComplete: boolean;
+  /**
+   * Zamrożona tabela grupowa: identyfikatory drużyn w kolejności miejsc.
+   * Źródło rozstrzygnięcia dla przegranych półfinałów bez meczu o 3.
+   * miejsce oraz dla drużyn spoza play-off bez minigrupy.
+   */
+  frozenOrder?: string[];
 }): FinalClassification {
   const {
     scopeKey,
@@ -51,7 +72,18 @@ export function buildFinalClassification(input: {
     thirdPlaceMatch,
     placementStandings,
     placementComplete,
+    frozenOrder = [],
   } = input;
+
+  /** Pozycja drużyny w zamrożonej tabeli; nieznana ląduje na końcu. */
+  const frozenRank = new Map(frozenOrder.map((teamId, index) => [teamId, index]));
+
+  function byFrozenRank(left: string, right: string): number {
+    return (
+      (frozenRank.get(left) ?? Number.MAX_SAFE_INTEGER) -
+      (frozenRank.get(right) ?? Number.MAX_SAFE_INTEGER)
+    );
+  }
 
   const entries: ClassificationEntry[] = [];
   const missing: string[] = [];
@@ -104,40 +136,61 @@ export function buildFinalClassification(input: {
       missing.push("półfinały");
     }
 
-    for (const teamId of losers) {
+    /*
+      Bez meczu o 3. miejsce decyduje zamrożona tabela grupowa.
+      Dopóki jej nie mamy, miejsca pozostają dzielone — nie zgadujemy.
+    */
+    const ordered = [...losers].sort(byFrozenRank);
+    const canRank = frozenOrder.length > 0;
+
+    ordered.forEach((teamId, index) => {
       entries.push({
-        position: null,
+        position: canRank ? 3 + index : null,
         teamId,
         source: "semifinal",
-        shared: true,
+        shared: !canRank,
       });
-    }
+    });
   }
 
   /* --- miejsca poza play-off ------------------------------------------- */
+
+  /** Miejsce, od którego numerujemy drużyny spoza drabinki. */
+  const firstTailPosition =
+    entries.reduce((max, entry) => Math.max(max, entry.position ?? 0), 0) + 1;
 
   if (placementStandings && placementStandings.length > 0) {
     if (!placementComplete) {
       missing.push("minigrupa klasyfikacyjna");
     }
 
-    // Numeracja startuje od pierwszego miejsca poza play-off.
-    const offset = entries.length + (thirdPlaceMatch ? 0 : 0);
-    const firstPlacementPosition =
-      (thirdPlaceMatch ? 4 : entries.length) + 1;
-
-    void offset;
-
     placementStandings.forEach((row, index) => {
       entries.push({
-        position: row.isTieUnresolved
-          ? null
-          : firstPlacementPosition + index,
+        position: row.isTieUnresolved ? null : firstTailPosition + index,
         teamId: row.teamId,
         source: "placement_group",
         shared: Boolean(row.isTieUnresolved),
       });
     });
+  } else if (frozenOrder.length > 0) {
+    /*
+      Brak minigrupy (placementMode = "none").
+
+      Drużyny spoza play-off nie mogą zostać bez miejsca — szereguje je
+      zamrożona tabela grupowa. Żadnych meczów, żadnych wyników.
+    */
+    const alreadyPlaced = new Set(entries.map((entry) => entry.teamId));
+
+    frozenOrder
+      .filter((teamId) => !alreadyPlaced.has(teamId))
+      .forEach((teamId, index) => {
+        entries.push({
+          position: firstTailPosition + index,
+          teamId,
+          source: "group_standings",
+          shared: false,
+        });
+      });
   }
 
   return {

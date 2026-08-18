@@ -1,6 +1,7 @@
 "use client";
 
 import { ShareTableButton } from "@/components/ShareTableButton";
+import { CellPopover } from "@/components/ui/cell-popover";
 import { ColumnHelp } from "@/components/ui/column-help";
 import { EdgeScroller } from "@/components/ui/edge-scroller";
 import { STANDINGS_COLUMNS } from "@/lib/public/column-help";
@@ -10,9 +11,32 @@ type StandingsTableProps = {
   groupKey: string;
   groupName: string;
   rows: StandingRow[];
+  /**
+   * Etap turnieju — wyłącznie dla formatu z play-offem.
+   * Zwykła liga nie dostaje sztucznej „Fazy grupowej".
+   */
+  stage?: { label: string; tone: string } | null;
 };
 
-function renderPositionBadge(row: StandingRow) {
+function renderPositionBadge(row: StandingRow, positionsEstablished: boolean) {
+  /*
+    ZANIM PADNIE PIERWSZY WYNIK, MIEJSCA NIE ISTNIEJĄ.
+
+    Kolejność wierszy przed pierwszym meczem wynika wyłącznie z kolejności
+    wprowadzenia drużyn — przyznawanie za nią medali byłoby nieprawdą
+    sportową. Do czasu pierwszego rozegranego meczu każde miejsce to „?".
+  */
+  if (!positionsEstablished) {
+    return (
+      <span
+        title="Miejsce zostanie wyłonione po pierwszych meczach"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--surface-border)] bg-white/70 text-base font-bold text-slate-400"
+      >
+        ?
+      </span>
+    );
+  }
+
   if (row.isTieUnresolved) {
     return (
       <span
@@ -64,7 +88,14 @@ function renderPositionBadge(row: StandingRow) {
 export function StandingsTable({
   groupName,
   rows,
+  stage = null,
 }: StandingsTableProps) {
+  /*
+    Tabela ma sportowe podstawy dopiero wtedy, gdy ktokolwiek zagrał.
+    Dotyczy tak samo ligi, jak i formatu z play-offem.
+  */
+  const positionsEstablished = rows.some((row) => row.played > 0);
+
   const unresolvedRows = rows.filter((row) => row.isTieUnresolved);
 
   const uniqueNotes = Array.from(
@@ -78,13 +109,23 @@ export function StandingsTable({
   return (
     <section className="ice-card flush-card">
       <div className="ice-card-head">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h2 className="section-title">Ranking</h2>
 
-            {/* {groupName ? (
-              <p className="mt-1 text-sm text-slate-500">{groupName}</p>
-            ) : null} */}
+            {/*
+              Etap turnieju mieszka W NAGŁÓWKU rankingu, a nie w osobnej
+              karcie pod tabelą — jest informacją o stanie tych wyników.
+            */}
+            {stage ? (
+              <span
+                data-testid="stage-badge"
+                className={`stage-badge stage-${stage.tone}`}
+              >
+                Etap turnieju: {stage.label}
+              </span>
+            ) : null}
+
           </div>
 
           <ShareTableButton shareText={`Sprawdź ranking grupy ${groupName}`} />
@@ -121,7 +162,9 @@ export function StandingsTable({
             {rows.map((row) => (
               <tr key={row.teamId}>
                 <td className="text-center">
-                  <div className="flex justify-center">{renderPositionBadge(row)}</div>
+                  <div className="flex justify-center">
+                    {renderPositionBadge(row, positionsEstablished)}
+                  </div>
                 </td>
 
                 <td>
@@ -140,8 +183,21 @@ export function StandingsTable({
                       )}
                     </div>
 
-                    <div className="flex flex-col">
-                      <span className="team-name">{row.teamName}</span>
+                    <div className="flex min-w-0 flex-col">
+                      {/*
+                        Nazwa drużyny działa tak samo jak skrót kolumny:
+                        kliknięcie (albo najechanie na desktopie) pokazuje
+                        pełną nazwę. Na wąskim ekranie nazwa bywa ucięta,
+                        więc kibic zawsze może ją rozwinąć.
+                      */}
+                      <CellPopover
+                        testId="team-name"
+                        label={row.teamName}
+                        className="team-name block max-w-[10rem] truncate text-left sm:max-w-none"
+                        content={row.teamName}
+                      >
+                        {row.teamName}
+                      </CellPopover>
 
                       {row.isTieUnresolved && row.tieNote && (
                         <span className="text-xs font-medium text-amber-700">

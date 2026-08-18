@@ -6,6 +6,7 @@ import { tournaments } from "@/lib/db/schema";
 import { postgresRepository } from "@/lib/data/postgres/repository";
 import { mergeTournamentData } from "@/lib/merge-data";
 import { isCloudinaryUrl } from "@/lib/assets/naming";
+import { getRabbitCupId, loadRabbitCup } from "./helpers/rabbit-cup";
 
 /**
  * Produkcyjny Rabbit Cup po migracji multi-tournament.
@@ -17,7 +18,7 @@ import { isCloudinaryUrl } from "@/lib/assets/naming";
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
-  it("istnieje, nie jest zarchiwizowany i jest wyświetlany publicznie", async () => {
+  it("istnieje, nie jest zarchiwizowany i ma nietknięty format", async () => {
     const rows = await getDb()
       .select({
         id: tournaments.id,
@@ -32,7 +33,9 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].title).toBe("Rabbit Cup");
-    expect(rows[0].isCurrent).toBe(true);
+    // To, KTÓRY turniej jest publiczny, wybiera administrator — tu
+    // sprawdzamy wyłącznie integralność samego Rabbit Cupa.
+    expect(rows[0].archivedAt).toBeNull();
     expect(rows[0].archivedAt).toBeNull();
     // Format pozostaje ligowy — formaty turniejowe to kolejny etap.
     expect(rows[0].format).toBe("league");
@@ -44,7 +47,7 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
   });
 
   it("publiczny odczyt zwraca komplet danych Rabbit Cupa", async () => {
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
@@ -60,7 +63,7 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
   });
 
   it("assety nadal wskazują na Cloudinary", async () => {
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
     const tournament = mergeTournamentData(result.tournament);
@@ -74,12 +77,13 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
     expect(JSON.stringify(tournament)).not.toContain("airtableusercontent.com");
   });
 
-  it("jest widoczny na liście turniejów jako wyświetlany", async () => {
+  it("jest widoczny na liście turniejów i nie jest zarchiwizowany", async () => {
     const list = await postgresRepository.listTournaments();
     const rabbit = list.find((item) => item.slug === "rabbit-cup");
 
     expect(rabbit).toBeDefined();
-    expect(rabbit?.isCurrent).toBe(true);
     expect(rabbit?.archivedAt).toBeNull();
+    // Dokładnie jeden turniej jest publiczny — który, decyduje admin.
+    expect(list.filter((item) => item.isCurrent)).toHaveLength(1);
   });
 });

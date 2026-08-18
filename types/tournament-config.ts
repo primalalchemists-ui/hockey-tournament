@@ -56,6 +56,11 @@ export type TournamentSettings = {
   format: TournamentFormat;
   /** Wypełnione wyłącznie dla format === "group_playoff". */
   playoffConfig: PlayoffConfig | null;
+  /**
+   * Czy turniej prowadzi klasyfikację strzelców.
+   * Wyłączona ukrywa zakładkę u kibica i sekcję w panelu — dane zostają.
+   */
+  scorersEnabled: boolean;
 };
 
 /* ==========================================================================
@@ -97,6 +102,8 @@ export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
   structure: "groups",
   format: "league",
   playoffConfig: null,
+  // Zgodnie z zachowaniem sprzed wprowadzenia tej opcji.
+  scorersEnabled: true,
 };
 
 export const DEFAULT_PLAYOFF_CONFIG: PlayoffConfig = {
@@ -213,7 +220,12 @@ export function parseTournamentSettings(input: {
   structure: unknown;
   format: unknown;
   playoffConfig?: unknown;
+  scorersEnabled?: unknown;
 }): TournamentSettings {
+  // Brak wartości = zachowanie historyczne, czyli klasyfikacja włączona.
+  const scorersEnabled =
+    input.scorersEnabled === undefined ? true : Boolean(input.scorersEnabled);
+
   if (!isTournamentStructure(input.structure)) {
     throw new TournamentConfigError(
       `Struktura turnieju musi być jedną z: ${TOURNAMENT_STRUCTURES.join(", ")}.`
@@ -227,7 +239,12 @@ export function parseTournamentSettings(input: {
   }
 
   if (input.format === "league") {
-    return { structure: input.structure, format: "league", playoffConfig: null };
+    return {
+      structure: input.structure,
+      format: "league",
+      playoffConfig: null,
+      scorersEnabled,
+    };
   }
 
   return {
@@ -236,6 +253,7 @@ export function parseTournamentSettings(input: {
     playoffConfig: parsePlayoffConfig(
       input.playoffConfig ?? DEFAULT_PLAYOFF_CONFIG
     ),
+    scorersEnabled,
   };
 }
 
@@ -247,7 +265,14 @@ export function readTournamentSettings(input: {
   structure: unknown;
   format: unknown;
   playoffConfig: unknown;
+  scorersEnabled?: unknown;
 }): TournamentSettings {
+  // Historyczne wiersze bez kolumny = klasyfikacja włączona.
+  const scorersEnabled =
+    input.scorersEnabled === undefined || input.scorersEnabled === null
+      ? true
+      : Boolean(input.scorersEnabled);
+
   const structure = isTournamentStructure(input.structure)
     ? input.structure
     : DEFAULT_TOURNAMENT_SETTINGS.structure;
@@ -257,7 +282,7 @@ export function readTournamentSettings(input: {
     : DEFAULT_TOURNAMENT_SETTINGS.format;
 
   if (format === "league") {
-    return { structure, format, playoffConfig: null };
+    return { structure, format, playoffConfig: null, scorersEnabled };
   }
 
   try {
@@ -265,9 +290,15 @@ export function readTournamentSettings(input: {
       structure,
       format,
       playoffConfig: parsePlayoffConfig(input.playoffConfig),
+      scorersEnabled,
     };
   } catch {
-    return { structure, format, playoffConfig: DEFAULT_PLAYOFF_CONFIG };
+    return {
+      structure,
+      format,
+      playoffConfig: DEFAULT_PLAYOFF_CONFIG,
+      scorersEnabled,
+    };
   }
 }
 

@@ -88,8 +88,8 @@ function RoundColumn({
 
   return (
     <div className="flex min-w-[15rem] flex-col gap-3 sm:min-w-[16rem]">
-      <div className="flex items-center gap-2">
-        <h4 className="bracket-round-label">{round.label}</h4>
+      <div className={`flex items-center gap-2 round-accent-${round.tone}`}>
+        <h4 className="bracket-round-label round-label-accent">{round.label}</h4>
 
         {round.status === "active" ? (
           <span
@@ -126,6 +126,7 @@ function RoundColumn({
                 awayScore={match.awayScore}
                 winnerTeamId={match.winnerTeamId}
                 tone={toneFor(round.status)}
+                accent={round.tone}
               />
             ))}
 
@@ -172,8 +173,12 @@ export function PlayoffBracket({ scope, backgroundUrl }: PlayoffBracketProps) {
       </div>
 
       {thirdPlace ? (
-        <div className="mt-6 max-w-sm border-t border-white/10 pt-4">
-          <h4 className="bracket-round-label">{thirdPlace.label}</h4>
+        <div
+          className={`mt-6 max-w-sm border-t border-white/10 pt-4 round-accent-${thirdPlace.tone}`}
+        >
+          <h4 className="bracket-round-label round-label-accent">
+            {thirdPlace.label}
+          </h4>
 
           <div className="mt-3">
             {thirdPlace.matches.map((match) => (
@@ -187,102 +192,12 @@ export function PlayoffBracket({ scope, backgroundUrl }: PlayoffBracketProps) {
                 awayScore={match.awayScore}
                 winnerTeamId={match.winnerTeamId}
                 tone={toneFor(thirdPlace.status)}
+                accent={thirdPlace.tone}
               />
             ))}
           </div>
         </div>
       ) : null}
-    </BracketScene>
-  );
-}
-
-/* ==========================================================================
- * PODGLĄD PRZED ZAMROŻENIEM
- * ======================================================================== */
-
-export function PlayoffPreview({
-  scope,
-  backgroundUrl,
-}: {
-  scope: PlayoffScopeView;
-  backgroundUrl: string | null;
-}) {
-  if (!scope.preview) return null;
-
-  const { preview } = scope;
-
-  return (
-    <BracketScene
-      backgroundUrl={backgroundUrl}
-      title="Faza play-off"
-      label="Podgląd rozstawienia fazy pucharowej"
-      subtitle={
-        <>
-          <p className="mt-1 text-sm text-white/70">Rozstawienie na ten moment</p>
-          <p className="mt-1 text-xs text-amber-200/90">
-            Rozstawienie może się zmienić do zakończenia fazy grupowej.
-          </p>
-
-          {preview.warnings.map((warning) => (
-            <p
-              key={warning}
-              className="mt-2 rounded-xl bg-amber-400/15 px-3 py-2 text-xs text-amber-100"
-            >
-              {warning}
-            </p>
-          ))}
-        </>
-      }
-    >
-      <div
-        className="ice-scroll scroll-hint mt-4 overflow-x-auto pb-2"
-        tabIndex={0}
-        role="region"
-        aria-label="Przewijany podgląd rozstawienia"
-        data-testid="bracket-scroll"
-      >
-        <div className="flex min-w-max gap-6 sm:gap-8">
-          <div className="flex min-w-[15rem] flex-col gap-3 sm:min-w-[16rem]">
-            <h4 className="bracket-round-label">Pierwsza runda</h4>
-
-            <div className="flex flex-col" style={{ gap: `${CARD_GAP_REM}rem` }}>
-              {preview.pairs.map((pair) => (
-                <BracketCard
-                  key={pair.slotIndex}
-                  home={
-                    pair.homeTeamId
-                      ? {
-                          teamId: pair.homeTeamId,
-                          name: pair.homeTeamName ?? pair.homeTeamId,
-                          logoUrl: pair.homeLogoUrl,
-                          logoText: null,
-                          seed: pair.homeSeed,
-                        }
-                      : null
-                  }
-                  away={
-                    pair.awayTeamId
-                      ? {
-                          teamId: pair.awayTeamId,
-                          name: pair.awayTeamName ?? pair.awayTeamId,
-                          logoUrl: pair.awayLogoUrl,
-                          logoText: null,
-                          seed: pair.awaySeed,
-                        }
-                      : null
-                  }
-                  homeLabel={`Miejsce ${pair.homeSeed}`}
-                  awayLabel={`Miejsce ${pair.awaySeed}`}
-                  homeScore={null}
-                  awayScore={null}
-                  winnerTeamId={null}
-                  tone="pending"
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
     </BracketScene>
   );
 }

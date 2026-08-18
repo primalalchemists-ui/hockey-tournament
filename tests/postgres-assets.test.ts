@@ -7,6 +7,7 @@ import { postgresRepository } from "@/lib/data/postgres/repository";
 import { airtableRepository } from "@/lib/data/airtable/repository";
 import { mergeTournamentData } from "@/lib/merge-data";
 import { isAirtableAssetUrl, isCloudinaryUrl } from "@/lib/assets/naming";
+import { getRabbitCupId, loadRabbitCup } from "./helpers/rabbit-cup";
 
 /**
  * Stan assetów w PostgreSQL po rehoście.
@@ -20,14 +21,13 @@ const hasAirtable = Boolean(
   process.env.AIRTABLE_BASE_ID && process.env.AIRTABLE_TOKEN
 );
 
+/*
+  Testy dotyczą KONKRETNEGO turnieju po rehoście, więc adresują go slugiem.
+  Wiązanie ich z turniejem publicznym oznaczało, że zwykłe przełączenie
+  strony w panelu wywracało zestaw.
+*/
 async function activeTournamentId() {
-  const rows = await getDb()
-    .select({ id: tournaments.id })
-    .from(tournaments)
-    .where(eq(tournaments.isCurrent, true))
-    .limit(1);
-
-  return rows[0]?.id ?? null;
+  return getRabbitCupId();
 }
 
 describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
@@ -98,7 +98,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
   });
 
   it("model domenowy z Postgresa nie zawiera już airtableusercontent", async () => {
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
 
     expect(result.status).toBe("ok");
     if (result.status !== "ok") return;
@@ -109,7 +109,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
   });
 
   it("liczba assetów zgadza się z liczbą drużyn z logo i slotów turnieju", async () => {
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
     const tournament = mergeTournamentData(result.tournament);
@@ -123,7 +123,7 @@ describe.skipIf(!hasDatabase)("assety w PostgreSQL po rehoście", () => {
 
   it("public_id NIE jest wystawiany w modelu domenowym", async () => {
     // Kontrakt zgodności z adapterem Airtable pozostaje nienaruszony.
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
     if (result.status !== "ok") throw new Error("brak turnieju");
 
     const team = result.tournament.groups?.[0].teams[0];

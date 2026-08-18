@@ -17,10 +17,16 @@ type EditableGroupTabsProps = {
   groups: Group[];
   onAddGroup: () => void;
   onRemoveGroup: (groupKey: string) => void;
-  onAddTeam: (groupKey: string) => void;
+  onCreateTeam: (
+    groupKey: string,
+    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+  ) => void;
   onRemoveTeam: (groupKey: string, teamId: string) => void;
-  onUpdateTeamName: (groupKey: string, teamId: string, value: string) => void;
-  onUploadTeamLogo: (groupKey: string, teamId: string, file: File) => void;
+  onSaveTeam: (
+    groupKey: string,
+    teamId: string,
+    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+  ) => void;
   onUpdateCell: (
     groupKey: string,
     homeTeamId: string,
@@ -34,10 +40,9 @@ export function EditableGroupTabs({
   groups,
   onAddGroup,
   onRemoveGroup,
-  onAddTeam,
+  onCreateTeam,
   onRemoveTeam,
-  onUpdateTeamName,
-  onUploadTeamLogo,
+  onSaveTeam,
   onUpdateCell,
 }: EditableGroupTabsProps) {
   const [activeGroup, setActiveGroup] = useState(groups[0]?.key);
@@ -128,10 +133,9 @@ export function EditableGroupTabs({
           <TeamManager
             groups={groups}
             activeGroupKey={currentGroup.key}
-            onAddTeam={onAddTeam}
+            onCreateTeam={onCreateTeam}
             onRemoveTeam={onRemoveTeam}
-            onUpdateTeamName={onUpdateTeamName}
-            onUploadTeamLogo={onUploadTeamLogo}
+            onSaveTeam={onSaveTeam}
           />
 
           <StandingsTable

@@ -21,13 +21,24 @@ describe("cztery poprawne kombinacje", () => {
   it("A: single + league", () => {
     expect(
       parseTournamentSettings({ structure: "single", format: "league" })
-    ).toEqual({ structure: "single", format: "league", playoffConfig: null });
+    ).toEqual({
+      structure: "single",
+      format: "league",
+      playoffConfig: null,
+      // Brak jawnej wartości = klasyfikacja strzelców włączona.
+      scorersEnabled: true,
+    });
   });
 
   it("B: groups + league", () => {
     expect(
       parseTournamentSettings({ structure: "groups", format: "league" })
-    ).toEqual({ structure: "groups", format: "league", playoffConfig: null });
+    ).toEqual({
+      structure: "groups",
+      format: "league",
+      playoffConfig: null,
+      scorersEnabled: true,
+    });
   });
 
   it("C: single + group_playoff", () => {
@@ -208,6 +219,9 @@ describe("readTournamentSettings — odczyt danych historycznych", () => {
       structure: "groups",
       format: "league",
       playoffConfig: null,
+      // Dane historyczne nie znają tej opcji — zachowują dotychczasowe
+      // zachowanie, czyli klasyfikację strzelców włączoną.
+      scorersEnabled: true,
     });
   });
 });
@@ -216,7 +230,12 @@ describe("checkPlayoffFeasibility — ostrzeżenie, nie blokada", () => {
   it("format ligowy zawsze przechodzi", () => {
     expect(
       checkPlayoffFeasibility({
-        settings: { structure: "groups", format: "league", playoffConfig: null },
+        settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
         teamCountsPerGroup: [0],
       })
     ).toEqual({ ok: true });

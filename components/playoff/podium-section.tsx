@@ -313,7 +313,7 @@ export function PodiumSection({
   return (
     <section
       ref={sectionRef}
-      className="flush-card relative overflow-hidden rounded-3xl border border-white/10 shadow-[0_1.5rem_3rem_-2rem_rgba(15,23,42,0.55)]"
+      className="flush-card relative overflow-hidden rounded-none border border-white/10 shadow-[0_1.5rem_3rem_-2rem_rgba(15,23,42,0.55)] sm:rounded-3xl"
       aria-label="Klasyfikacja końcowa"
     >
       <div

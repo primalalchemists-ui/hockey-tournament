@@ -14,6 +14,7 @@ import {
   normalizeStandings,
   normalizeTournament,
 } from "./helpers/normalize-tournament";
+import { getRabbitCupId, loadRabbitCup } from "./helpers/rabbit-cup";
 
 /**
  * RÓWNOWAŻNOŚĆ ADAPTERÓW — najważniejszy test tego etapu.
@@ -36,7 +37,7 @@ describe.skipIf(!hasDatabase)("Postgres — odczyt aktywnego turnieju", () => {
   let fromPostgres: Tournament;
 
   beforeAll(async () => {
-    const result = await postgresRepository.getCurrentTournament();
+    const result = await loadRabbitCup();
 
     if (result.status !== "ok") {
       throw new Error(
@@ -70,7 +71,7 @@ describe.skipIf(!hasDatabase || !hasFixture)(
       const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
       const golden = mergeTournamentData(buildTournament(fixture));
-      const result = await postgresRepository.getCurrentTournament();
+      const result = await loadRabbitCup();
 
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
@@ -99,7 +100,7 @@ describe.skipIf(!hasDatabase || !hasFixture)(
       const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
       const golden = mergeTournamentData(buildTournament(fixture));
 
-      const result = await postgresRepository.getCurrentTournament();
+      const result = await loadRabbitCup();
       expect(result.status).toBe("ok");
       if (result.status !== "ok") return;
 
@@ -126,9 +127,14 @@ describe.skipIf(!hasDatabase || !hasAirtable)(
   "RÓWNOWAŻNOŚĆ — Airtable vs Postgres na żywo",
   () => {
     it("oba adaptery zwracają semantycznie identyczny turniej", async () => {
+      /*
+        Airtable zna WYŁĄCZNIE historyczny Rabbit Cup, więc porównanie musi
+        adresować go wprost. Wcześniej test brał „turniej publiczny" i po
+        przełączeniu strony w panelu porównywał SUN CUP z Rabbit Cupem.
+      */
       const [airtableResult, postgresResult] = await Promise.all([
         airtableRepository.getCurrentTournament(),
-        postgresRepository.getCurrentTournament(),
+        loadRabbitCup(),
       ]);
 
       expect(airtableResult.status).toBe("ok");
@@ -151,7 +157,7 @@ describe.skipIf(!hasDatabase || !hasAirtable)(
     it("oba adaptery dają identyczne standings", async () => {
       const [airtableResult, postgresResult] = await Promise.all([
         airtableRepository.getCurrentTournament(),
-        postgresRepository.getCurrentTournament(),
+        loadRabbitCup(),
       ]);
 
       if (airtableResult.status !== "ok" || postgresResult.status !== "ok") {

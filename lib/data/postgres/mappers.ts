@@ -33,6 +33,11 @@ export type TournamentBundleRows = {
   teams: TeamRow[];
   matches: MatchRow[];
   scorers: ScorerRow[];
+  /**
+   * Slug logo z biblioteki per UUID assetu. Opcjonalny — brak mapy oznacza
+   * odczyt bez biblioteki i model domenowy wygląda dokładnie jak wcześniej.
+   */
+  logoSlugByAssetId?: Map<string, string>;
 };
 
 /** Kolumny NULL w SQL odpowiadają polom `undefined` w modelu domenowym. */
@@ -77,13 +82,18 @@ export function buildAssets(rows: TournamentAssetRow[]): TournamentAssets {
   return assets as TournamentAssets;
 }
 
-export function buildTeam(row: TeamRow): Team {
+export function buildTeam(
+  row: TeamRow,
+  /** slug assetu biblioteki; brak = drużyna nie korzysta jeszcze z biblioteki */
+  logoAssetSlug?: string | null
+): Team {
   return {
     id: row.externalId,
     name: row.name,
     shortName: orUndefined(row.shortName),
     logoText: row.shortName ?? "LOGO",
     logoUrl: orUndefined(row.logoUrl),
+    logoAssetSlug: orUndefined(logoAssetSlug ?? null),
     logoName: orUndefined(row.logoName),
     logoType: orUndefined(row.logoType),
     sourceOrder: row.sourceOrder,
@@ -162,7 +172,15 @@ export function buildMatches(
 export function buildTournamentFromRows(
   bundle: TournamentBundleRows
 ): Partial<Tournament> {
-  const { tournament, assets, groups, teams, matches, scorers } = bundle;
+  const {
+    tournament,
+    assets,
+    groups,
+    teams,
+    matches,
+    scorers,
+    logoSlugByAssetId,
+  } = bundle;
 
   const teamExternalIdByUuid = new Map(
     teams.map((row) => [row.id, row.externalId])
@@ -186,7 +204,14 @@ export function buildTournamentFromRows(
     teams: teams
       .filter((team) => team.groupId === groupRow.id)
       .sort((a, b) => a.sourceOrder - b.sourceOrder)
-      .map(buildTeam),
+      .map((team) =>
+        buildTeam(
+          team,
+          team.logoAssetId
+            ? logoSlugByAssetId?.get(team.logoAssetId) ?? null
+            : null
+        )
+      ),
     matches: domainMatches.filter((match) => match.group === groupRow.key),
   }));
 

@@ -159,16 +159,14 @@ export function buildPlayoffPreview(input: {
     );
   }
 
-  // Remis nierozstrzygnięty dotykający strefy awansu psuje rozstawienie.
-  const unresolvedInCutoff = standings.some(
-    (row) => row.isTieUnresolved && row.position <= qualifiedTeamCount
-  );
+  /*
+    Nierozstrzygnięty remis w strefie awansu jest problemem ADMINISTRACYJNYM:
+    blokuje zamknięcie fazy grupowej i tam admin dostaje dokładny komunikat.
 
-  if (unresolvedInCutoff) {
-    warnings.push(
-      "Kolejność w strefie awansu nie jest rozstrzygnięta według kryteriów tabeli."
-    );
-  }
+    Kibicowi nie pokazujemy tego jako ostrzeżenia — stan jest zrozumiały
+    wizualnie (znak zapytania przy miejscu w tabeli), a komunikat brzmiał
+    jak błąd aplikacji.
+  */
 
   const pairs = buildFirstRoundPairs(qualifiedTeamCount).map(
     ([homeSeed, awaySeed], slotIndex) => {

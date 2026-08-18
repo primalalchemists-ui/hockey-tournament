@@ -13,6 +13,8 @@ type TournamentSettingsFieldsProps = {
   defaultStructure?: TournamentStructure;
   defaultFormat?: TournamentFormat;
   defaultPlayoffConfig?: PlayoffConfig | null;
+  /** Czy turniej prowadzi klasyfikację strzelców. */
+  defaultScorersEnabled?: boolean;
   /**
    * Blokada zmiany struktury dla turnieju, który ma już dane.
    * Przeniesienie drużyn i meczów między strukturami jest destrukcyjne.
@@ -30,6 +32,7 @@ export function TournamentSettingsFields({
   defaultStructure = "groups",
   defaultFormat = "league",
   defaultPlayoffConfig = null,
+  defaultScorersEnabled = true,
   structureLockedReason = null,
 }: TournamentSettingsFieldsProps) {
   const [structure, setStructure] =
@@ -44,6 +47,7 @@ export function TournamentSettingsFields({
   const [placementMode, setPlacementMode] = useState<string>(
     defaultPlayoffConfig?.placementMode ?? "placement_group"
   );
+  const [scorersEnabled, setScorersEnabled] = useState(defaultScorersEnabled);
 
   const isLocked = Boolean(structureLockedReason);
 
@@ -182,6 +186,40 @@ export function TournamentSettingsFields({
           </div>
         </fieldset>
       ) : null}
+
+      {/*
+        KLASYFIKACJA STRZELCÓW — cecha pojedynczego turnieju.
+        Rabbit Cup ją prowadzi, SUN CUP U8/U10 nie.
+      */}
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Klasyfikacja strzelców
+        </legend>
+
+        <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={scorersEnabled}
+            onChange={(event) => setScorersEnabled(event.target.checked)}
+            className="mt-0.5 h-4 w-4 border-slate-300"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-900">
+              Prowadzimy klasyfikację strzelców
+            </span>
+            <span className="block text-[11px] leading-snug text-slate-500">
+              Wyłączona ukrywa zakładkę u kibica. Wpisane gole zostają w bazie.
+            </span>
+          </span>
+        </label>
+
+        {/* Niezaznaczony checkbox nie trafia do FormData — stąd jawne pole. */}
+        <input
+          type="hidden"
+          name="scorersEnabled"
+          value={scorersEnabled ? "true" : "false"}
+        />
+      </fieldset>
 
       {/* Zablokowane pole i tak musi trafić do formularza. */}
       {isLocked ? (

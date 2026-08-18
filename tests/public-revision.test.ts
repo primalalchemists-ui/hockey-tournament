@@ -132,7 +132,12 @@ describe.skipIf(!hasDatabase)("public revision", () => {
   it("A: nowy turniej startuje z wersją 0", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Revision Zero",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     expect(await revisionOf(created.id)).toBe(0);
@@ -141,7 +146,12 @@ describe.skipIf(!hasDatabase)("public revision", () => {
   it("B, I, J: zapis danych publicznych podnosi wersję", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Revision Save",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     const before = await revisionOf(created.id);
@@ -174,7 +184,12 @@ describe.skipIf(!hasDatabase)("public revision", () => {
   it("ustawienia turnieju (tytuł/format) podnoszą wersję", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Revision Settings",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     const before = await revisionOf(created.id);
@@ -189,7 +204,12 @@ describe.skipIf(!hasDatabase)("public revision", () => {
   it("K: archiwizacja NIE podnosi wersji — kibic tego nie widzi", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Revision Archive",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     const before = await revisionOf(created.id);
@@ -208,6 +228,7 @@ describe.skipIf(!hasDatabase)("public revision", () => {
         structure: "groups",
         format: "group_playoff",
         playoffConfig: CONFIG,
+        scorersEnabled: true,
       },
     });
 
@@ -329,7 +350,12 @@ describe.skipIf(!hasDatabase)("public revision", () => {
   it("L, M: wersja publiczna dotyczy wyświetlanego turnieju", async () => {
     const created = await postgresRepository.createTournament({
       title: "Vitest Revision Current",
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
 
     await postgresRepository.saveTournament(

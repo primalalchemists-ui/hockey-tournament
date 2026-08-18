@@ -127,6 +127,8 @@ export type UpdateTournamentSettingsInput = {
   structure?: TournamentStructure;
   format?: TournamentFormat;
   playoffConfig?: unknown;
+  /** Klasyfikacja strzelców — zmiana jest publicznie widoczna. */
+  scorersEnabled?: boolean;
 };
 
 /** Rzucane, gdy operacja nie jest wspierana przez dany storage. */

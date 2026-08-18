@@ -8,6 +8,7 @@ import {
   type TournamentActionState,
 } from "@/app/admin/actions";
 import { TournamentSettingsFields } from "@/components/admin/tournament-settings-fields";
+import { ModalPortal } from "@/components/ui/modal-portal";
 import type { TournamentSettings } from "@/types/tournament-config";
 
 type TournamentSettingsPanelProps = {
@@ -70,6 +71,7 @@ export function TournamentSettingsPanel({
         Desktop: wyśrodkowany modal na rozmytym tle.
       */}
       {isOpen ? (
+        <ModalPortal>
         <div
           role="dialog"
           aria-modal="true"
@@ -116,6 +118,7 @@ export function TournamentSettingsPanel({
               defaultStructure={settings.structure}
               defaultFormat={settings.format}
               defaultPlayoffConfig={settings.playoffConfig}
+              defaultScorersEnabled={settings.scorersEnabled}
               structureLockedReason={
                 hasSportingData
                   ? "Struktura jest zablokowana, bo turniej ma już drużyny, mecze lub więcej niż jedną grupę. Zmiana wymagałaby przeniesienia danych — utwórz nowy turniej z właściwą strukturą."
@@ -141,6 +144,7 @@ export function TournamentSettingsPanel({
           </form>
           </div>
         </div>
+        </ModalPortal>
       ) : null}
     </>
   );

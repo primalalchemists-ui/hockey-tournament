@@ -477,7 +477,7 @@ describe("spójny rytm nagłówków sekcji", () => {
     ]) {
       const code = source(file);
       const head = code.indexOf("ice-card-head");
-      const row = code.indexOf("flex items-center justify-between", head);
+      const row = code.indexOf("items-center justify-between", head);
 
       // Rzad z tytulem i akcja jest WEWNATRZ naglowka, nie zamiast niego.
       expect(row).toBeGreaterThan(head);
@@ -507,5 +507,72 @@ describe("spójny rytm nagłówków sekcji", () => {
       // Zaden naglowek nie ma juz wlasnego, recznego paddingu.
       expect(code).not.toContain("border-b border-slate-200 px-4 py-4");
     }
+  });
+});
+
+describe("okna modalne wychodzą poza kartę, z której je otwarto", () => {
+  const dialog = source("components/admin/team-dialog.tsx");
+  const settings = source("components/admin/tournament-settings-panel.tsx");
+  const portal = source("components/ui/modal-portal.tsx");
+
+  it("dialog drużyny i ustawienia renderują się przez portal", () => {
+    // .ice-surface ma backdrop-filter, a to tworzy kontener pozycjonowania
+    // dla position: fixed — bez portalu okno zostawało uwięzione w karcie.
+    for (const code of [dialog, settings]) {
+      expect(code).toContain("<ModalPortal>");
+      expect(code).toContain("@/components/ui/modal-portal");
+    }
+  });
+
+  it("portal montuje się w body", () => {
+    expect(portal).toContain("createPortal(children, document.body)");
+  });
+
+  it("okno przykrywa cały ekran i rozmywa całe tło", () => {
+    for (const code of [dialog, settings]) {
+      expect(code).toContain("fixed inset-0");
+      expect(code).toContain("backdrop-blur-sm");
+      // Wyśrodkowane na desktopie, pełny ekran na telefonie.
+      expect(code).toContain("items-stretch justify-center sm:items-center");
+    }
+  });
+});
+
+describe("miejsca w tabeli przed pierwszym meczem", () => {
+  const code = source("components/standings-table.tsx");
+
+  it("bez rozegranego meczu tabela nie przyznaje medali", () => {
+    // Kolejność wierszy przed startem wynika z kolejności wprowadzenia
+    // drużyn — medal za to byłby nieprawdą sportową.
+    expect(code).toContain("const positionsEstablished = rows.some((row) => row.played > 0)");
+    expect(code).toContain("if (!positionsEstablished)");
+
+    const badge = code.indexOf("function renderPositionBadge");
+    const guard = code.indexOf("if (!positionsEstablished)", badge);
+    const gold = code.indexOf("gold.png", badge);
+
+    // Znak zapytania wyprzedza jakikolwiek medal.
+    expect(guard).toBeLessThan(gold);
+  });
+
+  it("nazwa drużyny rozwija się kliknięciem, tak jak skrót kolumny", () => {
+    expect(code).toContain("<CellPopover");
+    expect(code).toContain('testId="team-name"');
+
+    const popover = source("components/ui/cell-popover.tsx");
+
+    // Ten sam prymityw obsługuje skróty kolumn i nazwy drużyn.
+    expect(source("components/ui/column-help.tsx")).toContain("CellPopover");
+    expect(popover).toContain('event.pointerType === "mouse"');
+    expect(popover).toContain('event.key === "Escape"');
+    expect(popover).toContain("aria-label");
+  });
+
+  it("klasyfikacja końcowa nie jest zaokrąglona na telefonie", () => {
+    const podium = source("components/playoff/podium-section.tsx");
+
+    expect(podium).toContain("rounded-none");
+    expect(podium).toContain("sm:rounded-3xl");
+    expect(podium).toContain("flush-card");
   });
 });

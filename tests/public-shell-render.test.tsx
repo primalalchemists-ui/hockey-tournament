@@ -40,6 +40,7 @@ function playoffState(
     format: "group_playoff",
     phase: "semifinal",
     phaseLabel: "Półfinały",
+    stage: { label: "Półfinały", tone: "semifinal" },
     groupStageFrozen: true,
     isCompleted: false,
     config: null,
@@ -176,5 +177,89 @@ describe("po intro strona jest spokojna", () => {
     // Jedyny motion wrapper wejścia to sama sekcja (plus flip licznika).
     expect(code.match(/whileInView/g) ?? []).toHaveLength(1);
     expect(code).not.toContain("delay:");
+  });
+});
+
+describe("V/W: etap turnieju mieszka przy Rankingu", () => {
+  const html = renderToStaticMarkup(
+    <GroupTabs
+      groups={[GROUP]}
+      structure="groups"
+      playoffState={playoffState()}
+      tournamentId="t-1"
+    />
+  );
+
+  it("V: plakietka etapu jest w nagłówku Rankingu", () => {
+    expect(html).toContain('data-testid="stage-badge"');
+    expect(html).toContain("Etap turnieju: Półfinały");
+
+    // Plakietka stoi przed tabelą, w tej samej karcie co tytuł „Ranking".
+    const ranking = html.indexOf("Ranking");
+    const badge = html.indexOf('data-testid="stage-badge"');
+    const table = html.indexOf("<table");
+
+    expect(ranking).toBeLessThan(badge);
+    expect(badge).toBeLessThan(table);
+  });
+
+  it("W: osobna karta fazy zniknęła z układu", () => {
+    expect(html).not.toContain("Aktualna faza");
+    expect(html).not.toContain("AKTUALNA FAZA");
+  });
+
+  it("ton plakietki odpowiada etapowi", () => {
+    expect(html).toContain("stage-semifinal");
+  });
+
+  it("liga nie dostaje sztucznej plakietki etapu", () => {
+    const league = renderToStaticMarkup(
+      <GroupTabs
+        groups={[GROUP]}
+        structure="groups"
+        playoffState={null}
+        tournamentId="t-1"
+      />
+    );
+
+    expect(league).not.toContain('data-testid="stage-badge"');
+  });
+});
+
+describe("tabela bez rozegranych meczów", () => {
+  it("pokazuje znaki zapytania zamiast miejsc i medali", () => {
+    const html = renderToStaticMarkup(
+      <GroupTabs
+        groups={[
+          {
+            ...GROUP,
+            // Turniej rozpisany, ale jeszcze nierozegrany.
+            matches: [],
+          },
+        ]}
+        structure="groups"
+        playoffState={playoffState()}
+        tournamentId="t-1"
+      />
+    );
+
+    expect(html).toContain("Miejsce zostanie wyłonione po pierwszych meczach");
+    expect(html).not.toContain("gold.png");
+    expect(html).not.toContain("silver.png");
+    expect(html).not.toContain("bronze.png");
+  });
+
+  it("po pierwszym wyniku miejsca i medale wracają", () => {
+    const html = renderToStaticMarkup(
+      <GroupTabs
+        groups={[GROUP]}
+        structure="groups"
+        playoffState={playoffState()}
+        tournamentId="t-1"
+      />
+    );
+
+    expect(html).toContain("gold.png");
+    expect(html).not.toContain("Miejsce zostanie wyłonione");
   });
 });

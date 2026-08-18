@@ -146,7 +146,12 @@ async function main() {
       await postgresRepository.createTournament({
         title: tournament.title,
         // Import dotyczy historycznego Rabbit Cupa: grupy + liga.
-        settings: { structure: "groups", format: "league", playoffConfig: null },
+        settings: {
+          structure: "groups",
+          format: "league",
+          playoffConfig: null,
+          scorersEnabled: true,
+        },
       })
     ).id;
 

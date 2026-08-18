@@ -9,6 +9,11 @@ import { calculateStandings } from "@/lib/standings";
 import { mergeTournamentData } from "@/lib/merge-data";
 import type { Tournament } from "@/types/tournament";
 import type { TournamentSettings } from "@/types/tournament-config";
+import {
+  deleteOwnFixtures,
+  readCurrentTournamentId,
+  restoreCurrentTournament,
+} from "./helpers/current-tournament";
 
 /**
  * MULTI-TOURNAMENT — izolacja turniejów i wybór turnieju publicznego.
@@ -24,6 +29,7 @@ const LEAGUE_GROUPS: TournamentSettings = {
   structure: "groups",
   format: "league",
   playoffConfig: null,
+  scorersEnabled: true,
 };
 
 function buildPayload(
@@ -95,13 +101,7 @@ describe.skipIf(!hasDatabase)("multi-tournament", () => {
   let tournamentB = "";
 
   beforeAll(async () => {
-    const current = await getDb()
-      .select({ id: tournaments.id })
-      .from(tournaments)
-      .where(eq(tournaments.isCurrent, true))
-      .limit(1);
-
-    originalCurrentId = current[0]?.id ?? null;
+    originalCurrentId = await readCurrentTournamentId();
 
     tournamentA = (await postgresRepository.createTournament({"title":"Vitest Cup A", settings: LEAGUE_GROUPS })).id;
     tournamentB = (await postgresRepository.createTournament({"title":"Vitest Cup B", settings: LEAGUE_GROUPS })).id;
@@ -117,26 +117,14 @@ describe.skipIf(!hasDatabase)("multi-tournament", () => {
   });
 
   afterAll(async () => {
-    const db = getDb();
-
-    await db
-      .delete(tournaments)
-      .where(
-        originalCurrentId
-          ? and(
-              like(tournaments.slug, "vitest-%"),
-              sql`${tournaments.id} <> ${originalCurrentId}`
-            )
-          : like(tournaments.slug, "vitest-%")
-      );
+    try {
+      await deleteOwnFixtures("vitest-", originalCurrentId);
+    } finally {
+      await restoreCurrentTournament(originalCurrentId);
+    }
 
     if (originalCurrentId) {
-      await db
-        .update(tournaments)
-        .set({ isCurrent: true })
-        .where(eq(tournaments.id, originalCurrentId));
-
-      const restored = await db
+      const restored = await getDb()
         .select({ id: tournaments.id })
         .from(tournaments)
         .where(eq(tournaments.isCurrent, true));

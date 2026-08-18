@@ -141,6 +141,9 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           structure={
             result.status === "ok" ? result.settings.structure : "groups"
           }
+          scorersEnabled={
+            result.status === "ok" ? result.settings.scorersEnabled : true
+          }
           playoffState={playoffState}
           tournamentId={tournamentId}
           revision={revision}

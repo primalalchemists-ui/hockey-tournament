@@ -23,6 +23,8 @@ type TournamentShellProps = {
   /** Decyduje, czy kibic widzi selektor grup. */
   structure: TournamentStructure;
   playoffState: PlayoffStateView | null;
+  /** Czy turniej prowadzi klasyfikację strzelców. */
+  scorersEnabled: boolean;
   /** Punkt startowy dla auto-odświeżania — z renderu serwerowego. */
   tournamentId: string | null;
   revision: number;
@@ -41,23 +43,39 @@ export function TournamentShell({
   tournament: initialTournament,
   structure: initialStructure,
   playoffState: initialPlayoffState,
+  scorersEnabled: initialScorersEnabled,
   tournamentId,
   revision,
   initialTab = "live",
   initialGroupKey,
 }: TournamentShellProps) {
   // Dane publiczne odświeżają się same; UI dostaje zawsze spójny snapshot.
-  const { tournament, structure, playoffState, refreshTick } = usePublicAutoRefresh({
-    initialTournamentId: tournamentId,
-    initialRevision: revision,
-    initialTournament,
-    initialStructure,
-    initialPlayoffState,
-  });
+  const { tournament, structure, scorersEnabled, playoffState, refreshTick } =
+    usePublicAutoRefresh({
+      initialTournamentId: tournamentId,
+      initialRevision: revision,
+      initialTournament,
+      initialStructure,
+      initialScorersEnabled,
+      initialPlayoffState,
+    });
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
+
+  /*
+    Turniej bez klasyfikacji strzelców NIE ma tej zakładki — nie ma też
+    pustej zakładki ani wyszarzonej. Pozostałe układają się naturalnie.
+  */
+  const visibleTabs = useMemo(
+    () => mainTabs.filter((tab) => tab.key !== "scorers" || scorersEnabled),
+    [scorersEnabled]
+  );
+
+  /** Wejście z linkiem ?tab=scorers na turniej bez strzelców wraca na wyniki. */
+  const effectiveTab: MainTab =
+    activeTab === "scorers" && !scorersEnabled ? "live" : activeTab;
 
   const allTeams = useMemo(
     () => tournament.groups.flatMap((group) => group.teams),
@@ -93,7 +111,7 @@ export function TournamentShell({
   }
 
   const content = useMemo(() => {
-    if (activeTab === "schedule") {
+    if (effectiveTab === "schedule") {
       return (
         <ScheduleSection
           fileUrl={tournament.assets.scheduleImage}
@@ -103,7 +121,7 @@ export function TournamentShell({
       );
     }
 
-    if (activeTab === "regulation") {
+    if (effectiveTab === "regulation") {
       return (
         <RegulationSection
           fileUrl={tournament.assets.regulationImage}
@@ -113,7 +131,7 @@ export function TournamentShell({
       );
     }
 
-    if (activeTab === "scorers") {
+    if (effectiveTab === "scorers") {
       return (
         <ScorersTable
           scorers={tournament.scorers ?? []}
@@ -131,7 +149,7 @@ export function TournamentShell({
         tournamentId={tournamentId}
       />
     );
-  }, [activeTab, tournament, allTeams, initialGroupKey, structure, playoffState]);
+  }, [effectiveTab, tournament, allTeams, initialGroupKey, structure, playoffState]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -160,8 +178,8 @@ export function TournamentShell({
             */}
             <nav className="ice-scroll overflow-x-auto">
               <div className="ice-panel flush-card inline-flex min-w-full gap-2 p-2">
-                {mainTabs.map((tab) => {
-                  const isActive = tab.key === activeTab;
+                {visibleTabs.map((tab) => {
+                  const isActive = tab.key === effectiveTab;
 
                   return (
                     <button
@@ -184,7 +202,7 @@ export function TournamentShell({
 
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
-                key={activeTab}
+                key={effectiveTab}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}

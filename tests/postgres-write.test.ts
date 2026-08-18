@@ -112,7 +112,12 @@ describe.skipIf(!hasDatabase)("Postgres — zapis turnieju", () => {
     // niczego dezaktywować — zapis nie wybiera turnieju samodzielnie.
     const created = await postgresRepository.createTournament({
       title: TEST_TITLE,
-      settings: { structure: "groups", format: "league", playoffConfig: null },
+      settings: {
+        structure: "groups",
+        format: "league",
+        playoffConfig: null,
+        scorersEnabled: true,
+      },
     });
     testTournamentId = created.id;
   });

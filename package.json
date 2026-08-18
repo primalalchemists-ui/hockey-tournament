@@ -19,7 +19,13 @@
     "db:schema": "tsx scripts/db-schema-report.ts",
     "assets:preflight": "tsx scripts/assets-preflight.ts",
     "assets:rehost": "tsx scripts/rehost-assets-to-cloudinary.ts",
-    "assets:validate": "tsx scripts/assets-validate.ts"
+    "assets:validate": "tsx scripts/assets-validate.ts",
+    "logos:audit": "tsx scripts/logo-audit.ts",
+    "logos:seed": "tsx scripts/logo-seed.ts",
+    "logos:dedupe": "tsx scripts/logo-dedupe.ts",
+    "logos:hash": "tsx scripts/logo-hash-backfill.ts",
+    "suncup:setup": "tsx scripts/sun-cup-setup.ts",
+    "assets:orphans": "tsx scripts/cloudinary-orphans.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

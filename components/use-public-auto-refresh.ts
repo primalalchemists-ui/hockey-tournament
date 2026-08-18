@@ -14,7 +14,7 @@ export type PublicSnapshotShape = {
   tournamentId: string;
   revision: number;
   tournament: Tournament;
-  settings: { structure: TournamentStructure };
+  settings: { structure: TournamentStructure; scorersEnabled: boolean };
   playoffState: PlayoffStateView | null;
 };
 
@@ -23,6 +23,7 @@ type Options = {
   initialRevision: number;
   initialTournament: Tournament;
   initialStructure: TournamentStructure;
+  initialScorersEnabled: boolean;
   initialPlayoffState: PlayoffStateView | null;
 };
 
@@ -35,6 +36,9 @@ type Options = {
 export function usePublicAutoRefresh(options: Options) {
   const [tournament, setTournament] = useState(options.initialTournament);
   const [structure, setStructure] = useState(options.initialStructure);
+  const [scorersEnabled, setScorersEnabled] = useState(
+    options.initialScorersEnabled
+  );
   const [playoffState, setPlayoffState] = useState(options.initialPlayoffState);
   /** Rośnie po KAŻDYM udanym zastosowaniu snapshotu — mikro-feedback w UI. */
   const [refreshTick, setRefreshTick] = useState(0);
@@ -43,6 +47,8 @@ export function usePublicAutoRefresh(options: Options) {
   const applyRef = useRef((snapshot: PublicSnapshotShape) => {
     setTournament(snapshot.tournament);
     setStructure(snapshot.settings.structure);
+    // Wyłączenie klasyfikacji w panelu znika u kibica bez przeładowania.
+    setScorersEnabled(snapshot.settings.scorersEnabled);
     setPlayoffState(snapshot.playoffState);
     setRefreshTick((tick) => tick + 1);
   });
@@ -115,5 +121,5 @@ export function usePublicAutoRefresh(options: Options) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { tournament, structure, playoffState, refreshTick };
+  return { tournament, structure, scorersEnabled, playoffState, refreshTick };
 }

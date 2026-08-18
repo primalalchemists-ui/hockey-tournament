@@ -1,25 +1,32 @@
 "use client";
 
-import type { Group } from "@/types/tournament";
+import { useState } from "react";
 import { Pencil, Plus, X } from "lucide-react";
+
+import type { Group } from "@/types/tournament";
+import { TeamDialog, type TeamDraft } from "@/components/admin/team-dialog";
 
 type TeamManagerProps = {
   groups: Group[];
   activeGroupKey: string;
-  onAddTeam: (groupKey: string) => void;
+  onCreateTeam: (groupKey: string, draft: TeamDraft) => void;
   onRemoveTeam: (groupKey: string, teamId: string) => void;
-  onUpdateTeamName: (groupKey: string, teamId: string, value: string) => void;
-  onUploadTeamLogo: (groupKey: string, teamId: string, file: File) => void;
+  onSaveTeam: (groupKey: string, teamId: string, draft: TeamDraft) => void;
 };
+
+type DialogState =
+  | { mode: "create"; teamId: null; draft: TeamDraft }
+  | { mode: "edit"; teamId: string; draft: TeamDraft };
 
 export function TeamManager({
   groups,
   activeGroupKey,
-  onAddTeam,
+  onCreateTeam,
   onRemoveTeam,
-  onUpdateTeamName,
-  onUploadTeamLogo,
+  onSaveTeam,
 }: TeamManagerProps) {
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+
   const activeGroup = groups.find((group) => group.key === activeGroupKey);
 
   if (!activeGroup) return null;
@@ -32,7 +39,13 @@ export function TeamManager({
 
           <button
             type="button"
-            onClick={() => onAddTeam(activeGroup.key)}
+            onClick={() =>
+              setDialog({
+                mode: "create",
+                teamId: null,
+                draft: { name: "", logoUrl: "", logoAssetSlug: "" },
+              })
+            }
             className="btn btn-primary"
           >
             <Plus size={16} />
@@ -48,44 +61,47 @@ export function TeamManager({
             className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6"
           >
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                  {team.logoUrl ? (
-                    <img
-                      src={team.logoUrl}
-                      alt={team.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-[10px] font-semibold uppercase text-slate-600">
-                      LOGO
-                    </span>
-                  )}
-                </div>
-
-                <label className="cursor-pointer rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
-                  <Pencil size={14} />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        onUploadTeamLogo(activeGroup.key, team.id, file);
-                      }
-                    }}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                {team.logoUrl ? (
+                  <img
+                    src={team.logoUrl}
+                    alt={team.name}
+                    className="h-full w-full object-cover"
                   />
-                </label>
+                ) : (
+                  <span className="text-[10px] font-semibold uppercase text-slate-600">
+                    LOGO
+                  </span>
+                )}
               </div>
 
-              <input
-                value={team.name}
-                onChange={(event) =>
-                  onUpdateTeamName(activeGroup.key, team.id, event.target.value)
+              {/*
+                Ołówek zostaje — ale otwiera pełny dialog edycji drużyny,
+                a nie ukryty upload pliku.
+              */}
+              <button
+                type="button"
+                title="Edytuj drużynę"
+                data-testid="edit-team"
+                onClick={() =>
+                  setDialog({
+                    mode: "edit",
+                    teamId: team.id,
+                    draft: {
+                      name: team.name,
+                      logoUrl: team.logoUrl ?? "",
+                      logoAssetSlug: team.logoAssetSlug ?? "",
+                    },
+                  })
                 }
-                className="min-w-[220px] bg-transparent text-sm font-medium text-slate-900 outline-none"
-              />
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              >
+                <Pencil size={14} />
+              </button>
+
+              <span className="min-w-0 truncate text-sm font-medium text-slate-900">
+                {team.name}
+              </span>
             </div>
 
             <button
@@ -105,6 +121,34 @@ export function TeamManager({
           </div>
         ) : null}
       </div>
+
+      {/*
+        Dialog montujemy DOPIERO przy otwarciu i z kluczem per drużyna.
+
+        Wcześniej wisiał w drzewie na stałe, więc jego stan (wybrany herb)
+        pochodził z pierwszego montowania — czyli z pustych propsów.
+        Otwarcie drużyny, której nazwa nie trafiała dokładnie w bibliotekę,
+        pokazywało „Brak logo" mimo że drużyna herb miała.
+      */}
+      {dialog ? (
+      <TeamDialog
+        key={dialog.teamId ?? "new"}
+        initial={dialog.draft}
+        mode={dialog.mode}
+        onCancel={() => setDialog(null)}
+        onSave={(value) => {
+          if (!dialog) return;
+
+          if (dialog.mode === "create") {
+            onCreateTeam(activeGroup.key, value);
+          } else {
+            onSaveTeam(activeGroup.key, dialog.teamId, value);
+          }
+
+          setDialog(null);
+        }}
+      />
+      ) : null}
     </section>
   );
 }
