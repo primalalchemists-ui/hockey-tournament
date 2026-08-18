@@ -4,6 +4,8 @@ import Image from "next/image";
 import type { Group, Scorer, Team } from "@/types/tournament";
 import { TopScorerTicker } from "@/components/top-scorer-ticker";
 import { resolveHeroPresentation } from "@/lib/public/hero";
+import { CelebrationButton } from "@/components/celebration-cta";
+import type { CelebrationCta } from "@/lib/public/celebration";
 
 type TournamentHeaderProps = {
   title: string;
@@ -15,6 +17,11 @@ type TournamentHeaderProps = {
   showTopScorerTicker?: boolean;
   /** Rośnie po każdym udanym auto-odświeżeniu — wyzwala mikro-puls. */
   refreshTick?: number;
+  /**
+   * Stan przycisku w hero. Po zakończeniu turnieju TEN SAM slot prowadzi
+   * do celebracji zamiast do wyników — bez dokładania drugiego przycisku.
+   */
+  cta: CelebrationCta;
 };
 
 function matchesWord(count: number) {
@@ -43,21 +50,8 @@ export function TournamentHeader({
   tickerMessage,
   showTopScorerTicker,
   refreshTick = 0,
+  cta,
 }: TournamentHeaderProps) {
-  const scrollToResults = () => {
-    const section = document.getElementById("results-section");
-
-    if (!section) return;
-
-    const offset = 0;
-    const top = section.getBoundingClientRect().top + window.scrollY - offset;
-
-    window.scrollTo({
-      top,
-      behavior: "smooth",
-    });
-  };
-
   const hero = resolveHeroPresentation(heroBannerImage);
 
   const totalScheduledMatches = groups.reduce((sum, group) => {
@@ -179,14 +173,20 @@ export function TournamentHeader({
 
           <div className="absolute inset-0 bg-black/15" aria-hidden="true" />
 
+          {/*
+            Jeden slot, dwie funkcje: przed zakończeniem prowadzi do
+            wyników, po zakończeniu do klasyfikacji końcowej. Na telefonie
+            hero jest za wysoko, żeby to odkryć — tam CTA stoi przy Rankingu.
+          */}
           <div className="absolute inset-0 hidden items-end justify-center pb-12 md:flex">
-            <button
-              type="button"
-              onClick={scrollToResults}
-              className="btn bg-white px-8 text-lg text-slate-900 shadow-xl transition hover:bg-slate-100"
-            >
-              Sprawdź wyniki
-            </button>
+            <CelebrationButton
+              cta={cta}
+              className={
+                cta.kind === "celebration"
+                  ? "px-8 text-lg shadow-xl"
+                  : "bg-white px-8 text-lg text-slate-900 shadow-xl hover:bg-slate-100"
+              }
+            />
           </div>
         </div>
       </div>

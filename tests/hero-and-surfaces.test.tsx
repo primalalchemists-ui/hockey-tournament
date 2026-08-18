@@ -14,6 +14,14 @@ import {
 
 const CUSTOM_HERO = "https://res.cloudinary.com/demo/image/upload/hero.png";
 
+/** Stan sprzed zakończenia turnieju: hero prowadzi do wyników. */
+const RESULTS_CTA = {
+  kind: "results" as const,
+  label: "Sprawdź wyniki",
+  shine: false,
+  targetId: "results-section",
+};
+
 function renderHeader(heroBannerImage?: string) {
   return renderToStaticMarkup(
     <TournamentHeader
@@ -22,6 +30,7 @@ function renderHeader(heroBannerImage?: string) {
       teams={[]}
       groups={[]}
       heroBannerImage={heroBannerImage}
+      cta={RESULTS_CTA}
     />
   );
 }

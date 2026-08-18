@@ -15,6 +15,7 @@ import type { Tournament } from "@/types/tournament";
 import type { TournamentStructure } from "@/types/tournament-config";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import { usePublicAutoRefresh } from "@/components/use-public-auto-refresh";
+import { useCelebration } from "@/components/use-celebration";
 
 type MainTab = "live" | "schedule" | "regulation" | "scorers";
 
@@ -63,6 +64,32 @@ export function TournamentShell({
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
+
+  /*
+    CELEBRACJA — jedna decyzja, dwa miejsca prezentacji.
+
+    Grupa bierze się z adresu, bo to selektor grup nim steruje. Dzięki
+    temu przycisk w hero prowadzi do podium AKTUALNIE oglądanej grupy,
+    a nie zawsze do pierwszej.
+  */
+  const selectedGroupKey =
+    searchParams.get("group") ??
+    initialGroupKey ??
+    tournament.groups[0]?.key ??
+    null;
+
+  const celebrationScope =
+    playoffState?.scopes.find((scope) => scope.groupKey === selectedGroupKey) ??
+    playoffState?.scopes[0] ??
+    null;
+
+  const celebration = useCelebration({
+    tournamentId,
+    scopeKey: celebrationScope?.groupKey ?? null,
+    completionToken: playoffState?.completionToken ?? null,
+    isCompleted: Boolean(playoffState?.isCompleted),
+    classificationComplete: Boolean(celebrationScope?.classification?.complete),
+  });
 
   /*
     Turniej bez klasyfikacji strzelców NIE ma tej zakładki — nie ma też
@@ -147,6 +174,7 @@ export function TournamentShell({
         structure={structure}
         playoffState={playoffState}
         tournamentId={tournamentId}
+        celebration={celebration}
       />
     );
   }, [effectiveTab, tournament, allTeams, initialGroupKey, structure, playoffState]);
@@ -162,6 +190,7 @@ export function TournamentShell({
         tickerMessage={tournament.tickerMessage}
         showTopScorerTicker={tournament.showTopScorerTicker}
         refreshTick={refreshTick}
+        cta={celebration}
       />
 
       {/*

@@ -5,12 +5,17 @@
  * są testowalne w Node; komponent jest tylko nakładką.
  */
 
-/** Odstęp między kolejnymi drużynami. Dla 7 drużyn daje ~2,2 s całości. */
-export const REVEAL_STEP_MS = 260;
+/**
+ * Odstęp w OGONIE klasyfikacji (miejsca 4+).
+ * Szybszy rytm: to jeszcze nie jest część uroczysta.
+ */
+export const REVEAL_TAIL_STEP_MS = 220;
+/** Odstęp na PODIUM (3 → 2 → 1) — wolniejszy, bo to sedno ceremonii. */
+export const REVEAL_PODIUM_STEP_MS = 380;
 /** Czas trwania pojedynczego wjazdu. */
 export const REVEAL_DURATION_MS = 420;
 /** Dodatkowa pauza przed zwycięzcą — dramaturgia, nie opóźnienie. */
-export const REVEAL_WINNER_EXTRA_MS = 220;
+export const REVEAL_WINNER_EXTRA_MS = 300;
 
 export type RevealItem = {
   /** Klucz stabilny w obrębie ceremonii. */
@@ -26,13 +31,21 @@ type EntryLike = {
   team: { teamId: string };
 };
 
+/** Miejsca 1-3 to podium; reszta należy do ogona klasyfikacji. */
+function isPodiumPosition(position: number | null): boolean {
+  return position !== null && position <= 3;
+}
+
 /**
  * Kolejność odsłaniania: OD OSTATNIEGO miejsca DO PIERWSZEGO.
  *
  * Dla N sklasyfikowanych drużyn: N → … → 3 → 2 → 1.
  * Nie zakłada żadnej konkretnej liczby drużyn.
- * Miejsca dzielone (np. 3–4 bez meczu o 3. miejsce) wchodzą razem,
- * w miejscu odpowiadającym ich pozycji.
+ *
+ * Rytm jest DWUCZĘŚCIOWY: ogon (4+) wchodzi szybciej, podium wolniej,
+ * a zwycięzca dostaje jeszcze krótką pauzę. Dzięki temu ceremonia dla
+ * siedmiu drużyn mieści się w ~2,5 s i ma wyraźną kulminację, zamiast
+ * jednostajnego odliczania.
  */
 export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
   // Sortujemy malejąco po pozycji; dzielone traktujemy jak najsłabsze
@@ -44,17 +57,22 @@ export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
   });
 
   let step = 0;
+  let elapsed = 0;
 
-  return ranked.map((entry) => {
-    const isWinner = entry.position === 1;
+  return ranked.map((entry, index) => {
+    const previous = index > 0 ? ranked[index - 1] : null;
+
+    if (previous) {
+      // Odstęp zależy od tego, do której części ceremonii wchodzimy.
+      elapsed += isPodiumPosition(entry.position)
+        ? REVEAL_PODIUM_STEP_MS
+        : REVEAL_TAIL_STEP_MS;
+    }
+
     const delayMs =
-      step * REVEAL_STEP_MS + (isWinner ? REVEAL_WINNER_EXTRA_MS : 0);
+      elapsed + (entry.position === 1 ? REVEAL_WINNER_EXTRA_MS : 0);
 
-    const item: RevealItem = {
-      key: entry.team.teamId,
-      step,
-      delayMs,
-    };
+    const item: RevealItem = { key: entry.team.teamId, step, delayMs };
 
     step += 1;
     return item;

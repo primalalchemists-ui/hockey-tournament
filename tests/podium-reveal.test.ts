@@ -71,12 +71,23 @@ describe("kolejność odsłaniania", () => {
     expect(order[order.length - 1]).toBe("t1");
   });
 
-  it("całość mieści się w rozsądnym czasie (7 drużyn ~2-3 s)", () => {
+  it("całość mieści się w oczekiwanym czasie (7 drużyn ~2,5-3 s)", () => {
     const entries = [1, 2, 3, 4, 5, 6, 7].map((p) => entry(p, `t${p}`));
     const total = getRevealTotalMs(buildRevealOrder(entries));
 
-    expect(total).toBeGreaterThan(1500);
+    expect(total).toBeGreaterThanOrEqual(2500);
     expect(total).toBeLessThanOrEqual(3000);
+  });
+
+  it("ogon ma szybszy rytm niż podium", () => {
+    const entries = [1, 2, 3, 4, 5, 6, 7].map((p) => entry(p, `t${p}`));
+    const order = buildRevealOrder(entries);
+    const delay = new Map(order.map((item) => [item.key, item.delayMs]));
+
+    // 7 → 6 (ogon) jest krótsze niż 3 → 2 (podium).
+    expect(delay.get("t6")! - delay.get("t7")!).toBeLessThan(
+      delay.get("t2")! - delay.get("t3")!
+    );
   });
 
   it("pusta klasyfikacja nie generuje ceremonii", () => {

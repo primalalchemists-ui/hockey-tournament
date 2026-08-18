@@ -18,6 +18,7 @@ import type { Group } from "@/types/tournament";
 import type { TournamentStructure } from "@/types/tournament-config";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import { PlayoffBracket } from "@/components/playoff/playoff-bracket";
+import type { CelebrationCta } from "@/lib/public/celebration";
 import { PlacementSection } from "@/components/playoff/placement-section";
 import { PodiumSection } from "@/components/playoff/podium-section";
 
@@ -33,6 +34,8 @@ type GroupTabsProps = {
   playoffState: PlayoffStateView | null;
   /** UUID turnieju — wyłącznie do klucza ceremonii podium w localStorage. */
   tournamentId: string | null;
+  /** Stan przycisku celebracji; na telefonie stoi przy Rankingu. */
+  celebration: CelebrationCta;
 };
 
 export function GroupTabs({
@@ -41,6 +44,7 @@ export function GroupTabs({
   structure,
   playoffState,
   tournamentId,
+  celebration,
 }: GroupTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -151,6 +155,7 @@ export function GroupTabs({
             groupName={displayedGroup.name}
             rows={playoffScope?.ranking?.length ? playoffScope.ranking : standings}
             stage={playoffState?.format === "group_playoff" ? playoffState.stage : null}
+            celebration={celebration}
           />
 
           <MatchMatrix group={displayedGroup} />

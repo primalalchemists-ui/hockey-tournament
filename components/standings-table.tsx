@@ -1,6 +1,8 @@
 "use client";
 
 import { ShareTableButton } from "@/components/ShareTableButton";
+import { CelebrationButton } from "@/components/celebration-cta";
+import type { CelebrationCta } from "@/lib/public/celebration";
 import { CellPopover } from "@/components/ui/cell-popover";
 import { ColumnHelp } from "@/components/ui/column-help";
 import { EdgeScroller } from "@/components/ui/edge-scroller";
@@ -16,6 +18,12 @@ type StandingsTableProps = {
    * Zwykła liga nie dostaje sztucznej „Fazy grupowej".
    */
   stage?: { label: string; tone: string } | null;
+  /**
+   * Przycisk celebracji — pokazywany WYŁĄCZNIE na telefonie.
+   * Na desktopie tę rolę pełni istniejące CTA w hero, więc drugi duży
+   * przycisk przy tabeli byłby zbędnym powtórzeniem.
+   */
+  celebration?: CelebrationCta | null;
 };
 
 function renderPositionBadge(row: StandingRow, positionsEstablished: boolean) {
@@ -89,6 +97,7 @@ export function StandingsTable({
   groupName,
   rows,
   stage = null,
+  celebration = null,
 }: StandingsTableProps) {
   /*
     Tabela ma sportowe podstawy dopiero wtedy, gdy ktokolwiek zagrał.
@@ -130,6 +139,12 @@ export function StandingsTable({
 
           <ShareTableButton shareText={`Sprawdź ranking grupy ${groupName}`} />
         </div>
+
+        {celebration?.kind === "celebration" ? (
+          <div className="mt-3 md:hidden">
+            <CelebrationButton cta={celebration} className="w-full" />
+          </div>
+        ) : null}
 
         {uniqueNotes.length > 0 && (
           <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

@@ -265,10 +265,7 @@ describe("J: przyciski bez tandetnych efektów", () => {
 
   it("wspólny styl przycisku zmienia tylko kolory, obwódkę i cień", () => {
     // Caly blok przyciskow: od naglowka sekcji do nastepnej sekcji CSS.
-    const rule = css.slice(
-      css.indexOf(".btn {"),
-      css.indexOf("OBJASNIENIA SKROTOW KOLUMN")
-    );
+    const rule = css.slice(css.indexOf(".btn {"), css.indexOf(".btn-danger {"));
 
     expect(rule).not.toContain("transform");
     expect(rule).toContain("min-height: 2.75rem");

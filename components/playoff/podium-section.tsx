@@ -7,6 +7,8 @@ import type {
   ClassificationView,
 } from "@/lib/data/postgres/playoff-engine";
 import type { ClassificationSlot } from "@/lib/playoff/classification";
+import { celebrationSectionId } from "@/lib/public/celebration";
+import { CELEBRATION_SEEN_EVENT } from "@/components/use-celebration";
 import {
   REVEAL_DURATION_MS,
   buildPodiumStorageKey,
@@ -152,7 +154,7 @@ function Step({
   );
 }
 
-function TailRow({
+function TailSlot({
   label,
   entry,
   revealed,
@@ -167,22 +169,22 @@ function TailRow({
 }) {
   return (
     <li
-      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2"
+      className="flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] px-1.5 py-2.5 backdrop-blur-[2px]"
       style={{
         opacity: revealed ? 1 : 0,
-        transform: revealed ? "translateX(0)" : "translateX(-1.25rem)",
+        transform: revealed ? "translateY(0)" : "translateY(0.5rem)",
         transition: reducedMotion
           ? "opacity 160ms ease-out"
           : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms`,
       }}
     >
-      <span className="stat-num w-8 shrink-0 text-center text-sm font-bold text-white/50">
-        {label}.
-      </span>
+      <span className="stat-num text-xs font-bold text-white/45">{label}</span>
+
       <TeamLogo team={entry?.team ?? null} size="sm" />
+
       <span
         className={[
-          "min-w-0 flex-1 truncate text-sm",
+          "line-clamp-2 w-full break-words text-center text-[11px] leading-tight",
           entry ? "font-medium text-white" : "font-semibold text-white/30",
         ].join(" ")}
       >
@@ -251,6 +253,12 @@ export function PodiumSection({
 
     let timer: number | undefined;
 
+    function markSeen(key: string) {
+      markRevealSeen(key);
+      // Przycisk celebracji słucha tego zdarzenia i przestaje zapraszać.
+      window.dispatchEvent(new Event(CELEBRATION_SEEN_EVENT));
+    }
+
     const observer = new IntersectionObserver(
       (records) => {
         if (!records.some((record) => record.isIntersecting)) return;
@@ -259,18 +267,24 @@ export function PodiumSection({
         setRevealed(true);
 
         if (reducedMotion) {
-          markRevealSeen(storageKey);
+          markSeen(storageKey);
           return;
         }
 
         // "Obejrzane" zapisujemy DOPIERO po zakończeniu animacji —
         // zamknięcie strony w połowie pozwala zobaczyć ceremonię ponownie.
         timer = window.setTimeout(
-          () => markRevealSeen(storageKey),
+          () => markSeen(storageKey),
           getRevealTotalMs(revealOrder)
         );
       },
-      { threshold: 0.25 }
+      /*
+        Sekcja bywa wyższa niż ekran, więc próg 25% jej powierzchni bywa
+        nieosiągalny. Wystarczy, że kibic realnie dotarł do klasyfikacji:
+        widoczny fragment przy dolnej krawędzi ekranu uruchamia ceremonię,
+        ale nie kilka ekranów wcześniej.
+      */
+      { threshold: 0, rootMargin: "0px 0px -20% 0px" }
     );
 
     observer.observe(node);
@@ -313,6 +327,8 @@ export function PodiumSection({
   return (
     <section
       ref={sectionRef}
+      // Cel przewijania dla przycisku celebracji — osobny dla każdej grupy.
+      id={celebrationSectionId(scopeKey)}
       className="flush-card relative overflow-hidden rounded-none border border-white/10 shadow-[0_1.5rem_3rem_-2rem_rgba(15,23,42,0.55)] sm:rounded-3xl"
       aria-label="Klasyfikacja końcowa"
     >
@@ -417,14 +433,26 @@ export function PodiumSection({
           </div>
         ) : null}
 
-        {/* Miejsca 4+ — liczba slotów pochodzi ze szkieletu, nie z hardkodu. */}
+        {/*
+          MIEJSCA 4+ — jeden rząd w dolnej, ciemnej części sceny.
+
+          Karty nie leżą na fizycznych stopniach podium: te należą do
+          medalistów. Ogon dostaje własny pas niżej, dzięki czemu całość
+          czyta się jak jedna scena, a nie lista kart pod obrazkiem.
+
+          Liczba slotów pochodzi ze szkieletu klasyfikacji, nie z hardkodu.
+          Przy większej liczbie drużyn rząd zawija się w kolejne linie.
+        */}
         {tailSlots.length > 0 ? (
-          <ul className="mt-5 space-y-2">
+          <ul
+            data-testid="podium-tail"
+            className="mt-6 flex flex-wrap items-stretch justify-center gap-1.5 border-t border-white/10 pt-4 sm:gap-2.5"
+          >
             {tailSlots.map((slot) => {
               const entry = stepFor(slot.position!);
 
               return (
-                <TailRow
+                <TailSlot
                   key={slot.position}
                   label={slot.label}
                   entry={entry}

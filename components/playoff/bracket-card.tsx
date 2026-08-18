@@ -75,6 +75,14 @@ function TeamRow({
 
       <TeamLogo team={team} />
 
+      {/*
+        PLACEHOLDER JEST ZNAKIEM ZAPYTANIA.
+
+        Rozbudowane opisy slotu zaśmiecały kartę — zależność między
+        rundami i tak pokazują connectory oraz układ drabinki. Semantyka
+        nie ginie: pełny opis zostaje w aria-label, więc czytnik ekranu
+        wie, kto ma tu wejść.
+      */}
       <span
         className={[
           "min-w-0 flex-1 truncate text-[13px] leading-tight",
@@ -82,10 +90,11 @@ function TeamRow({
             ? isWinner
               ? "font-semibold text-white"
               : "font-medium text-white/85"
-            : "italic text-white/40",
+            : "font-semibold text-white/35",
         ].join(" ")}
+        aria-label={team ? undefined : `${label} — jeszcze nieustalony`}
       >
-        {team ? team.name : label}
+        {team ? team.name : "?"}
       </span>
 
       {/* Wynik — najmocniejszy element karty. Brak wyniku NIE jest zerem. */}

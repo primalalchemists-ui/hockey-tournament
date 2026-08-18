@@ -14,6 +14,13 @@ const { scope } = await import("./helpers/view-fixtures");
 import type { Group } from "@/types/tournament";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 
+const RESULTS_CTA = {
+  kind: "results" as const,
+  label: "Sprawdź wyniki",
+  shine: false,
+  targetId: "results-section",
+};
+
 const GROUP: Group = {
   key: "A",
   name: "Grupa A",
@@ -59,6 +66,7 @@ describe("J: turniej ligowy nie dostaje ŻADNEGO UI pucharowego", () => {
       structure="groups"
       playoffState={null}
       tournamentId="t-1"
+      celebration={RESULTS_CTA}
     />
   );
 
@@ -81,6 +89,7 @@ describe("format pucharowy dostaje komplet sekcji", () => {
       structure="groups"
       playoffState={playoffState()}
       tournamentId="t-1"
+      celebration={RESULTS_CTA}
     />
   );
 
@@ -137,12 +146,16 @@ describe("L: mechanika ceremonii pozostaje nietknięta", () => {
 
   it("ceremonia nadal startuje z IntersectionObserver, nie z nadejścia danych", () => {
     expect(code).toContain("new IntersectionObserver");
-    expect(code).toContain("threshold: 0.25");
+    // Próg dobrany tak, żeby wysoka sekcja też potrafiła go osiągnąć.
+    expect(code).toContain("threshold: 0");
+    expect(code).toContain('rootMargin: "0px 0px -20% 0px"');
   });
 
   it("„obejrzane” zapisujemy dopiero po pełnej ceremonii", () => {
     expect(code).toContain("getRevealTotalMs(revealOrder)");
-    expect(code).toContain("markRevealSeen(storageKey)");
+    // markSeen zapisuje i ogłasza koniec ceremonii przyciskowi celebracji.
+    expect(code).toContain("markRevealSeen(key)");
+    expect(code).toContain("markSeen(storageKey)");
   });
 });
 
@@ -187,6 +200,7 @@ describe("V/W: etap turnieju mieszka przy Rankingu", () => {
       structure="groups"
       playoffState={playoffState()}
       tournamentId="t-1"
+      celebration={RESULTS_CTA}
     />
   );
 
@@ -219,6 +233,7 @@ describe("V/W: etap turnieju mieszka przy Rankingu", () => {
         structure="groups"
         playoffState={null}
         tournamentId="t-1"
+        celebration={RESULTS_CTA}
       />
     );
 
@@ -240,6 +255,7 @@ describe("tabela bez rozegranych meczów", () => {
         structure="groups"
         playoffState={playoffState()}
         tournamentId="t-1"
+        celebration={RESULTS_CTA}
       />
     );
 
@@ -256,6 +272,7 @@ describe("tabela bez rozegranych meczów", () => {
         structure="groups"
         playoffState={playoffState()}
         tournamentId="t-1"
+        celebration={RESULTS_CTA}
       />
     );
 

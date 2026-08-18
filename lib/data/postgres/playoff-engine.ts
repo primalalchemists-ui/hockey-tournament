@@ -358,9 +358,26 @@ function describeSlot(
   const parsed = source as MatchSlotSource | null;
 
   if (!parsed) return "—";
-  if (parsed.type === "seed") return `Miejsce ${parsed.seed}`;
-  if (parsed.type === "winner") return "Zwycięzca poprzedniej rundy";
-  return "Przegrany półfinału";
+
+  /*
+    Etykieta slotu trafia WYŁĄCZNIE do aria-label — kibic widzi „?".
+    Dlatego może i powinna być precyzyjna: numer meczu wyciągamy ze
+    stabilnego identyfikatora (po-<scope>-<kind>-<slot>).
+  */
+  if (parsed.type === "seed") return `Miejsce ${parsed.seed} w grupie`;
+
+  const slotNumber = Number(parsed.matchExternalId.split("-").pop() ?? 0) + 1;
+  const roundName = parsed.matchExternalId.includes("semifinal")
+    ? "półfinału"
+    : parsed.matchExternalId.includes("quarterfinal")
+      ? "ćwierćfinału"
+      : parsed.matchExternalId.includes("round_of_16")
+        ? "meczu 1/8 finału"
+        : "poprzedniej rundy";
+
+  return parsed.type === "winner"
+    ? `Zwycięzca ${roundName} ${slotNumber}`
+    : `Przegrany ${roundName} ${slotNumber}`;
 }
 
 export async function getPlayoffState(

@@ -192,11 +192,12 @@ describe.skipIf(!hasDatabase)("read model publicznego frontendu", () => {
     // Slot przyszłej rundy ma czytelną etykietę, nie UUID.
     const final = scope.rounds[1].matches[0];
     expect(final.home).toBeNull();
-    expect(final.homeLabel).toBe("Zwycięzca poprzedniej rundy");
+    // Etykieta jest teraz precyzyjna, bo służy wyłącznie czytnikom ekranu.
+    expect(final.homeLabel).toBe("Zwycięzca półfinału 1");
     expect(UUID_PATTERN.test(final.homeLabel)).toBe(false);
 
     const third = scope.rounds[2].matches[0];
-    expect(third.homeLabel).toBe("Przegrany półfinału");
+    expect(third.homeLabel).toBe("Przegrany półfinału 1");
   });
 
   it("wynik trafia do widoku wraz ze zwycięzcą", async () => {
@@ -229,8 +230,9 @@ describe.skipIf(!hasDatabase)("read model publicznego frontendu", () => {
     expect(scope.rounds[1].matches[0].home?.teamId).toBe("a1");
     // Drugi slot nadal czeka.
     expect(scope.rounds[1].matches[0].away).toBeNull();
+    // Drugi slot finału czeka na zwycięzcę DRUGIEGO półfinału.
     expect(scope.rounds[1].matches[0].awayLabel).toBe(
-      "Zwycięzca poprzedniej rundy"
+      "Zwycięzca półfinału 2"
     );
   });
 
