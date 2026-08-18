@@ -347,35 +347,37 @@ describe.skipIf(!hasDatabase)("silnik play-off — scenariusz referencyjny", () 
     }
   });
 
-  it("blokuje zmianę zwycięzcy, gdy kolejny etap ma już wynik", async () => {
+  it("nie pozwala wpisać wyniku finału w trakcie półfinałów", async () => {
+    /*
+      Uczestnik finału bywa już znany (zwycięzca półfinału propaguje się
+      od razu), ale to NIE znaczy, że mecz wolno rozliczyć. Finał otwiera
+      dopiero jawne zamknięcie półfinałów.
+    */
     const state = await getPlayoffState(tournamentId);
     const scope = state.scopes[0];
 
-    // wpisujemy finał
-    await savePlayoffMatchResult({
-      tournamentId,
-      matchExternalId: scope.rounds[1].matches[0].externalId,
-      homeScore: 5,
-      awayScore: 2,
-    });
-
-    // teraz próba odwrócenia półfinału musi zostać zablokowana
     await expect(
       savePlayoffMatchResult({
         tournamentId,
-        matchExternalId: scope.rounds[0].matches[0].externalId,
-        homeScore: 0,
-        awayScore: 4,
+        matchExternalId: scope.rounds[1].matches[0].externalId,
+        homeScore: 5,
+        awayScore: 2,
       })
-    ).rejects.toThrow(/cofnij turniej/i);
+    ).rejects.toThrow(/nie rozpoczął/i);
 
-    // cofamy finał, żeby nie blokować kolejnych testów
-    await savePlayoffMatchResult({
-      tournamentId,
-      matchExternalId: scope.rounds[1].matches[0].externalId,
-      homeScore: null,
-      awayScore: null,
-    });
+    // Mecz o 3. miejsce należy do tej samej fazy co finał — też zablokowany.
+    await expect(
+      savePlayoffMatchResult({
+        tournamentId,
+        matchExternalId: scope.rounds[2].matches[0].externalId,
+        homeScore: 1,
+        awayScore: 0,
+      })
+    ).rejects.toThrow(/nie rozpoczął/i);
+
+    // Wynik finału nadal pusty — odrzucenie nie zostawiło śladu.
+    const after = await getPlayoffState(tournamentId);
+    expect(after.scopes[0].rounds[1].matches[0].homeScore).toBeNull();
   });
 
   it("pozwala zmienić zwycięzcę, gdy kolejny etap nie ma wyniku", async () => {

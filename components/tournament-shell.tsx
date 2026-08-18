@@ -26,6 +26,8 @@ type TournamentShellProps = {
   playoffState: PlayoffStateView | null;
   /** Czy turniej prowadzi klasyfikację strzelców. */
   scorersEnabled: boolean;
+  /** Planowana liczba meczów całego turnieju — patrz lib/playoff/planned-matches. */
+  plannedMatchCount: number;
   /** Punkt startowy dla auto-odświeżania — z renderu serwerowego. */
   tournamentId: string | null;
   revision: number;
@@ -45,20 +47,28 @@ export function TournamentShell({
   structure: initialStructure,
   playoffState: initialPlayoffState,
   scorersEnabled: initialScorersEnabled,
+  plannedMatchCount: initialPlannedMatchCount,
   tournamentId,
   revision,
   initialTab = "live",
   initialGroupKey,
 }: TournamentShellProps) {
   // Dane publiczne odświeżają się same; UI dostaje zawsze spójny snapshot.
-  const { tournament, structure, scorersEnabled, playoffState, refreshTick } =
-    usePublicAutoRefresh({
+  const {
+    tournament,
+    structure,
+    scorersEnabled,
+    playoffState,
+    plannedMatchCount,
+    refreshTick,
+  } = usePublicAutoRefresh({
       initialTournamentId: tournamentId,
       initialRevision: revision,
       initialTournament,
       initialStructure,
       initialScorersEnabled,
       initialPlayoffState,
+      initialPlannedMatchCount,
     });
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -185,11 +195,11 @@ export function TournamentShell({
         title={tournament.title}
         scorers={tournament.scorers ?? []}
         teams={allTeams}
-        groups={tournament.groups}
         heroBannerImage={tournament.assets.heroBannerImage}
         tickerMessage={tournament.tickerMessage}
         showTopScorerTicker={tournament.showTopScorerTicker}
         refreshTick={refreshTick}
+        plannedMatchCount={plannedMatchCount}
         cta={celebration}
       />
 

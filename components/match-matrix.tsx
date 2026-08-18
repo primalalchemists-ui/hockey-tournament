@@ -238,12 +238,16 @@ export function MatchMatrix({ group }: MatchMatrixProps) {
             >
               {/*
                 Herb i nazwa rozwijają pełną nazwę drużyny — tak samo jak
-                skróty kolumn w Rankingu. Na wąskim ekranie nazwa jest
-                ucięta, więc to jedyny sposób, żeby ją w całości zobaczyć.
+                skróty kolumn w Rankingu.
+
+                Kolumna ma stałą szerokość 9 rem i mieszczą się w niej tylko
+                najkrótsze nazwy, więc pełna nazwa jest dostępna ZAWSZE —
+                w każdym wierszu tak samo. Warunkowanie tego pomiarem dawało
+                zachowanie zależne od przypadków granicznych: nazwa mieszcząca
+                się w foncie zapasowym potrafiła nie mieścić się w Inter.
               */}
               <CellPopover
                 testId="matrix-team"
-                onlyWhenTruncated
                 label={rowTeam.name}
                 content={rowTeam.name}
                 className="flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left transition hover:bg-white/70"

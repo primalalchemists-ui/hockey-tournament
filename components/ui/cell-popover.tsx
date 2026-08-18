@@ -64,39 +64,57 @@ export function CellPopover({
   const popoverId = useId();
 
   /*
-    Pomiar zamiast zgadywania po breakpoincie: ta sama nazwa mieści się
-    na desktopie, a na telefonie już nie. Obserwujemy zmianę rozmiaru,
-    więc obrót ekranu też jest obsłużony.
+    POMIAR UCIĘCIA — trzy rzeczy, które wcześniej go psuły.
+
+    1. Obserwowaliśmy PRZYCISK, a nie element, który faktycznie ucina
+       tekst. W tabeli wyników przycisk ma stałą szerokość kolumny, więc
+       obserwator nigdy się nie odzywał i pomiar zostawał ten z montowania.
+
+    2. Ten jedyny pomiar wypadał w trakcie hydracji — czyli zanim
+       przeglądarka podmieniła font zapasowy na Inter (`display: swap`).
+       Nazwa mieszcząca się w Arialu potrafiła nie mieścić się w Inter.
+       Stąd „KH Dębica": przypadek graniczny, ucięty wizualnie, ale
+       zmierzony jako mieszczący się. Dłuższe nazwy nie mieściły się
+       w ŻADNYM foncie, więc działały poprawnie — stąd 6 z 7 wierszy.
+
+    3. Zmiana samego tekstu nie wymuszała ponownego pomiaru.
+
+    Teraz obserwujemy element ucinający, mierzymy ponownie po załadowaniu
+    fontów i przy każdej zmianie rozmiaru.
   */
   useEffect(() => {
     if (!onlyWhenTruncated) return;
 
-    const node = triggerRef.current;
-    if (!node) return;
+    const button = triggerRef.current;
+    if (!button) return;
+
+    const target =
+      button.querySelector<HTMLElement>("[data-truncate]") ?? button;
 
     function measure() {
-      const element = triggerRef.current;
-      if (!element) return;
-
-      /*
-        Ucinać może sam przycisk (Ranking) albo element w środku
-        (tabela wyników: herb + ucięta nazwa). Marker `data-truncate`
-        wskazuje, co naprawdę mierzyć.
-      */
-      const target =
-        element.querySelector<HTMLElement>("[data-truncate]") ?? element;
-
       setIsTruncated(target.scrollWidth > target.clientWidth + 1);
     }
 
     measure();
 
+    // Podmiana fontu zmienia szerokość tekstu, a nie rozmiar kontenera.
+    let cancelled = false;
+
+    if (typeof document !== "undefined" && "fonts" in document) {
+      document.fonts.ready.then(() => {
+        if (!cancelled) measure();
+      });
+    }
+
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
 
-    observer?.observe(node);
+    observer?.observe(target);
 
-    return () => observer?.disconnect();
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+    };
   }, [onlyWhenTruncated, children]);
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import { readTournamentSettings } from "@/types/tournament-config";
 import type { Tournament } from "@/types/tournament";
 import type { TournamentSettings } from "@/types/tournament-config";
 
+import { calculatePlannedMatchCount } from "@/lib/playoff/planned-matches";
 import { getPlayoffState, type PlayoffStateView } from "./playoff-engine";
 import { postgresRepository } from "./repository";
 
@@ -28,6 +29,12 @@ export type PublicSnapshot = {
   tournament: Tournament;
   settings: TournamentSettings;
   playoffState: PlayoffStateView | null;
+  /**
+   * Ile meczów turniej ma ROZEGRAĆ według konfiguracji — łącznie z fazą
+   * pucharową i minigrupą, które materializują się dopiero po zamknięciu
+   * grup. Liczba jest stała przez cały turniej.
+   */
+  plannedMatchCount: number;
 };
 
 export type PublicVersion = {
@@ -82,15 +89,26 @@ async function buildSnapshotOnce(): Promise<{
       ? await getPlayoffState(before.tournamentId)
       : null;
 
+  const tournament = mergeTournamentData(result.tournament);
+
+  const plannedMatchCount = calculatePlannedMatchCount({
+    format: settings.format,
+    playoffConfig: settings.playoffConfig,
+    scopes: tournament.groups.map((group) => ({
+      teamCount: group.teams.length,
+    })),
+  });
+
   const after = await getPublicVersion();
 
   return {
     snapshot: {
       tournamentId: before.tournamentId,
       revision: before.revision,
-      tournament: mergeTournamentData(result.tournament),
+      tournament,
       settings,
       playoffState,
+      plannedMatchCount,
     },
     revisionAfter:
       after.tournamentId === before.tournamentId ? after.revision : -1,

@@ -28,8 +28,8 @@ function renderHeader(heroBannerImage?: string) {
       title="Turniej"
       scorers={[]}
       teams={[]}
-      groups={[]}
       heroBannerImage={heroBannerImage}
+      plannedMatchCount={0}
       cta={RESULTS_CTA}
     />
   );

@@ -4,6 +4,7 @@ import { DataError } from "@/components/data-error";
 import { TournamentShell } from "@/components/tournament-shell";
 import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
+import { calculatePlannedMatchCount } from "@/lib/playoff/planned-matches";
 
 type SearchParams = Promise<{
   tab?: string;
@@ -133,6 +134,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }
   }
 
+  // Ta sama reguła co w snapshotcie — jedno źródło prawdy o skali turnieju.
+  const plannedMatchCount = calculatePlannedMatchCount({
+    format: result.status === "ok" ? result.settings.format : "league",
+    playoffConfig: result.status === "ok" ? result.settings.playoffConfig : null,
+    scopes: tournament.groups.map((group) => ({
+      teamCount: group.teams.length,
+    })),
+  });
+
   return (
     <main className="min-h-screen">
       <div className="mx-auto max-w-[1400px] px-0 py-4 sm:px-4 sm:py-6 lg:px-6">
@@ -144,6 +154,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           scorersEnabled={
             result.status === "ok" ? result.settings.scorersEnabled : true
           }
+          plannedMatchCount={plannedMatchCount}
           playoffState={playoffState}
           tournamentId={tournamentId}
           revision={revision}

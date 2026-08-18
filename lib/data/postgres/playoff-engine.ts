@@ -34,6 +34,7 @@ import {
   getRoundKindsForPhase,
   isBracketPhase,
   PHASE_LABELS,
+  ROUND_LABELS,
   type BracketRoundKind,
   type BracketRoundStatus,
   type TournamentPhase,
@@ -64,6 +65,16 @@ import {
   aggregateTeamStats,
   buildRankingRows,
 } from "@/lib/playoff/aggregate-stats";
+import {
+  describeMatchEditability,
+  type MatchEditability,
+} from "@/lib/playoff/editability";
+import type {
+  IssueMatch,
+  IssueTeam,
+  OperationIssueReport,
+} from "@/lib/playoff/validation";
+import { describeIssueReport } from "@/lib/playoff/validation";
 import { TournamentOperationError } from "../types";
 import {
   bumpPublicRevision,
@@ -103,6 +114,13 @@ export type PlayoffMatchView = {
   awayScore: number | null;
   winnerTeamId: string | null;
   isFinished: boolean;
+  /**
+   * Czy ten mecz wolno DZIŚ edytować w panelu.
+   *
+   * Liczone w silniku, nie w komponencie: to decyzja sportowa, a nie
+   * kwestia prezentacji. Serwer waliduje dokładnie tę samą regułę.
+   */
+  editability: MatchEditability;
 };
 
 export type PlayoffRoundView = {
@@ -126,6 +144,8 @@ export type PlacementView = {
     away: BracketTeamView;
     homeScore: number | null;
     awayScore: number | null;
+    /** Minigrupa jest edytowalna przez cały play-off — patrz editability. */
+    editability: MatchEditability;
   }>;
   standings: StandingRow[];
   complete: boolean;
@@ -489,6 +509,31 @@ export async function getPlayoffState(
       });
     }
 
+    /*
+      Edytowalność liczymy raz, z konfiguracji i fazy zapisanej w bazie.
+      Panel admina niczego nie dedukuje sam — a serwer sprawdza tę samą
+      regułę przy zapisie, więc disabled w HTML nie jest zabezpieczeniem.
+    */
+    const editabilityOf = (kind: BracketRoundKind): MatchEditability =>
+      settings.playoffConfig
+        ? describeMatchEditability({
+            phase,
+            size: settings.playoffConfig.qualifiedTeamCount,
+            thirdPlaceMatch: settings.playoffConfig.thirdPlaceMatch,
+            stage: "bracket",
+            kind,
+          })
+        : "locked";
+
+    const placementEditability: MatchEditability = settings.playoffConfig
+      ? describeMatchEditability({
+          phase,
+          size: settings.playoffConfig.qualifiedTeamCount,
+          thirdPlaceMatch: settings.playoffConfig.thirdPlaceMatch,
+          stage: "placement_group",
+        })
+      : "locked";
+
     const rounds: PlayoffRoundView[] = topology.map((round) => ({
       kind: round.kind,
       label: round.label,
@@ -514,6 +559,7 @@ export async function getPlayoffState(
           awayScore: match.awayScore,
         }),
         isFinished: match.homeScore !== null && match.awayScore !== null,
+        editability: editabilityOf(match.kind),
       })),
     }));
 
@@ -577,6 +623,7 @@ export async function getPlayoffState(
             away: teamView(externalByUuid.get(m.awayTeamId ?? "") ?? null)!,
             homeScore: m.homeScore,
             awayScore: m.awayScore,
+            editability: placementEditability,
           })),
         standings: calculateStandings(placementGroup),
         complete: placementMatches.every(
@@ -1034,6 +1081,43 @@ export async function savePlayoffMatchResult(input: {
     );
   }
 
+  /*
+    GATE FAZOWY — świadomie po stronie serwera.
+
+    `disabled` na inpucie jest wyłącznie podpowiedzią dla oka. Zapis wyniku
+    finału w trakcie półfinałów musi zostać odrzucony także wtedy, gdy ktoś
+    wywoła akcję bezpośrednio. Minigrupa jest wyjątkiem: to niezależna
+    gałąź, aktywna od zamknięcia fazy grupowej.
+  */
+  const { config: gateConfig } = requirePlayoffSettings(context);
+  const roundKindById = new Map(
+    context.rounds.map((round) => [round.id, round.kind as BracketRoundKind])
+  );
+
+  const editability = describeMatchEditability({
+    phase: context.tournament.phase as TournamentPhase,
+    size: gateConfig.qualifiedTeamCount,
+    thirdPlaceMatch: gateConfig.thirdPlaceMatch,
+    stage: match.stage === "placement_group" ? "placement_group" : "bracket",
+    kind: match.bracketRoundId
+      ? roundKindById.get(match.bracketRoundId)
+      : undefined,
+  });
+
+  if (editability !== "editable") {
+    const roundLabel = match.bracketRoundId
+      ? (ROUND_LABELS[roundKindById.get(match.bracketRoundId)!] ?? "Ten etap")
+      : "Minigrupa";
+
+    throw new TournamentOperationError(
+      editability === "pending"
+        ? `${roundLabel}: ten etap jeszcze się nie rozpoczął. ` +
+          "Najpierw zakończ bieżącą rundę."
+        : `${roundLabel}: ten etap jest już zamknięty. ` +
+          "Aby poprawić wynik, cofnij turniej do poprzedniej fazy."
+    );
+  }
+
   // Play-off i minigrupa: remis jest niedozwolony.
   const validation = validateDecisiveScore(input.homeScore, input.awayScore);
 
@@ -1145,6 +1229,56 @@ export async function savePlayoffMatchResult(input: {
   await db.batch(statements as [Statement, ...Statement[]]);
 }
 
+
+/* ==========================================================================
+ * CZYTELNE BŁĘDY — wspólne narzędzia
+ * ======================================================================== */
+
+/** Zamienia UUID drużyny na dane prezentacyjne dla komunikatu błędu. */
+function makeIssueTeamFactory(context: Context, seedByExternalId: Map<string, number>) {
+  const byUuid = new Map(context.teams.map((team) => [team.id, team]));
+
+  return function issueTeam(uuid: string | null): IssueTeam | null {
+    if (!uuid) return null;
+
+    const row = byUuid.get(uuid);
+    if (!row) return null;
+
+    return {
+      name: row.name,
+      logoUrl: row.logoUrl,
+      logoText: row.shortName ?? null,
+      seed: seedByExternalId.get(row.externalId) ?? null,
+    };
+  };
+}
+
+/** Rozstawienie z zamrożonych snapshotów — po externalId drużyny. */
+function readSeedMap(context: Context): Map<string, number> {
+  const externalByUuid = new Map(
+    context.teams.map((team) => [team.id, team.externalId])
+  );
+
+  const seeds = new Map<string, number>();
+
+  for (const row of context.snapshotRows) {
+    const externalId = externalByUuid.get(row.teamId);
+    if (externalId) seeds.set(externalId, row.position);
+  }
+
+  return seeds;
+}
+
+/** Nazwy grup po UUID — komunikat grupuje mecze tak, jak widzi je admin. */
+function readGroupNames(context: Context): Map<string, string> {
+  return new Map(context.groups.map((group) => [group.id, group.name]));
+}
+
+/** Jeden błąd operacji: tekst zapasowy + struktura dla panelu. */
+function issueError(report: OperationIssueReport): TournamentOperationError {
+  return new TournamentOperationError(describeIssueReport(report), report);
+}
+
 /* ==========================================================================
  * ZAKOŃCZENIE RUNDY
  * ======================================================================== */
@@ -1173,28 +1307,52 @@ export async function completeCurrentRound(tournamentId: string) {
     (match) => match.bracketRoundId && roundIds.includes(match.bracketRoundId)
   );
 
-  const problems: string[] = [];
+  /*
+    Braki opisujemy DRUŻYNAMI, nie identyfikatorami meczów. Administrator
+    w hali musi od razu wiedzieć, którego meczu szukać — „po-B-semifinal-0"
+    tego nie mówi.
+  */
+  const issueTeam = makeIssueTeamFactory(context, readSeedMap(context));
+  const groupNames = readGroupNames(context);
+  const roundKindById = new Map(
+    context.rounds.map((round) => [round.id, round.kind as BracketRoundKind])
+  );
+
+  const problems: IssueMatch[] = [];
 
   for (const match of roundMatches) {
+    const kind = match.bracketRoundId
+      ? roundKindById.get(match.bracketRoundId)
+      : undefined;
+
+    const base = {
+      groupName: groupNames.get(match.groupId ?? "") ?? "Turniej",
+      roundLabel: kind ? ROUND_LABELS[kind] : "Faza pucharowa",
+      home: issueTeam(match.homeTeamId),
+      away: issueTeam(match.awayTeamId),
+    };
+
     if (!match.homeTeamId || !match.awayTeamId) {
-      problems.push(`${match.externalId}: nieznani uczestnicy.`);
+      problems.push({ ...base, reason: "unknown_participants" });
       continue;
     }
 
     if (match.homeScore === null || match.awayScore === null) {
-      problems.push(`${match.externalId}: brak wyniku.`);
+      problems.push({ ...base, reason: "missing_result" });
       continue;
     }
 
     if (match.homeScore === match.awayScore) {
-      problems.push(`${match.externalId}: wynik remisowy jest niedozwolony.`);
+      problems.push({ ...base, reason: "draw" });
     }
   }
 
   if (problems.length > 0) {
-    throw new TournamentOperationError(
-      `Nie można zakończyć etapu:\n${problems.join("\n")}`
-    );
+    throw issueError({
+      title: `Nie można zakończyć etapu: ${PHASE_LABELS[phase].toLowerCase()}`,
+      hint: "Uzupełnij wyniki poniższych meczów:",
+      matches: problems,
+    });
   }
 
   const nextPhase = phase === "final" ? "completed" : nextBracketPhase(phase, config);
@@ -1328,12 +1486,18 @@ export async function completeTournament(tournamentId: string) {
     );
   }
 
-  const problems: string[] = [];
-
   const finalKinds = getRoundKindsForPhase("final", config.thirdPlaceMatch);
   const finalRoundIds = context.rounds
     .filter((round) => finalKinds.includes(round.kind as BracketRoundKind))
     .map((round) => round.id);
+
+  const issueTeam = makeIssueTeamFactory(context, readSeedMap(context));
+  const groupNames = readGroupNames(context);
+  const roundKindById = new Map(
+    context.rounds.map((round) => [round.id, round.kind as BracketRoundKind])
+  );
+
+  const problems: IssueMatch[] = [];
 
   for (const match of context.matches) {
     const isFinalMatch =
@@ -1342,24 +1506,43 @@ export async function completeTournament(tournamentId: string) {
 
     if (!isFinalMatch && !isPlacement) continue;
 
-    const label = isPlacement ? "minigrupa" : "finały";
+    const kind =
+      !isPlacement && match.bracketRoundId
+        ? roundKindById.get(match.bracketRoundId)
+        : undefined;
+
+    const base = {
+      groupName: groupNames.get(match.groupId ?? "") ?? "Turniej",
+      roundLabel: isPlacement
+        ? "Minigrupa klasyfikacyjna"
+        : kind
+          ? ROUND_LABELS[kind]
+          : "Finały",
+      home: issueTeam(match.homeTeamId),
+      away: issueTeam(match.awayTeamId),
+    };
 
     if (match.homeScore === null || match.awayScore === null) {
-      problems.push(`${label}: brak wyniku meczu ${match.externalId}.`);
+      problems.push({ ...base, reason: "missing_result" });
       continue;
     }
 
     if (match.homeScore === match.awayScore) {
-      problems.push(
-        `${label}: mecz ${match.externalId} nie może zakończyć się remisem.`
-      );
+      problems.push({ ...base, reason: "draw" });
     }
   }
 
   if (problems.length > 0) {
-    throw new TournamentOperationError(
-      `Nie można zakończyć turnieju:\n${problems.join("\n")}`
-    );
+    /*
+      Minigrupa NIE blokuje zamknięcia rundy pucharowej, ale blokuje
+      zakończenie turnieju: bez niej klasyfikacja końcowa miałaby dziurę
+      na miejscach 5-N.
+    */
+    throw issueError({
+      title: "Nie można zakończyć turnieju",
+      hint: "Uzupełnij wyniki poniższych meczów:",
+      matches: problems,
+    });
   }
 
   await db.batch([

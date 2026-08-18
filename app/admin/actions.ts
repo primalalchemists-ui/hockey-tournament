@@ -10,6 +10,8 @@ import {
 } from "@/lib/admin-auth";
 import { safeEquals } from "@/lib/admin-session";
 import { getTournamentRepository } from "@/lib/data";
+import { TournamentOperationError } from "@/lib/data/types";
+import type { OperationIssueReport } from "@/lib/playoff/validation";
 import { deleteCloudinaryAssets } from "@/lib/cloudinary";
 import { parseTournamentSettings } from "@/types/tournament-config";
 import type { Tournament } from "@/types/tournament";
@@ -98,12 +100,26 @@ export async function saveAdminDraftAction(formData: FormData) {
 
 export type TournamentActionState = {
   error: string | null;
+  /**
+   * Czytelna dla człowieka postać błędu: lista meczów z nazwami i herbami.
+   * Obecna tylko tam, gdzie silnik ją zbudował — panel woli ją od `error`.
+   */
+  details?: OperationIssueReport | null;
 };
 
 function toMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Operacja nie powiodła się.";
+}
+
+/** Błąd operacji razem ze strukturą, jeśli silnik ją dostarczył. */
+function toActionError(error: unknown): TournamentActionState {
+  return {
+    error: toMessage(error),
+    details:
+      error instanceof TournamentOperationError ? (error.details ?? null) : null,
+  };
 }
 
 /**
@@ -266,7 +282,7 @@ export async function completeGroupStageAction(
     );
     await completeGroupStage(tournamentId);
   } catch (error) {
-    return { error: toMessage(error) };
+    return toActionError(error);
   }
 
   revalidatePath("/");
@@ -290,7 +306,7 @@ export async function completeCurrentRoundAction(
     );
     await completeCurrentRound(tournamentId);
   } catch (error) {
-    return { error: toMessage(error) };
+    return toActionError(error);
   }
 
   revalidatePath("/");
@@ -314,7 +330,7 @@ export async function completeTournamentAction(
     );
     await completeTournament(tournamentId);
   } catch (error) {
-    return { error: toMessage(error) };
+    return toActionError(error);
   }
 
   revalidatePath("/");
@@ -384,7 +400,7 @@ export async function savePlayoffScoreAction(
       awayScore: clear ? null : Number(awayRaw),
     });
   } catch (error) {
-    return { error: toMessage(error) };
+    return toActionError(error);
   }
 
   revalidatePath("/");

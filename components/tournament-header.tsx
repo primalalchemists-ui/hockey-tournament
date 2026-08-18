@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { Group, Scorer, Team } from "@/types/tournament";
+import type { Scorer, Team } from "@/types/tournament";
 import { TopScorerTicker } from "@/components/top-scorer-ticker";
 import { resolveHeroPresentation } from "@/lib/public/hero";
 import { CelebrationButton } from "@/components/celebration-cta";
@@ -11,12 +11,16 @@ type TournamentHeaderProps = {
   title: string;
   scorers: Scorer[];
   teams: Team[];
-  groups: Group[];
   heroBannerImage?: string;
   tickerMessage?: string;
   showTopScorerTicker?: boolean;
   /** Rośnie po każdym udanym auto-odświeżeniu — wyzwala mikro-puls. */
   refreshTick?: number;
+  /**
+   * Planowana liczba meczów CAŁEGO turnieju — łącznie z fazą pucharową
+   * i minigrupą, które w bazie pojawią się dopiero po zamknięciu grup.
+   */
+  plannedMatchCount: number;
   /**
    * Stan przycisku w hero. Po zakończeniu turnieju TEN SAM slot prowadzi
    * do celebracji zamiast do wyników — bez dokładania drugiego przycisku.
@@ -45,27 +49,25 @@ export function TournamentHeader({
   title,
   scorers,
   teams,
-  groups,
   heroBannerImage,
   tickerMessage,
   showTopScorerTicker,
   refreshTick = 0,
+  plannedMatchCount,
   cta,
 }: TournamentHeaderProps) {
   const hero = resolveHeroPresentation(heroBannerImage);
 
-  const totalScheduledMatches = groups.reduce((sum, group) => {
-    const teamsCount = group.teams.length;
-    const matchesInGroup = (teamsCount * (teamsCount - 1)) / 2;
-    return sum + matchesInGroup;
-  }, 0);
+  /*
+    Badge pokazuje SKALĘ turnieju, a nie stan bazy.
 
-  const playedMatches = groups.reduce((sum, group) => {
-    return sum + group.matches.length;
-  }, 0);
-
-  const remainingMatches = Math.max(0, totalScheduledMatches - playedMatches);
-  const remainingMatchesLabel = matchesWord(remainingMatches);
+    Wcześniej liczył tu round-robin z liczby drużyn i odejmował rozegrane
+    mecze, więc dla formatu z play-offem gubił drabinkę i minigrupę
+    (SUN CUP U8: 42 zamiast 56), a dodatkowo liczba spadała w trakcie
+    turnieju. Teraz przychodzi gotowa z konfiguracji i jest stała
+    od pierwszej sekundy aż po finał.
+  */
+  const plannedMatchesLabel = matchesWord(plannedMatchCount);
 
   /*
     CAŁY nagłówek wchodzi JEDNYM ruchem (.ice-rise).
@@ -105,8 +107,11 @@ export function TournamentHeader({
         </div>
 
         <div className="rounded-full border border-white/20 bg-slate-950/60 px-2 py-1 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md sm:px-5 sm:text-sm">
-          🏒 <span className="stat-num text-amber-300">{remainingMatches}</span>{" "}
-          {remainingMatchesLabel}
+          🏒{" "}
+          <span data-testid="planned-match-count" className="stat-num text-amber-300">
+            {plannedMatchCount}
+          </span>{" "}
+          {plannedMatchesLabel}
         </div>
 
         <div className="flex items-center gap-4">

@@ -25,7 +25,9 @@
     "logos:dedupe": "tsx scripts/logo-dedupe.ts",
     "logos:hash": "tsx scripts/logo-hash-backfill.ts",
     "suncup:setup": "tsx scripts/sun-cup-setup.ts",
-    "assets:orphans": "tsx scripts/cloudinary-orphans.ts"
+    "assets:orphans": "tsx scripts/cloudinary-orphans.ts",
+    "rehearsal:setup": "tsx scripts/rehearsal-setup.ts",
+    "env:diagnose": "tsx scripts/env-diagnose.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

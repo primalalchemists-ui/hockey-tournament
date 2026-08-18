@@ -664,9 +664,17 @@ describe("dymki nie gubią się pod krawędzią", () => {
     expect(source("components/match-matrix.tsx")).toContain("data-truncate");
   });
 
-  it("nazwy drużyn korzystają z pomiaru, skróty kolumn nie", () => {
+  it("nazwy drużyn w Rankingu korzystają z pomiaru, skróty kolumn nie", () => {
     expect(source("components/standings-table.tsx")).toContain("onlyWhenTruncated");
-    expect(source("components/match-matrix.tsx")).toContain("onlyWhenTruncated");
+
+    /*
+      Matrix świadomie NIE mierzy: kolumna nazw ma stałe 9 rem i mieści
+      wyłącznie najkrótsze nazwy, więc pełna nazwa jest tam dostępna
+      w każdym wierszu tak samo. Patrz tests/matrix-team-names.test.tsx.
+    */
+    expect(source("components/match-matrix.tsx")).not.toContain(
+      "onlyWhenTruncated"
+    );
 
     // Skrót „Pkt" ma być wyjaśniany zawsze — nie jest ucięty, tylko krótki.
     expect(source("components/ui/column-help.tsx")).not.toContain(

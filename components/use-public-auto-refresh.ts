@@ -16,6 +16,7 @@ export type PublicSnapshotShape = {
   tournament: Tournament;
   settings: { structure: TournamentStructure; scorersEnabled: boolean };
   playoffState: PlayoffStateView | null;
+  plannedMatchCount: number;
 };
 
 type Options = {
@@ -25,6 +26,7 @@ type Options = {
   initialStructure: TournamentStructure;
   initialScorersEnabled: boolean;
   initialPlayoffState: PlayoffStateView | null;
+  initialPlannedMatchCount: number;
 };
 
 /**
@@ -40,6 +42,9 @@ export function usePublicAutoRefresh(options: Options) {
     options.initialScorersEnabled
   );
   const [playoffState, setPlayoffState] = useState(options.initialPlayoffState);
+  const [plannedMatchCount, setPlannedMatchCount] = useState(
+    options.initialPlannedMatchCount
+  );
   /** Rośnie po KAŻDYM udanym zastosowaniu snapshotu — mikro-feedback w UI. */
   const [refreshTick, setRefreshTick] = useState(0);
 
@@ -50,6 +55,7 @@ export function usePublicAutoRefresh(options: Options) {
     // Wyłączenie klasyfikacji w panelu znika u kibica bez przeładowania.
     setScorersEnabled(snapshot.settings.scorersEnabled);
     setPlayoffState(snapshot.playoffState);
+    setPlannedMatchCount(snapshot.plannedMatchCount);
     setRefreshTick((tick) => tick + 1);
   });
 
@@ -121,5 +127,12 @@ export function usePublicAutoRefresh(options: Options) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { tournament, structure, scorersEnabled, playoffState, refreshTick };
+  return {
+    tournament,
+    structure,
+    scorersEnabled,
+    playoffState,
+    plannedMatchCount,
+    refreshTick,
+  };
 }

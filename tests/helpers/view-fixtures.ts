@@ -49,6 +49,7 @@ export function semiFinalRound(): PlayoffRoundView {
       awayScore: 1,
       winnerTeamId: `h${slot}`,
       isFinished: true,
+      editability: "editable" as const,
     })),
   });
 }
@@ -68,6 +69,7 @@ export function finalRound(): PlayoffRoundView {
         slotIndex: 1,
         home: null,
         away: null,
+        editability: "pending" as const,
         homeLabel: "Zwycięzca SF1",
         awayLabel: "Zwycięzca SF2",
         homeScore: null,
@@ -122,6 +124,7 @@ export function placement(): PlacementView {
         away: team("p2", "Szóści"),
         homeScore: null,
         awayScore: null,
+        editability: "editable" as const,
       },
     ],
     standings: [

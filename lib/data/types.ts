@@ -1,3 +1,4 @@
+import type { OperationIssueReport } from "@/lib/playoff/validation";
 import type { Tournament } from "@/types/tournament";
 import type {
   TournamentFormat,
@@ -143,8 +144,16 @@ export class UnsupportedOperationError extends Error {
 
 /** Rzucane, gdy reguła biznesowa blokuje operację (komunikat trafia do UI). */
 export class TournamentOperationError extends Error {
-  constructor(message: string) {
+  /**
+   * Opcjonalna, czytelna dla człowieka postać błędu: lista meczów
+   * z nazwami i herbami zamiast identyfikatorów technicznych.
+   * UI renderuje ją, gdy jest; `message` zostaje jako zapas.
+   */
+  readonly details?: OperationIssueReport;
+
+  constructor(message: string, details?: OperationIssueReport) {
     super(message);
     this.name = "TournamentOperationError";
+    this.details = details;
   }
 }

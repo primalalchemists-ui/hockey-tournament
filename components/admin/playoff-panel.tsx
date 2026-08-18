@@ -7,13 +7,18 @@ import {
   completeGroupStageAction,
   completeTournamentAction,
   reopenPreviousPhaseAction,
-  savePlayoffScoreAction,
   type TournamentActionState,
 } from "@/app/admin/actions";
+import { OperationError } from "@/components/admin/operation-error";
+import { PlayoffMatchRow } from "@/components/admin/playoff-match-row";
 import type {
-  PlayoffMatchView,
+  PlayoffScopeView,
   PlayoffStateView,
 } from "@/lib/data/postgres/playoff-engine";
+import {
+  describeEditabilityLabel,
+  type MatchEditability,
+} from "@/lib/playoff/editability";
 
 type PlayoffPanelProps = {
   tournamentId: string;
@@ -23,10 +28,15 @@ type PlayoffPanelProps = {
 const initialState: TournamentActionState = { error: null };
 
 /**
- * MINIMALNY panel sterowania fazami turnieju.
+ * PANEL STEROWANIA FAZAMI TURNIEJU.
  *
- * Świadomie bez designu drabinki — publiczne UI powstanie w kolejnym etapie.
- * Tutaj chodzi wyłącznie o to, żeby dało się przeprowadzić turniej.
+ * Zasada porządkująca cały ekran: administrator edytuje WYLACZNIE etap,
+ * który trwa. Rundy przyszłe i rozegrane są widoczne, ale wyszarzone
+ * i bez inputów — inaczej przy półfinałach panel pokazywał siedem
+ * jednakowo aktywnych sekcji i nie było wiadomo, co jest teraz grane.
+ *
+ * Minigrupa jest wyjątkiem: to niezależna gałąź, którą w hali gra się
+ * równolegle z drabinką, więc jest aktywna przez cały play-off.
  */
 export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
   const [groupState, completeGroup, isGroupPending] = useActionState(
@@ -46,20 +56,19 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
     initialState
   );
 
-  const error =
-    groupState.error ?? roundState.error ?? finishState.error ?? reopenState.error;
+  const failed = [groupState, roundState, finishState, reopenState].find(
+    (item) => item.error
+  );
 
   const activeRoundLabel = state.scopes
     .flatMap((scope) => scope.rounds)
     .find((round) => round.status === "active")?.label;
 
   return (
-    <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
+    <section className="ice-surface flush-card space-y-4 p-4 shadow-sm sm:rounded-3xl sm:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Aktualna faza
-          </p>
+          <p className="section-eyebrow">Aktualna faza</p>
           <p className="text-lg font-bold text-slate-900">{state.phaseLabel}</p>
         </div>
 
@@ -70,23 +79,25 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
               <button
                 type="submit"
                 disabled={isGroupPending}
-                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn btn-primary h-10 min-w-[13rem] justify-center text-sm"
               >
-                {isGroupPending ? "Zamykanie..." : "Zakończ fazę grupową"}
+                {isGroupPending ? "Zamykanie\u2026" : "Zakończ fazę grupową"}
               </button>
             </form>
           ) : null}
 
-          {state.phase !== "group_stage" && state.phase !== "final" && state.phase !== "completed" ? (
+          {state.phase !== "group_stage" &&
+          state.phase !== "final" &&
+          state.phase !== "completed" ? (
             <form action={completeRound}>
               <input type="hidden" name="tournamentId" value={tournamentId} />
               <button
                 type="submit"
                 disabled={isRoundPending}
-                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn btn-primary h-10 min-w-[13rem] justify-center text-sm"
               >
                 {isRoundPending
-                  ? "Zamykanie..."
+                  ? "Zamykanie\u2026"
                   : `Zakończ ${activeRoundLabel ?? state.phaseLabel}`}
               </button>
             </form>
@@ -98,9 +109,9 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
               <button
                 type="submit"
                 disabled={isFinishPending}
-                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn btn-primary h-10 min-w-[13rem] justify-center text-sm"
               >
-                {isFinishPending ? "Kończenie..." : "Zakończ turniej"}
+                {isFinishPending ? "Kończenie\u2026" : "Zakończ turniej"}
               </button>
             </form>
           ) : null}
@@ -122,163 +133,139 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
               <button
                 type="submit"
                 disabled={isReopenPending}
-                className="rounded-2xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50"
+                className="btn btn-quiet h-10 min-w-[13rem] justify-center border-amber-300 text-sm text-amber-800"
               >
-                {isReopenPending ? "Cofanie..." : "Cofnij do poprzedniej fazy"}
+                {isReopenPending ? "Cofanie\u2026" : "Cofnij do poprzedniej fazy"}
               </button>
             </form>
           ) : null}
         </div>
       </header>
 
-      {error ? (
-        <pre className="whitespace-pre-wrap rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-medium text-rose-800">
-          {error}
-        </pre>
-      ) : null}
+      <OperationError
+        message={failed?.error ?? null}
+        details={failed?.details ?? null}
+      />
 
       {state.scopes.map((scope) => (
-        <div
+        <ScopeCard
           key={scope.groupKey}
-          className="space-y-3 rounded-2xl border border-slate-200 p-4"
-        >
-          <h3 className="text-sm font-bold text-slate-900">{scope.groupName}</h3>
-
-          {scope.preview ? (
-            <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
-              <p className="font-semibold text-slate-700">
-                Podgląd rozstawienia (może się jeszcze zmienić)
-              </p>
-              {scope.preview.warnings.map((warning) => (
-                <p key={warning} className="mt-1 text-amber-700">
-                  {warning}
-                </p>
-              ))}
-              <ul className="mt-2 space-y-0.5">
-                {scope.preview.pairs.map((pair) => (
-                  <li key={pair.slotIndex}>
-                    #{pair.homeSeed} {pair.homeTeamName ?? "—"} vs #{pair.awaySeed}{" "}
-                    {pair.awayTeamName ?? "—"}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {scope.rounds.map((round) => (
-            <div key={round.kind} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {round.label} · {round.status}
-              </p>
-
-              {round.matches.map((match) => (
-                <MatchScoreForm
-                  key={match.externalId}
-                  tournamentId={tournamentId}
-                  match={match}
-                />
-              ))}
-            </div>
-          ))}
-
-          {scope.placement ? (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Minigrupa klasyfikacyjna
-              </p>
-
-              {scope.placement.matches.map((match) => (
-                <MatchScoreForm
-                  key={match.externalId}
-                  tournamentId={tournamentId}
-                  match={{
-                    externalId: match.externalId,
-                    homeLabel: match.home.name,
-                    awayLabel: match.away.name,
-                    homeScore: match.homeScore,
-                    awayScore: match.awayScore,
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {scope.classification?.complete ? (
-            <div className="rounded-2xl bg-emerald-50 p-3 text-xs text-emerald-900">
-              <p className="font-semibold">Klasyfikacja końcowa</p>
-              <ol className="mt-1 space-y-0.5">
-                {scope.classification.entries.map((entry) => (
-                  <li key={entry.team.teamId}>
-                    {entry.position ?? "?"}. {entry.team.name}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null}
-        </div>
+          tournamentId={tournamentId}
+          scope={scope}
+        />
       ))}
     </section>
   );
 }
 
-type MatchLike = Pick<
-  PlayoffMatchView,
-  "externalId" | "homeLabel" | "awayLabel" | "homeScore" | "awayScore"
->;
-
-function MatchScoreForm({
-  tournamentId,
-  match,
-}: {
-  tournamentId: string;
-  match: MatchLike;
-}) {
-  const [state, action, isPending] = useActionState(
-    savePlayoffScoreAction,
-    initialState
-  );
+/** Plakietka etapu — jeden język dla rund i minigrupy. */
+function StatusPill({ status }: { status: MatchEditability }) {
+  const tone =
+    status === "editable"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "completed"
+        ? "border-slate-200 bg-slate-100 text-slate-500"
+        : "border-amber-200 bg-amber-50 text-amber-700";
 
   return (
-    <form
-      action={action}
-      className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 px-3 py-2"
+    <span
+      data-testid="round-status"
+      data-status={status}
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tone}`}
     >
-      <input type="hidden" name="tournamentId" value={tournamentId} />
-      <input type="hidden" name="matchExternalId" value={match.externalId} />
+      {describeEditabilityLabel(status)}
+    </span>
+  );
+}
 
-      <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
-        {match.homeLabel} — {match.awayLabel}
-      </span>
+function ScopeCard({
+  tournamentId,
+  scope,
+}: {
+  tournamentId: string;
+  scope: PlayoffScopeView;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
+      <h3 className="text-sm font-bold text-slate-900">{scope.groupName}</h3>
 
-      <input
-        name="homeScore"
-        type="number"
-        min={0}
-        defaultValue={match.homeScore ?? ""}
-        className="w-14 rounded-xl border border-slate-300 px-2 py-1 text-center text-sm"
-      />
-      <span className="text-slate-400">:</span>
-      <input
-        name="awayScore"
-        type="number"
-        min={0}
-        defaultValue={match.awayScore ?? ""}
-        className="w-14 rounded-xl border border-slate-300 px-2 py-1 text-center text-sm"
-      />
-
-      <button
-        type="submit"
-        disabled={isPending}
-        className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-      >
-        {isPending ? "..." : "Zapisz"}
-      </button>
-
-      {state.error ? (
-        <span className="w-full text-xs font-medium text-rose-700">
-          {state.error}
-        </span>
+      {scope.preview ? (
+        <div className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
+          <p className="font-semibold text-slate-700">
+            Podgląd rozstawienia (może się jeszcze zmienić)
+          </p>
+          {scope.preview.warnings.map((warning) => (
+            <p key={warning} className="mt-1 text-amber-700">
+              {warning}
+            </p>
+          ))}
+          <ul className="mt-2 space-y-0.5">
+            {scope.preview.pairs.map((pair) => (
+              <li key={pair.slotIndex}>
+                #{pair.homeSeed} {pair.homeTeamName ?? "\u2014"} vs #
+                {pair.awaySeed} {pair.awayTeamName ?? "\u2014"}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
-    </form>
+
+      {scope.rounds.map((round) => {
+        const status = round.matches[0]?.editability ?? "locked";
+
+        return (
+          <div key={round.kind} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="section-eyebrow">{round.label}</p>
+              <StatusPill status={status} />
+            </div>
+
+            {round.matches.map((match) => (
+              <PlayoffMatchRow
+                key={match.externalId}
+                tournamentId={tournamentId}
+                match={match}
+              />
+            ))}
+          </div>
+        );
+      })}
+
+      {scope.placement ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <p className="section-eyebrow">
+              Klasyfikacja miejsc {scope.placement.positionFrom}
+              {"\u2013"}
+              {scope.placement.positionTo}
+            </p>
+            <StatusPill
+              status={scope.placement.matches[0]?.editability ?? "locked"}
+            />
+          </div>
+
+          {scope.placement.matches.map((match) => (
+            <PlayoffMatchRow
+              key={match.externalId}
+              tournamentId={tournamentId}
+              match={match}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {scope.classification?.complete ? (
+        <div className="rounded-2xl bg-emerald-50 p-3 text-xs text-emerald-900">
+          <p className="font-semibold">Klasyfikacja końcowa</p>
+          <ol className="mt-1 space-y-0.5">
+            {scope.classification.entries.map((entry) => (
+              <li key={entry.team.teamId}>
+                {entry.position ?? "?"}. {entry.team.name}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+    </div>
   );
 }
