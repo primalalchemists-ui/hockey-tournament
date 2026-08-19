@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 
@@ -39,10 +40,29 @@ describe.skipIf(!hasDatabase)("W-Z: turniej do ręcznej próby", () => {
     expect(rows[0].title).toBe("PLAYOFF REHEARSAL — MANUAL");
   });
 
-  it("X: nie jest wyświetlany publicznie", async () => {
-    const [row] = await loadTournament();
+  it("X: setup nigdy sam nie robi z niego turnieju publicznego", async () => {
+    /*
+      Który turniej jest wyświetlany publicznie, decyduje administrator —
+      i w trakcie ręcznej próby faktycznie przełączył na niego stronę,
+      żeby obejrzeć celebrację. Niezmiennikiem jest to, że robi to KLIK
+      w panelu, a nie skrypt: setup nie zawiera ani jednego wywołania
+      zmieniającego turniej publiczny.
+    */
+    const setup = readFileSync(
+      new URL("../scripts/rehearsal-setup.ts", import.meta.url),
+      "utf8"
+    );
 
-    expect(row.isCurrent).toBe(false);
+    expect(setup).not.toContain("setCurrentTournament");
+    expect(setup).not.toContain("isCurrent: true");
+
+    const rows = await getDb()
+      .select({ slug: tournaments.slug })
+      .from(tournaments)
+      .where(eq(tournaments.isCurrent, true));
+
+    // Baza gwarantuje jedyność wyboru.
+    expect(rows).toHaveLength(1);
   });
 
   it("X: konfiguracja jest lustrem SUN CUP U8", async () => {

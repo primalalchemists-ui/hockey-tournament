@@ -28,6 +28,14 @@ type CellPopoverProps = {
    * hover nad kompletnym tekstem był tylko szumem.
    */
   onlyWhenTruncated?: boolean;
+  /**
+   * Wyłącza interakcję na czas animacji.
+   *
+   * Kursor stojący nad miejscem, w które dopiero wjeżdża herb, nie może
+   * otworzyć dymka w trakcie ceremonii — treść zasłoniłaby to, na co
+   * kibic właśnie patrzy.
+   */
+  disabled?: boolean;
 };
 
 /**
@@ -56,6 +64,7 @@ export function CellPopover({
   placement = "center",
   align = "above",
   onlyWhenTruncated = false,
+  disabled = false,
 }: CellPopoverProps) {
   const [open, setOpen] = useState(false);
   const [isTruncated, setIsTruncated] = useState(!onlyWhenTruncated);
@@ -148,20 +157,21 @@ export function CellPopover({
         aria-expanded={open}
         aria-describedby={open ? popoverId : undefined}
         className={className}
-        onClick={() => isTruncated && setOpen((value) => !value)}
+        onClick={() => !disabled && isTruncated && setOpen((value) => !value)}
         onPointerEnter={(event) => {
+          if (disabled) return;
           if (isTruncated && event.pointerType === "mouse") setOpen(true);
         }}
         onPointerLeave={(event) => {
           if (event.pointerType === "mouse") setOpen(false);
         }}
-        onFocus={() => isTruncated && setOpen(true)}
+        onFocus={() => !disabled && isTruncated && setOpen(true)}
         onBlur={() => setOpen(false)}
       >
         {children}
       </button>
 
-      {open && isTruncated ? (
+      {open && isTruncated && !disabled ? (
         <span
           role="tooltip"
           id={popoverId}

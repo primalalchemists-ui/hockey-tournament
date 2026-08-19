@@ -7,12 +7,20 @@ import type {
   ClassificationView,
 } from "@/lib/data/postgres/playoff-engine";
 import type { ClassificationSlot } from "@/lib/playoff/classification";
+import { CellPopover } from "@/components/ui/cell-popover";
 import { celebrationSectionId } from "@/lib/public/celebration";
+import { pulse } from "@/lib/public/haptics";
 import { CELEBRATION_SEEN_EVENT } from "@/components/use-celebration";
 import {
+  PODIUM_BEAM_MS,
+  PODIUM_DROP_MS,
+  PODIUM_HAPTIC_MS,
+  PODIUM_IMPACT_MS,
+  PODIUM_SHAKE_PX,
   REVEAL_DURATION_MS,
   buildPodiumStorageKey,
   buildRevealOrder,
+  getImpactMs,
   getRevealTotalMs,
   hasSeenReveal,
   markRevealSeen,
@@ -39,113 +47,222 @@ const MEDALS: Record<number, string> = {
  * ELEMENTY
  * ======================================================================== */
 
+/**
+ * HERB NA PODIUM.
+ *
+ * Nazwa drużyny NIE jest już wypisana pod logo — scena ma być lekka,
+ * a nazwy dokładały jej najwięcej ciężaru. Pełna nazwa jest dostępna
+ * przez najechanie, klawiaturę albo dotknięcie, a czytnik ekranu zna ją
+ * z etykiety razem z zajętym miejscem.
+ */
 function TeamLogo({
   team,
   size,
+  position,
+  interactive,
 }: {
   team: BracketTeamView | null;
   size: "winner" | "lg" | "sm";
+  position: number | null;
+  /** Dymek budzi się dopiero po zakończeniu wjazdu tego miejsca. */
+  interactive: boolean;
 }) {
   // Hierarchia medalowa zaczyna sie juz na rozmiarze logo.
   const dimension =
     size === "winner"
-      ? "h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem]"
+      ? "h-14 w-14 xs:h-16 xs:w-16 sm:h-[4.5rem] sm:w-[4.5rem]"
       : size === "lg"
-        ? "h-12 w-12 sm:h-14 sm:w-14"
+        ? "h-11 w-11 xs:h-12 xs:w-12 sm:h-14 sm:w-14"
         : "h-9 w-9";
 
-  if (team?.logoUrl) {
+  const badge = team?.logoUrl ? (
+    <img
+      src={team.logoUrl}
+      alt=""
+      className="h-full w-full rounded-2xl object-contain p-0.5"
+    />
+  ) : (
+    <span className="text-sm font-semibold text-white/30">
+      {team ? (team.logoText?.slice(0, 3) ?? team.name.slice(0, 3)) : "?"}
+    </span>
+  );
+
+  const shell = `${dimension} flex items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/[0.07]`;
+
+  if (!team) {
     return (
-      <img
-        src={team.logoUrl}
-        alt={team.name}
-        className={`${dimension} rounded-2xl border border-white/20 bg-white/10 object-contain p-0.5`}
-      />
+      <span aria-hidden="true" className={shell}>
+        {badge}
+      </span>
     );
   }
 
   return (
-    <span
-      aria-hidden="true"
-      className={`${dimension} flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.05] text-lg font-semibold text-white/30`}
+    <CellPopover
+      testId="podium-team"
+      disabled={!interactive}
+      label={position ? `${position}. miejsce — ${team.name}` : team.name}
+      content={team.name}
+      className={`${shell} transition-colors hover:border-white/40`}
     >
-      {team ? (team.logoText?.slice(0, 3) ?? team.name.slice(0, 3)) : "?"}
-    </span>
+      {badge}
+    </CellPopover>
   );
 }
+
+/** Ton światła bierze się z medalu, nie z osobnej palety. */
+const PODIUM_TONE: Record<number, string> = {
+  1: "podium-tone-gold",
+  2: "podium-tone-silver",
+  3: "podium-tone-bronze",
+};
 
 function Step({
   entry,
   label,
   heightClass,
+  medalClass,
   revealed,
   delayMs,
   isWinner,
   reducedMotion,
+  interactive,
 }: {
   entry: ClassificationView["entries"][number] | null;
   label: string;
   heightClass: string;
+  /** Rozmiar medalu wynika z wysokości stopnia, nie jest wspólny. */
+  medalClass: string;
   revealed: boolean;
   delayMs: number;
   isWinner: boolean;
   reducedMotion: boolean;
+  interactive: boolean;
 }) {
-  const medal = entry?.position ? MEDALS[entry.position] : null;
+  const position = entry?.position ?? null;
+  const medal = position ? MEDALS[position] : null;
+  const tone = position ? PODIUM_TONE[position] : "";
+
+  /*
+    SEKWENCJA JEDNEGO MIEJSCA.
+
+    herb opada (PODIUM_DROP_MS) → ląduje → stopień drga → snop światła
+    gaśnie → zostaje spokojny blask. Każde miejsce ma własne opóźnienie,
+    więc nic nie zapala się jednocześnie.
+  */
+  const impactMs = getImpactMs(delayMs);
+  const animate = revealed && !reducedMotion;
 
   return (
-    <div className="flex w-full min-w-0 max-w-[8.5rem] flex-col items-center gap-2.5 sm:max-w-[9.5rem]">
-      <div
-        className="flex flex-col items-center gap-2.5"
-        style={{
-          opacity: revealed ? 1 : 0,
-          transform: revealed ? "translateX(0)" : "translateX(-1.5rem)",
-          transition: reducedMotion
-            ? "opacity 160ms ease-out"
-            : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms`,
-        }}
-      >
-        <TeamLogo team={entry?.team ?? null} size={isWinner ? "winner" : "lg"} />
+    /*
+      GEOMETRIA MOBILE.
 
-        <p
-          className={[
-            "line-clamp-2 w-full break-words text-center leading-tight text-white",
-            isWinner
-              ? "text-sm font-bold sm:text-[15px]"
-              : "text-[13px] font-semibold",
-          ].join(" ")}
-        >
-          {entry ? entry.team.name : " "}
-        </p>
+      Slot dostaje bazę 0 i rośnie proporcjonalnie, więc trzy stopnie ZAWSZE
+      dzielą dostępną szerokość sceny zamiast sumować swoje maksima.
+      Zwycięzca jest odrobinę szerszy od pozostałych — hierarchia zostaje,
+      a brązowy medal nie wychodzi już poza prawą krawędź.
+    */
+    <div
+      data-testid="podium-step"
+      data-position={position ?? label}
+      className={[
+        "flex min-w-0 basis-0 flex-col items-center gap-2 sm:gap-2.5",
+        tone,
+        isWinner
+          ? "grow-[1.15] max-w-[8.5rem] sm:max-w-[9.5rem]"
+          : "grow max-w-[7rem] sm:max-w-[9rem]",
+      ].join(" ")}
+    >
+      <div
+        data-testid="podium-logo"
+        className={[
+          "flex w-full min-w-0 flex-col items-center",
+          animate ? "podium-drop" : "",
+        ].join(" ")}
+        style={
+          animate
+            ? {
+                // Herb startuje NAD swoim miejscem i opada dokładnie na nie.
+                animationDelay: `${delayMs}ms`,
+                ["--drop-ms" as string]: `${PODIUM_DROP_MS}ms`,
+              }
+            : { opacity: revealed ? 1 : 0 }
+        }
+      >
+        <TeamLogo
+          team={entry?.team ?? null}
+          size={isWinner ? "winner" : "lg"}
+          position={position}
+          interactive={interactive}
+        />
       </div>
 
       <div
+        data-testid={isWinner ? "podium-winner-step" : undefined}
         className={[
-          "relative flex w-full items-start justify-center rounded-t-2xl border border-b-0 bg-gradient-to-b pt-3 transition-shadow duration-700",
+          "relative flex w-full items-center justify-center rounded-t-2xl border border-b-0 bg-gradient-to-b",
           heightClass,
           isWinner && revealed
-            ? "border-amber-200/40 from-white/[0.18] to-white/[0.06] shadow-[0_0_2rem_-0.35rem_rgba(255,214,124,0.55)]"
+            ? "border-amber-200/40 from-white/[0.18] to-white/[0.06]"
             : "border-white/15 from-white/[0.11] to-white/[0.04]",
+          // Uderzenie dotyczy WYŁĄCZNIE tego stopnia — nigdy strony.
+          animate ? "podium-impact" : "",
         ].join(" ")}
+        style={
+          animate
+            ? {
+                animationDelay: `${impactMs}ms`,
+                ["--impact-ms" as string]: `${PODIUM_IMPACT_MS}ms`,
+                ["--shake" as string]: `${PODIUM_SHAKE_PX[position ?? 3] ?? 1}px`,
+              }
+            : undefined
+        }
       >
-        {/* Swietlny grzbiet stopnia — glebia bez sztuczek 3D. */}
+        {/* Świetlny grzbiet stopnia — głębia bez sztuczek 3D. */}
         <span
           aria-hidden="true"
           className="absolute inset-x-3 top-0 h-px bg-white/25"
         />
 
+        {/* Snop światła schodzi z góry dokładnie na ten stopień. */}
+        {animate && position ? (
+          <span
+            aria-hidden="true"
+            data-testid="podium-beam"
+            className="podium-beam"
+            style={{
+              animationDelay: `${impactMs - PODIUM_BEAM_MS * 0.55}ms`,
+              ["--beam-ms" as string]: `${PODIUM_BEAM_MS}ms`,
+            }}
+          />
+        ) : null}
+
+        {/* Blask medalu zapala się DOPIERO po własnym uderzeniu. */}
+        {revealed && position ? (
+          <span
+            aria-hidden="true"
+            data-testid="podium-glow"
+            className="podium-glow absolute inset-0 rounded-t-2xl"
+            style={
+              reducedMotion ? undefined : { animationDelay: `${impactMs}ms` }
+            }
+          />
+        ) : null}
+
         {medal && entry ? (
           <img
             src={medal}
             alt={`${entry.position}. miejsce`}
-            className={
-              isWinner
-                ? "h-9 w-9 object-contain sm:h-11 sm:w-11"
-                : "h-8 w-8 object-contain sm:h-9 sm:w-9"
-            }
+            data-testid="podium-medal"
+            /*
+              Medal jest wyśrodkowany w SWOIM stopniu (items-center +
+              justify-center), a jego rozmiar wynika z wysokości tego
+              stopnia — złoto największe, brąz najmniejsze.
+            */
+            className={`${medalClass} relative object-contain`}
           />
         ) : (
-          <span className="stat-num text-lg font-bold text-white/45">
+          <span className="stat-num relative text-lg font-bold text-white/45">
             {label}
           </span>
         )}
@@ -154,21 +271,31 @@ function Step({
   );
 }
 
+/**
+ * Miejsce spoza podium: numer i herb.
+ *
+ * Nazwy drużyn zostały stąd usunięte razem z tymi z podium — rząd
+ * 4-N ma być lekkim domknięciem klasyfikacji, a nie drugą tabelą.
+ * Pełna nazwa jest pod dotknięciem i pod focusem.
+ */
 function TailSlot({
   label,
   entry,
   revealed,
   delayMs,
   reducedMotion,
+  interactive,
 }: {
   label: string;
   entry: ClassificationView["entries"][number] | null;
   revealed: boolean;
   delayMs: number;
   reducedMotion: boolean;
+  interactive: boolean;
 }) {
   return (
     <li
+      data-testid="podium-tail-slot"
       className="flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] px-1.5 py-2.5 backdrop-blur-[2px]"
       style={{
         opacity: revealed ? 1 : 0,
@@ -180,16 +307,12 @@ function TailSlot({
     >
       <span className="stat-num text-xs font-bold text-white/45">{label}</span>
 
-      <TeamLogo team={entry?.team ?? null} size="sm" />
-
-      <span
-        className={[
-          "line-clamp-2 w-full break-words text-center text-[11px] leading-tight",
-          entry ? "font-medium text-white" : "font-semibold text-white/30",
-        ].join(" ")}
-      >
-        {entry ? entry.team.name : "?"}
-      </span>
+      <TeamLogo
+        team={entry?.team ?? null}
+        size="sm"
+        position={entry?.position ?? null}
+        interactive={interactive}
+      />
     </li>
   );
 }
@@ -208,6 +331,7 @@ export function PodiumSection({
 }: PodiumSectionProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [revealed, setRevealed] = useState(false);
+  const [ceremonyDone, setCeremonyDone] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
   const isComplete = Boolean(classification?.complete && completionToken);
@@ -223,6 +347,35 @@ export function PodiumSection({
     for (const item of revealOrder) map.set(item.key, item.delayMs);
     return map;
   }, [revealOrder]);
+
+  /*
+    Czas trwania ceremonii jest LICZBĄ, a nie tablicą.
+
+    To istotne: auto-odświeżanie co 13 s podmienia obiekt klasyfikacji,
+    więc `revealOrder` dostaje nową tożsamość mimo identycznej treści.
+    Gdy efekt poniżej zależał od tablicy, każde odświeżenie kasowało
+    licznik ceremonii i zaczynało go od zera — a przy ceremonii dłuższej
+    niż 6 s bywało, że „obejrzane" nie zapisywało się nigdy.
+  */
+  const revealTotalMs = getRevealTotalMs(revealOrder);
+
+  /** Momenty lądowania medalistów — do krótkich impulsów wibracji. */
+  const impacts = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.position !== null && entry.position <= 3)
+        .map((entry) => ({
+          position: entry.position as number,
+          atMs: getImpactMs(delayFor.get(entry.team.teamId) ?? 0),
+        })),
+    [entries, delayFor]
+  );
+
+  const impactsRef = useRef(impacts);
+
+  useEffect(() => {
+    impactsRef.current = impacts;
+  }, [impacts]);
 
   useEffect(() => {
     const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -248,13 +401,16 @@ export function PodiumSection({
 
     if (hasSeenReveal(storageKey)) {
       setRevealed(true);
+      // Ceremonia już była: pełny stan końcowy i od razu działające dymki.
+      setCeremonyDone(true);
       return;
     }
 
-    let timer: number | undefined;
+    const timers: number[] = [];
 
     function markSeen(key: string) {
       markRevealSeen(key);
+      setCeremonyDone(true);
       // Przycisk celebracji słucha tego zdarzenia i przestaje zapraszać.
       window.dispatchEvent(new Event(CELEBRATION_SEEN_EVENT));
     }
@@ -273,10 +429,28 @@ export function PodiumSection({
 
         // "Obejrzane" zapisujemy DOPIERO po zakończeniu animacji —
         // zamknięcie strony w połowie pozwala zobaczyć ceremonię ponownie.
-        timer = window.setTimeout(
-          () => markSeen(storageKey),
-          getRevealTotalMs(revealOrder)
+        timers.push(
+          window.setTimeout(() => markSeen(storageKey), revealTotalMs)
         );
+
+        /*
+          Wibracja to WYŁĄCZNIE wzmocnienie lądowania medalisty. Każdy
+          warunek bezpieczeństwa (brak API, ograniczony ruch, ukryta
+          karta) kończy się ciszą, nigdy błędem.
+        */
+        for (const impact of impactsRef.current) {
+          timers.push(
+            window.setTimeout(() => {
+              pulse(PODIUM_HAPTIC_MS[impact.position] ?? 0, {
+                isLiveReveal: true,
+                reducedMotion,
+                documentVisible:
+                  typeof document === "undefined" ||
+                  document.visibilityState === "visible",
+              });
+            }, impact.atMs)
+          );
+        }
       },
       /*
         Sekcja bywa wyższa niż ekran, więc próg 25% jej powierzchni bywa
@@ -291,16 +465,19 @@ export function PodiumSection({
 
     return () => {
       observer.disconnect();
-      if (timer) window.clearTimeout(timer);
+      for (const timer of timers) window.clearTimeout(timer);
     };
   }, [
     isComplete,
     completionToken,
     tournamentId,
     scopeKey,
-    revealOrder,
+    revealTotalMs,
     reducedMotion,
   ]);
+
+  /** Dymki z nazwami budzą się dopiero po ceremonii — patrz TeamLogo. */
+  const interactive = ceremonyDone || reducedMotion;
 
   /* --- rozmieszczenie slotów ------------------------------------------- */
 
@@ -354,39 +531,54 @@ export function PodiumSection({
           Klasyfikacja końcowa
         </h3>
 
-        {/* Podium: 2 z lewej, 1 centralnie i najwyżej, 3 z prawej. */}
-        <div className="mt-6 flex items-end justify-center gap-2.5 sm:gap-5">
+        {/*
+          Podium: 2 z lewej, 1 centralnie i najwyżej, 3 z prawej.
+
+          `w-full` na rzędzie jest istotne: bez niego rząd przyjmował
+          szerokość max-content trzech stopni i — wyśrodkowany — wystawał
+          poza scenę, przez co brązowy medal był przycinany na telefonie.
+        */}
+        <div
+          data-testid="podium-scene"
+          className="mx-auto mt-6 flex w-full max-w-[34rem] items-end justify-center gap-2 sm:gap-5"
+        >
           {podiumSlots.some((slot) => slot.position === 2) ? (
             <Step
               entry={stepFor(2)}
               label="2"
-              heightClass="h-14 sm:h-16"
+              heightClass="h-16 sm:h-20"
+              medalClass="h-8 w-8 sm:h-10 sm:w-10"
               revealed={revealed}
               delayMs={delayOf(stepFor(2))}
               isWinner={false}
               reducedMotion={reducedMotion}
+              interactive={interactive}
             />
           ) : null}
 
           <Step
             entry={stepFor(1)}
             label="1"
-            heightClass="h-20 sm:h-24"
+            heightClass="h-24 sm:h-28"
+            medalClass="h-11 w-11 sm:h-14 sm:w-14"
             revealed={revealed}
             delayMs={delayOf(stepFor(1))}
             isWinner
             reducedMotion={reducedMotion}
+            interactive={interactive}
           />
 
           {podiumSlots.some((slot) => slot.position === 3) ? (
             <Step
               entry={stepFor(3)}
               label="3"
-              heightClass="h-10 sm:h-12"
+              heightClass="h-12 sm:h-14"
+              medalClass="h-7 w-7 sm:h-8 sm:w-8"
               revealed={revealed}
               delayMs={delayOf(stepFor(3))}
               isWinner={false}
               reducedMotion={reducedMotion}
+              interactive={interactive}
             />
           ) : null}
         </div>
@@ -418,7 +610,14 @@ export function PodiumSection({
                       : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms`,
                   }}
                 >
-                  <TeamLogo team={entry?.team ?? null} size="sm" />
+                  {/* Miejsca dzielone czyta się jak zdanie, więc tu nazwa
+                      zostaje — to nie jest scena podium. */}
+                  <TeamLogo
+                    team={entry?.team ?? null}
+                    size="sm"
+                    position={entry?.position ?? null}
+                    interactive={interactive}
+                  />
                   <span
                     className={[
                       "truncate",
@@ -459,6 +658,7 @@ export function PodiumSection({
                   revealed={revealed}
                   delayMs={delayOf(entry)}
                   reducedMotion={reducedMotion}
+                  interactive={interactive}
                 />
               );
             })}

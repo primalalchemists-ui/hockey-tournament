@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 /*
+  Dodatkowy, węższy breakpoint.
+
+  Podium musi zmieścić trzy stopnie w jednym rzędzie także na najwęższych
+  telefonach (360-390 px), a domyślny `sm` (640 px) jest na to o wiele
+  za daleko. To jedyne miejsce, w którym potrzebujemy progu pośredniego.
+*/
+@theme {
+  --breakpoint-xs: 26rem;
+}
+
+/*
   ICE DESIGN SYSTEM — neutralny, chłodny fundament.
 
   Celowo NIE zawiera kolorystyki żadnego konkretnego turnieju.
@@ -398,22 +409,57 @@ button {
     czytelny bez obwódek i cieni. Hover zmienia wyłącznie kolor i ring,
     layout stoi w miejscu — tak jak w pozostałych przyciskach.
   */
+  /*
+    CTA CELEBRACJI — ciemny granat i cienkie złoto.
+
+    Poprzednia, jasnokremowa wersja czytała się jak przycisk promocji.
+    Ten wariant należy do świata transmisji sportowej i do oprawy SUN CUP:
+    nocne tło, metaliczna krawędź, ciepłe światło DO ŚRODKA. Bez wypełnienia
+    złotem, bez neonu i bez gradientu rodem z kasyna.
+  */
   .btn-celebration {
-    background: linear-gradient(180deg, #fdf3d8 0%, #f7e6bd 100%);
-    border: 1px solid rgba(180, 132, 45, 0.55);
-    color: #6b4708;
-    box-shadow: 0 0.5rem 1.25rem -0.85rem rgba(120, 82, 12, 0.55);
+    background:
+      radial-gradient(
+        120% 140% at 50% -30%,
+        rgba(233, 186, 105, 0.22) 0%,
+        rgba(233, 186, 105, 0) 60%
+      ),
+      linear-gradient(180deg, #16233b 0%, #0b1220 100%);
+    border: 1px solid rgba(214, 175, 108, 0.55);
+    color: #f2dfb8;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 232, 186, 0.18),
+      0 0.75rem 1.5rem -1rem rgba(3, 7, 18, 0.8);
   }
 
   .btn-celebration:hover:not(:disabled) {
-    background: linear-gradient(180deg, #fef7e4 0%, #f9ecc9 100%);
-    border-color: rgba(160, 114, 32, 0.7);
-    box-shadow: 0 0 0 3px rgba(202, 158, 74, 0.18);
+    /* Wyłącznie światło i krawędź — żadnego przesuwania ani skalowania. */
+    border-color: rgba(238, 203, 141, 0.85);
+    color: #fbeed2;
+    background:
+      radial-gradient(
+        120% 140% at 50% -30%,
+        rgba(233, 186, 105, 0.3) 0%,
+        rgba(233, 186, 105, 0) 62%
+      ),
+      linear-gradient(180deg, #1a2a47 0%, #0d1526 100%);
   }
 
+  /*
+    KLIK NIE BŁYSKA.
+
+    Wciśnięcie tylko pogłębia granat i wciska cień do środka — żadnego
+    rozjaśnienia, żadnego restartu animacji. Przy poprzednim wariancie
+    zmiana tła w górę czytała się jak mignięcie białym.
+  */
   .btn-celebration:active:not(:disabled) {
-    background: #f4e3ba;
-    box-shadow: inset 0 1px 3px rgba(120, 82, 12, 0.35);
+    background: linear-gradient(180deg, #0c1524 0%, #070d18 100%);
+    box-shadow: inset 0 2px 6px rgba(2, 5, 12, 0.75);
+  }
+
+  .btn-celebration:focus-visible {
+    outline: 2px solid #e9ba69;
+    outline-offset: 2px;
   }
 
   .btn-danger {
@@ -445,26 +491,269 @@ button {
   }
 }
 
+/* Odbicie światła przechodzące przez całą szerokość przycisku. */
+@keyframes cta-sheen {
+  0% {
+    opacity: 0;
+    transform: translateX(-140%) skewX(-12deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(420%) skewX(-12deg);
+  }
+}
+
 @layer components {
   .cta-shine {
     position: relative;
     overflow: hidden;
   }
 
+  /*
+    Wąski refleks przechodzący po metalu — nie rozjaśnianie całego
+    przycisku. Jeden przebieg, wyłącznie dla nieobejrzanej ceremonii.
+  */
   .cta-shine::after {
     content: "";
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 40%;
+    width: 22%;
     background: linear-gradient(
       100deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.55) 50%,
-      rgba(255, 255, 255, 0) 100%
+      rgba(255, 236, 196, 0) 0%,
+      rgba(255, 240, 208, 0.45) 45%,
+      rgba(255, 255, 255, 0.75) 50%,
+      rgba(255, 240, 208, 0.45) 55%,
+      rgba(255, 236, 196, 0) 100%
     );
-    animation: cta-shine 780ms ease-out 1 both;
+    animation: cta-shine 860ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
     pointer-events: none;
+  }
+
+  /* Bez ruchu: zaproszenie zostaje, ale nic nie przejeżdża po ekranie. */
+  @media (prefers-reduced-motion: reduce) {
+    .cta-shine::after {
+      display: none;
+    }
+  }
+
+  /*
+    HOVER SHEEN — desktopowa odpowiedź na najechanie.
+
+    Osobna warstwa (::before) niż jednorazowy refleks powitalny (::after),
+    więc jedno nie przerywa drugiego i nic nie restartuje się przy kliknięciu.
+    Uruchamia się wyłącznie tam, gdzie istnieje prawdziwy kursor.
+  */
+  .cta-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .cta-sheen::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 28%;
+      transform: translateX(-140%) skewX(-12deg);
+      background: linear-gradient(
+        100deg,
+        rgba(255, 240, 208, 0) 0%,
+        rgba(255, 244, 219, 0.35) 50%,
+        rgba(255, 240, 208, 0) 100%
+      );
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Jeden przejazd na wejście kursora — bez pętli i bez powtórek. */
+    .cta-sheen:hover::before {
+      animation: cta-sheen 680ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cta-sheen::before {
+      display: none;
+    }
+  }
+}
+
+/* ==========================================================================
+   WINNER MOMENT
+   ========================================================================== */
+
+/*
+  Jeden przebieg ciepłego blasku wokół stopnia zwycięzcy. Kończy się na
+  zerze i ma `forwards`, więc gaśnie sam — zero pętli i zero pulsowania.
+*/
+@keyframes winner-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 214, 124, 0);
+  }
+  35% {
+    box-shadow: 0 0 2.5rem -0.4rem rgba(255, 214, 124, 0.6);
+  }
+  100% {
+    box-shadow: 0 0 1.75rem -0.5rem rgba(255, 214, 124, 0.22);
+  }
+}
+
+@layer components {
+  .winner-glow {
+    animation: winner-glow 900ms ease-out 1 both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .winner-glow {
+      animation: none;
+      box-shadow: 0 0 1.75rem -0.5rem rgba(255, 214, 124, 0.22);
+    }
+  }
+}
+
+
+/* ==========================================================================
+   CEREMONIA MEDALOWA — opadanie, uderzenie, swiatlo
+   ========================================================================== */
+
+/*
+  Herb medalisty OPADA nad swoj stopien. Krzywa jest celowo przyspieszajaca
+  (ease-in), bo to zatrzymanie na koncu jest uderzeniem. Zero odbicia.
+*/
+@keyframes podium-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-2.5rem);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Mikro-drgniecie SAMEGO stopnia — nigdy strony ani viewportu. */
+@keyframes podium-impact {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(var(--shake, 2px));
+  }
+  60% {
+    transform: translateY(calc(var(--shake, 2px) * -0.4));
+  }
+}
+
+/* Snop swiatla z gory: schodzi ku stopniowi i szybko gasnie. */
+@keyframes podium-beam {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  35% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(1);
+  }
+}
+
+/* Blask medalu: narasta po uderzeniu i osiada na spokojnym poziomie. */
+@keyframes podium-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+  30% {
+    box-shadow: 0 0 2.5rem -0.35rem var(--glow-peak);
+  }
+  100% {
+    box-shadow: 0 0 1.5rem -0.5rem var(--glow-rest);
+  }
+}
+
+@layer components {
+  .podium-drop {
+    animation: podium-drop var(--drop-ms, 620ms) cubic-bezier(0.55, 0.05, 0.75, 1)
+      both;
+  }
+
+  .podium-impact {
+    animation: podium-impact var(--impact-ms, 150ms) ease-out both;
+  }
+
+  .podium-beam {
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    width: 2.25rem;
+    height: 5.5rem;
+    margin-left: -1.125rem;
+    transform-origin: top center;
+    pointer-events: none;
+    /* Snop konczy sie miekko, zeby nie przykrywal herbu. */
+    background: linear-gradient(
+      to bottom,
+      var(--beam-color) 0%,
+      rgba(255, 255, 255, 0) 85%
+    );
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+    animation: podium-beam var(--beam-ms, 700ms) ease-out both;
+  }
+
+  .podium-glow {
+    animation: podium-glow 900ms ease-out both;
+  }
+
+  /* Kolory swiatla pochodza od medalu, nie od nowej palety. */
+  .podium-tone-gold {
+    --beam-color: rgba(255, 214, 124, 0.5);
+    --glow-peak: rgba(255, 214, 124, 0.6);
+    --glow-rest: rgba(255, 214, 124, 0.22);
+  }
+
+  .podium-tone-silver {
+    --beam-color: rgba(226, 232, 240, 0.42);
+    --glow-peak: rgba(226, 232, 240, 0.4);
+    --glow-rest: rgba(226, 232, 240, 0.15);
+  }
+
+  .podium-tone-bronze {
+    --beam-color: rgba(214, 154, 100, 0.38);
+    --glow-peak: rgba(214, 154, 100, 0.34);
+    --glow-rest: rgba(214, 154, 100, 0.12);
+  }
+
+  /*
+    Bez ruchu: zostaje sam stan koncowy. Herb jest na miejscu, blask jest
+    delikatny i statyczny, nic nie opada, nie drga i nie przejezdza.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .podium-drop,
+    .podium-impact,
+    .podium-glow {
+      animation: none;
+    }
+
+    .podium-beam {
+      display: none;
+    }
+
+    .podium-glow {
+      box-shadow: 0 0 1.5rem -0.5rem var(--glow-rest);
+    }
   }
 }
 
@@ -663,11 +952,16 @@ button {
     --stage-dot: #a16207;
   }
 
+  /*
+    Turniej zakończony: cieplejszy, lekko metaliczny odcień, żeby plakietka
+    rozmawiała z przyciskiem celebracji. Świadomie DUŻO subtelniejsza —
+    to informacja o etapie, a nie drugie wezwanie do działania.
+  */
   .stage-completed {
-    --stage-surface: rgba(240, 240, 236, 0.9);
-    --stage-border: rgba(163, 155, 132, 0.45);
-    --stage-ink: #4a4636;
-    --stage-dot: #8a7f5c;
+    --stage-surface: rgba(246, 240, 227, 0.92);
+    --stage-border: rgba(186, 156, 96, 0.5);
+    --stage-ink: #5c4a25;
+    --stage-dot: #b08a3e;
   }
 
   /*

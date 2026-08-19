@@ -12,6 +12,7 @@ import { safeEquals } from "@/lib/admin-session";
 import { getTournamentRepository } from "@/lib/data";
 import { TournamentOperationError } from "@/lib/data/types";
 import type { OperationIssueReport } from "@/lib/playoff/validation";
+import type { ReopenImpact } from "@/lib/data/postgres/playoff-engine";
 import { deleteCloudinaryAssets } from "@/lib/cloudinary";
 import { parseTournamentSettings } from "@/types/tournament-config";
 import type { Tournament } from "@/types/tournament";
@@ -336,6 +337,31 @@ export async function completeTournamentAction(
   revalidatePath("/");
   revalidatePath("/admin");
   return { error: null };
+}
+
+/**
+ * Podgląd skutków cofnięcia — do okna potwierdzenia w panelu.
+ *
+ * Tekst modala MUSI opisywać rzeczywiste zachowanie silnika, więc
+ * pochodzi z tej samej funkcji, która potem wykonuje operację.
+ */
+export async function describeReopenAction(
+  tournamentId: string
+): Promise<
+  | { ok: true; impact: ReopenImpact }
+  | { ok: false; error: string }
+> {
+  await requireAdmin();
+
+  try {
+    const { describeReopen } = await import(
+      "@/lib/data/postgres/playoff-engine"
+    );
+
+    return { ok: true, impact: await describeReopen(tournamentId) };
+  } catch (error) {
+    return { ok: false, error: toMessage(error) };
+  }
 }
 
 /**

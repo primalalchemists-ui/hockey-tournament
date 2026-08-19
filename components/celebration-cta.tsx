@@ -36,7 +36,19 @@ export function CelebrationButton({ cta, className }: CelebrationButtonProps) {
       className={[
         "btn",
         isCelebration ? "btn-celebration" : "btn-quiet",
-        // Jeden przebieg refleksu, wyłącznie dla nieobejrzanej ceremonii.
+        /*
+          Dwie ODDZIELNE warstwy światła:
+
+          - `cta-shine` (::after) to jednorazowe zaproszenie dla ceremonii,
+            której kibic jeszcze nie widział — odpala się raz, po pojawieniu
+            się przycisku, i nigdy przy kliknięciu,
+          - `cta-sheen` (::before) to reakcja na najechanie kursorem,
+            wyłącznie na desktopie.
+
+          Rozdzielenie ich jest istotne: wcześniej klik potrafił wywołać
+          ponowne mignięcie tej samej warstwy.
+        */
+        isCelebration ? "cta-sheen" : "",
         cta.shine ? "cta-shine" : "",
         className ?? "",
       ].join(" ")}

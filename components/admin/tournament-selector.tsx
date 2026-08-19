@@ -11,6 +11,7 @@ import {
   type TournamentActionState,
 } from "@/app/admin/actions";
 import { TournamentSettingsFields } from "@/components/admin/tournament-settings-fields";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { TournamentSummary } from "@/lib/data/types";
 
 type TournamentSelectorProps = {
@@ -32,6 +33,8 @@ export function TournamentSelector({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [confirmCurrent, setConfirmCurrent] = useState(false);
+  const setCurrentFormRef = useRef<HTMLFormElement | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -79,15 +82,9 @@ export function TournamentSelector({
     router.push(`/admin?tournament=${id}`);
   }
 
-  function confirmSetCurrent(target: TournamentSummary) {
-    const currentTitle =
-      tournaments.find((item) => item.isCurrent)?.title ?? "brak";
-
-    return window.confirm(
-      `Publiczna strona zacznie pokazywać turniej:\n${target.title}\n\n` +
-        `Obecnie wyświetlany:\n${currentTitle}\n\nKontynuować?`
-    );
-  }
+  /** Tytuł turnieju, który kibic widzi w tej chwili. */
+  const currentTitle =
+    tournaments.find((item) => item.isCurrent)?.title ?? "brak";
 
   if (!multiTournamentEnabled) {
     return (
@@ -248,21 +245,55 @@ export function TournamentSelector({
             Wyświetlany na stronie
           </span>
         ) : selected && !selected.archivedAt ? (
-          <form
-            action={setCurrentAction}
-            onSubmit={(event) => {
-              if (!confirmSetCurrent(selected)) event.preventDefault();
-            }}
-          >
-            <input type="hidden" name="tournamentId" value={selected.id} />
+          <>
             <button
-              type="submit"
+              type="button"
+              onClick={() => setConfirmCurrent(true)}
               disabled={isCurrentPending}
               className="btn btn-primary text-xs"
             >
-              {isCurrentPending ? "Ustawianie..." : "Ustaw jako wyświetlany"}
+              {isCurrentPending ? "Ustawianie…" : "Ustaw jako wyświetlany"}
             </button>
-          </form>
+
+            {/*
+              Zamiast okna systemowego: własny dialog, który mówi wprost,
+              co kibic zobaczy po zmianie. Formularz jest ukryty i wysyłany
+              dopiero po potwierdzeniu.
+            */}
+            <ConfirmDialog
+              open={confirmCurrent}
+              title="Zmienić wyświetlany turniej?"
+              confirmLabel="Ustaw jako wyświetlany"
+              busyLabel="Ustawianie…"
+              isBusy={isCurrentPending}
+              onCancel={() => setConfirmCurrent(false)}
+              onConfirm={() => {
+                setConfirmCurrent(false);
+                setCurrentFormRef.current?.requestSubmit();
+              }}
+            >
+              <p>
+                Aktualnie na stronie:{" "}
+                <span className="font-semibold text-slate-900">
+                  {currentTitle}
+                </span>
+              </p>
+              <p>
+                Po zmianie:{" "}
+                <span className="font-semibold text-slate-900">
+                  {selected.title}
+                </span>
+              </p>
+              <p>
+                Od tej chwili odwiedzający stronę wyników zobaczą wybrany
+                turniej.
+              </p>
+            </ConfirmDialog>
+
+            <form ref={setCurrentFormRef} action={setCurrentAction} className="hidden">
+              <input type="hidden" name="tournamentId" value={selected.id} />
+            </form>
+          </>
         ) : null}
 
         {selected?.archivedAt ? (

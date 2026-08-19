@@ -117,6 +117,24 @@ describe("AF-AK: mecze minigrupy", () => {
     expect(placement).not.toContain("overflow-x-auto");
   });
 
+  it("AJ: karta meczu nie ma juz ciezkiej szarej ramki", () => {
+    const card = html.slice(
+      html.indexOf('data-testid="placement-match-card"'),
+      html.indexOf('data-testid="placement-match-card"') + 400
+    );
+
+    // Strukture niosa teraz same akcenty wyniku, nie obwodka.
+    expect(card).not.toContain("ice-panel");
+    expect(card).not.toContain("border-slate");
+    expect(card).toContain("bg-white/40");
+  });
+
+  it("AM/AN: skrocona nazwa zostaje, pelna jest w dymku", () => {
+    expect(html).toContain("A5");
+    expect(html).toContain('data-testid="placement-team"');
+    expect(html).toContain('aria-label="A5"');
+  });
+
   it("AK: tabela rankingowa minigrupy pozostaje bez zmian", () => {
     expect(html).toContain("ice-table");
     expect(html).toContain("Klasyfikacja miejsc 5–7");

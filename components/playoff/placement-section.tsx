@@ -1,4 +1,5 @@
 import type { PlacementView } from "@/lib/data/postgres/playoff-engine";
+import { CellPopover } from "@/components/ui/cell-popover";
 import { ColumnHelp } from "@/components/ui/column-help";
 import { EdgeScroller } from "@/components/ui/edge-scroller";
 
@@ -56,6 +57,10 @@ function TeamSide({
   outcome: SideOutcome;
   align?: "start" | "end";
 }) {
+  /*
+    Tu nazwa ZOSTAJE: kibic czyta parę drużyn, a nie ogląda scenę. Skrócona
+    wersja wystarcza do rozpoznania, pełna jest pod dotknięciem i focusem.
+  */
   return (
     <span
       data-testid="placement-team-side"
@@ -81,7 +86,17 @@ function TeamSide({
       </span>
 
       {/* Długie nazwy klubów muszą się zmieścić w wąskiej karcie. */}
-      <span className="team-name truncate text-xs sm:text-sm">{team.name}</span>
+      <CellPopover
+        testId="placement-team"
+        onlyWhenTruncated
+        label={team.name}
+        content={team.name}
+        className="team-name block min-w-0 truncate text-left text-xs sm:text-sm"
+      >
+        <span data-truncate className="block truncate">
+          {team.name}
+        </span>
+      </CellPopover>
     </span>
   );
 }
@@ -166,7 +181,13 @@ export function PlacementSection({ placement }: PlacementSectionProps) {
               <li
                 key={match.externalId}
                 data-testid="placement-match-card"
-                className="ice-panel flex min-w-0 items-center gap-2 px-2.5 py-2"
+                /*
+                  Bez zewnętrznej ramki: szare obwódki dokładały sekcji
+                  ciężaru, którego nie potrzebuje. Strukturę niosą teraz
+                  same akcenty zwycięzcy i przegranego, a karty rozdziela
+                  odstęp i ledwie widoczne tło.
+                */
+                className="flex min-w-0 items-center gap-2 rounded-2xl bg-white/40 px-2 py-1.5"
               >
                 <TeamSide team={match.home} outcome={sideOutcome(homeWon, played)} />
 

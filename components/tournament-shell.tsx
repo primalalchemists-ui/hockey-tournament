@@ -28,6 +28,8 @@ type TournamentShellProps = {
   scorersEnabled: boolean;
   /** Planowana liczba meczów całego turnieju — patrz lib/playoff/planned-matches. */
   plannedMatchCount: number;
+  /** Ile z nich ma już wynik — licznik postępu w nagłówku. */
+  playedMatchCount: number;
   /** Punkt startowy dla auto-odświeżania — z renderu serwerowego. */
   tournamentId: string | null;
   revision: number;
@@ -48,6 +50,7 @@ export function TournamentShell({
   playoffState: initialPlayoffState,
   scorersEnabled: initialScorersEnabled,
   plannedMatchCount: initialPlannedMatchCount,
+  playedMatchCount: initialPlayedMatchCount,
   tournamentId,
   revision,
   initialTab = "live",
@@ -60,6 +63,7 @@ export function TournamentShell({
     scorersEnabled,
     playoffState,
     plannedMatchCount,
+    playedMatchCount,
     refreshTick,
   } = usePublicAutoRefresh({
       initialTournamentId: tournamentId,
@@ -69,6 +73,7 @@ export function TournamentShell({
       initialScorersEnabled,
       initialPlayoffState,
       initialPlannedMatchCount,
+      initialPlayedMatchCount,
     });
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,6 +152,17 @@ export function TournamentShell({
     router.replace(`/?${params.toString()}`, { scroll: false });
   }
 
+  /*
+    BŁĄD, KTÓRY TU MIESZKAŁ.
+
+    Ta lista zależności nie zawierała `celebration` ani `tournamentId`,
+    mimo że oba są używane niżej. Po zakończeniu ceremonii przycisk w hero
+    (renderowany POZA tym memo) zmieniał się na „Zobacz klasyfikację",
+    a przycisk przy Rankingu — czyli wersja mobilna — dostawał w prezencie
+    zapamiętany, nieaktualny obiekt i dalej zapraszał na celebrację.
+
+    Zależności muszą wymieniać wszystko, co memo naprawdę czyta.
+  */
   const content = useMemo(() => {
     if (effectiveTab === "schedule") {
       return (
@@ -187,7 +203,16 @@ export function TournamentShell({
         celebration={celebration}
       />
     );
-  }, [effectiveTab, tournament, allTeams, initialGroupKey, structure, playoffState]);
+  }, [
+    effectiveTab,
+    tournament,
+    allTeams,
+    initialGroupKey,
+    structure,
+    playoffState,
+    tournamentId,
+    celebration,
+  ]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -200,6 +225,7 @@ export function TournamentShell({
         showTopScorerTicker={tournament.showTopScorerTicker}
         refreshTick={refreshTick}
         plannedMatchCount={plannedMatchCount}
+        playedMatchCount={playedMatchCount}
         cta={celebration}
       />
 

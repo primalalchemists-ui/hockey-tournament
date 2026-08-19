@@ -9,13 +9,73 @@
  * Odstęp w OGONIE klasyfikacji (miejsca 4+).
  * Szybszy rytm: to jeszcze nie jest część uroczysta.
  */
-export const REVEAL_TAIL_STEP_MS = 220;
+export const REVEAL_TAIL_STEP_MS = 480;
 /** Odstęp na PODIUM (3 → 2 → 1) — wolniejszy, bo to sedno ceremonii. */
-export const REVEAL_PODIUM_STEP_MS = 380;
+export const REVEAL_PODIUM_STEP_MS = 700;
+/**
+ * Oddech PRZED wejściem na podium.
+ *
+ * Bez niego ogon i medaliści zlewają się w jedno odliczanie. Ta pauza
+ * jest granicą między „resztą tabeli" a ceremonią.
+ */
+export const REVEAL_PODIUM_PAUSE_MS = 650;
 /** Czas trwania pojedynczego wjazdu. */
-export const REVEAL_DURATION_MS = 420;
+export const REVEAL_DURATION_MS = 520;
+/** Zwycięzca wjeżdża dłużej — to najmocniejszy moment całej strony. */
+export const REVEAL_WINNER_DURATION_MS = 760;
 /** Dodatkowa pauza przed zwycięzcą — dramaturgia, nie opóźnienie. */
-export const REVEAL_WINNER_EXTRA_MS = 300;
+export const REVEAL_WINNER_EXTRA_MS = 650;
+/**
+ * Złoty akcent po wjeździe zwycięzcy. Jednorazowy, bez pętli
+ * i bez pulsowania — „winner moment", nie migająca dekoracja.
+ */
+export const WINNER_GLOW_MS = 900;
+
+/* ==========================================================================
+ * CEREMONIA MEDALOWA — opadanie, uderzenie, światło
+ * ======================================================================== */
+
+/**
+ * Medalista nie wjeżdża z boku — jego herb OPADA nad własny stopień.
+ *
+ * Ruch jest ciężki i kontrolowany: przyspiesza w dół i zatrzymuje się
+ * twardo, bo to zatrzymanie jest momentem uderzenia. Żadnego odbicia
+ * w stylu kreskówki — to prezentacja sportowa, nie zabawka.
+ */
+export const PODIUM_DROP_MS = 620;
+
+/** Mikro-drgnięcie stopnia w chwili lądowania. Kilkadziesiąt milisekund. */
+export const PODIUM_IMPACT_MS = 150;
+
+/** Snop światła z góry — zaczyna się tuż przed lądowaniem i gaśnie. */
+export const PODIUM_BEAM_MS = 700;
+
+/** Amplituda drgnięcia rośnie wraz z rangą miejsca (w pikselach). */
+export const PODIUM_SHAKE_PX: Record<number, number> = {
+  3: 1,
+  2: 2,
+  1: 3,
+};
+
+/**
+ * Krótki impuls wibracji przy lądowaniu — wyłącznie jako wzmocnienie,
+ * nigdy jako wzorzec alarmowy.
+ */
+export const PODIUM_HAPTIC_MS: Record<number, number> = {
+  3: 12,
+  2: 20,
+  1: 35,
+};
+
+/**
+ * Kiedy dane miejsce faktycznie „ląduje".
+ *
+ * Herb startuje z opóźnieniem `delayMs`, opada `PODIUM_DROP_MS`
+ * i dopiero wtedy następuje uderzenie, światło i blask.
+ */
+export function getImpactMs(delayMs: number): number {
+  return delayMs + PODIUM_DROP_MS;
+}
 
 export type RevealItem = {
   /** Klucz stabilny w obrębie ceremonii. */
@@ -40,12 +100,17 @@ function isPodiumPosition(position: number | null): boolean {
  * Kolejność odsłaniania: OD OSTATNIEGO miejsca DO PIERWSZEGO.
  *
  * Dla N sklasyfikowanych drużyn: N → … → 3 → 2 → 1.
- * Nie zakłada żadnej konkretnej liczby drużyn.
+ * Nie zakłada żadnej konkretnej liczby drużyn — rytm powstaje z reguł,
+ * a nie z tabeli opóźnień dla siedmiu drużyn.
  *
- * Rytm jest DWUCZĘŚCIOWY: ogon (4+) wchodzi szybciej, podium wolniej,
- * a zwycięzca dostaje jeszcze krótką pauzę. Dzięki temu ceremonia dla
- * siedmiu drużyn mieści się w ~2,5 s i ma wyraźną kulminację, zamiast
- * jednostajnego odliczania.
+ * Rytm jest TRZYCZĘŚCIOWY:
+ *
+ *   1. ogon (4+)  — spokojne, równe odstępy,
+ *   2. oddech     — wyraźna pauza przed pierwszym medalem,
+ *   3. podium     — wolniej, a przed zwycięzcą jeszcze jedna pauza.
+ *
+ * Dla siedmiu drużyn daje to ~4,8 s: na tyle długo, żeby to była
+ * ceremonia, i na tyle krótko, żeby nikt nie odchodził od telefonu.
  */
 export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
   // Sortujemy malejąco po pozycji; dzielone traktujemy jak najsłabsze
@@ -63,14 +128,20 @@ export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
     const previous = index > 0 ? ranked[index - 1] : null;
 
     if (previous) {
+      const entersPodium = isPodiumPosition(entry.position);
+
       // Odstęp zależy od tego, do której części ceremonii wchodzimy.
-      elapsed += isPodiumPosition(entry.position)
-        ? REVEAL_PODIUM_STEP_MS
-        : REVEAL_TAIL_STEP_MS;
+      elapsed += entersPodium ? REVEAL_PODIUM_STEP_MS : REVEAL_TAIL_STEP_MS;
+
+      // Granica ogon → podium dostaje dodatkowy oddech.
+      if (entersPodium && !isPodiumPosition(previous.position)) {
+        elapsed += REVEAL_PODIUM_PAUSE_MS;
+      }
+
+      if (entry.position === 1) elapsed += REVEAL_WINNER_EXTRA_MS;
     }
 
-    const delayMs =
-      elapsed + (entry.position === 1 ? REVEAL_WINNER_EXTRA_MS : 0);
+    const delayMs = elapsed;
 
     const item: RevealItem = { key: entry.team.teamId, step, delayMs };
 
@@ -79,12 +150,27 @@ export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
   });
 }
 
-/** Łączny czas ceremonii — po nim zapisujemy „obejrzane”. */
+/** Czas wjazdu jednego wiersza; zwycięzca wjeżdża dłużej. */
+export function getRevealDurationMs(position: number | null): number {
+  return position === 1 ? REVEAL_WINNER_DURATION_MS : REVEAL_DURATION_MS;
+}
+
+/**
+ * Łączny czas ceremonii — po nim zapisujemy „obejrzane”.
+ *
+ * Ostatni wjazd to zwycięzca, więc liczy się jego dłuższy czas trwania.
+ */
 export function getRevealTotalMs(items: RevealItem[]): number {
   if (items.length === 0) return 0;
 
   const last = items[items.length - 1];
-  return last.delayMs + REVEAL_DURATION_MS;
+
+  /*
+    Ceremonia kończy się nie w chwili, gdy zwycięzca doleci, tylko gdy
+    wybrzmi jego uderzenie i złoty rozbłysk. Dopiero wtedy zapisujemy
+    „obejrzane".
+  */
+  return last.delayMs + PODIUM_DROP_MS + WINNER_GLOW_MS;
 }
 
 /* ==========================================================================

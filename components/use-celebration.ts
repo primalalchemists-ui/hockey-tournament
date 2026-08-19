@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   buildPodiumStorageKey,
@@ -52,11 +52,26 @@ export function useCelebration(options: Options): CelebrationCta {
     return () => window.removeEventListener(CELEBRATION_SEEN_EVENT, sync);
   }, [tournamentId, scopeKey, completionToken]);
 
-  return describeCelebrationCta({
-    isCompleted: options.isCompleted,
-    classificationComplete: options.classificationComplete,
-    // Bez tokenu finalizacji nie ma czego pamiętać ani czego świętować.
-    seen: canCelebrate ? seen : false,
-    scopeKey,
-  });
+  /*
+    Stabilna tożsamość obiektu: nowy CTA powstaje TYLKO wtedy, gdy zmieni
+    się któraś z jego przesłanek. Dzięki temu konsumenci mogą go trzymać
+    w zależnościach memo bez psucia optymalizacji.
+  */
+  return useMemo(
+    () =>
+      describeCelebrationCta({
+        isCompleted: options.isCompleted,
+        classificationComplete: options.classificationComplete,
+        // Bez tokenu finalizacji nie ma czego pamiętać ani czego świętować.
+        seen: canCelebrate ? seen : false,
+        scopeKey,
+      }),
+    [
+      options.isCompleted,
+      options.classificationComplete,
+      canCelebrate,
+      seen,
+      scopeKey,
+    ]
+  );
 }

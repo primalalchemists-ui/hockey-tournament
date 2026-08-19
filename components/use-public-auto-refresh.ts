@@ -17,6 +17,7 @@ export type PublicSnapshotShape = {
   settings: { structure: TournamentStructure; scorersEnabled: boolean };
   playoffState: PlayoffStateView | null;
   plannedMatchCount: number;
+  playedMatchCount: number;
 };
 
 type Options = {
@@ -27,6 +28,7 @@ type Options = {
   initialScorersEnabled: boolean;
   initialPlayoffState: PlayoffStateView | null;
   initialPlannedMatchCount: number;
+  initialPlayedMatchCount: number;
 };
 
 /**
@@ -45,6 +47,9 @@ export function usePublicAutoRefresh(options: Options) {
   const [plannedMatchCount, setPlannedMatchCount] = useState(
     options.initialPlannedMatchCount
   );
+  const [playedMatchCount, setPlayedMatchCount] = useState(
+    options.initialPlayedMatchCount
+  );
   /** Rośnie po KAŻDYM udanym zastosowaniu snapshotu — mikro-feedback w UI. */
   const [refreshTick, setRefreshTick] = useState(0);
 
@@ -56,6 +61,7 @@ export function usePublicAutoRefresh(options: Options) {
     setScorersEnabled(snapshot.settings.scorersEnabled);
     setPlayoffState(snapshot.playoffState);
     setPlannedMatchCount(snapshot.plannedMatchCount);
+    setPlayedMatchCount(snapshot.playedMatchCount);
     setRefreshTick((tick) => tick + 1);
   });
 
@@ -133,6 +139,7 @@ export function usePublicAutoRefresh(options: Options) {
     scorersEnabled,
     playoffState,
     plannedMatchCount,
+    playedMatchCount,
     refreshTick,
   };
 }

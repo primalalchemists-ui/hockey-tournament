@@ -97,13 +97,14 @@ describe("C: licznik nie zależy od stanu bazy", () => {
 });
 
 describe("badge w publicznym headerze", () => {
-  function renderHeader(plannedMatchCount: number) {
+  function renderHeader(plannedMatchCount: number, playedMatchCount = 0) {
     return renderToStaticMarkup(
       <TournamentHeader
         title="SUN CUP 2026 — U8"
         scorers={[]}
         teams={[]}
         plannedMatchCount={plannedMatchCount}
+        playedMatchCount={playedMatchCount}
         cta={RESULTS_CTA}
       />
     );
@@ -114,6 +115,7 @@ describe("badge w publicznym headerze", () => {
 
     expect(html).toContain('data-testid="planned-match-count"');
     expect(html).toContain(">56<");
+    expect(html).toContain('data-testid="match-progress"');
     expect(html).toContain("meczów");
   });
 

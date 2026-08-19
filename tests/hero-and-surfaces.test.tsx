@@ -30,6 +30,7 @@ function renderHeader(heroBannerImage?: string) {
       teams={[]}
       heroBannerImage={heroBannerImage}
       plannedMatchCount={0}
+      playedMatchCount={0}
       cta={RESULTS_CTA}
     />
   );

@@ -8,6 +8,7 @@ import type { Tournament } from "@/types/tournament";
 import type { TournamentSettings } from "@/types/tournament-config";
 
 import { calculatePlannedMatchCount } from "@/lib/playoff/planned-matches";
+import { countPlayedMatches } from "@/lib/public/match-progress";
 import { getPlayoffState, type PlayoffStateView } from "./playoff-engine";
 import { postgresRepository } from "./repository";
 
@@ -35,6 +36,8 @@ export type PublicSnapshot = {
    * grup. Liczba jest stała przez cały turniej.
    */
   plannedMatchCount: number;
+  /** Ile meczów ma już wynik — wszystkie etapy razem. */
+  playedMatchCount: number;
 };
 
 export type PublicVersion = {
@@ -99,6 +102,11 @@ async function buildSnapshotOnce(): Promise<{
     })),
   });
 
+  const playedMatchCount = countPlayedMatches({
+    groups: tournament.groups,
+    playoffState,
+  });
+
   const after = await getPublicVersion();
 
   return {
@@ -109,6 +117,7 @@ async function buildSnapshotOnce(): Promise<{
       settings,
       playoffState,
       plannedMatchCount,
+      playedMatchCount,
     },
     revisionAfter:
       after.tournamentId === before.tournamentId ? after.revision : -1,

@@ -5,6 +5,7 @@ import { TournamentShell } from "@/components/tournament-shell";
 import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 import { calculatePlannedMatchCount } from "@/lib/playoff/planned-matches";
+import { countPlayedMatches } from "@/lib/public/match-progress";
 
 type SearchParams = Promise<{
   tab?: string;
@@ -114,6 +115,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   let playoffState = null;
   let tournamentId: string | null = null;
   let revision = 0;
+  let playedMatchCount = 0;
 
   if (result.status === "ok") {
     try {
@@ -127,11 +129,20 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         playoffState = snapshot.playoffState;
         tournamentId = snapshot.tournamentId;
         revision = snapshot.revision;
+        playedMatchCount = snapshot.playedMatchCount;
       }
     } catch (error) {
       // Awaria sekcji pucharowej nie może wywrócić całej strony wyników.
       console.error("[public] snapshot failed:", error);
     }
+  }
+
+  // Turniej ligowy nie ma snapshotu pucharowego — postęp liczymy wprost.
+  if (!playoffState) {
+    playedMatchCount = countPlayedMatches({
+      groups: tournament.groups,
+      playoffState: null,
+    });
   }
 
   // Ta sama reguła co w snapshotcie — jedno źródło prawdy o skali turnieju.
@@ -155,6 +166,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             result.status === "ok" ? result.settings.scorersEnabled : true
           }
           plannedMatchCount={plannedMatchCount}
+          playedMatchCount={playedMatchCount}
           playoffState={playoffState}
           tournamentId={tournamentId}
           revision={revision}

@@ -71,12 +71,13 @@ describe("kolejność odsłaniania", () => {
     expect(order[order.length - 1]).toBe("t1");
   });
 
-  it("całość mieści się w oczekiwanym czasie (7 drużyn ~2,5-3 s)", () => {
+  it("A: całość mieści się w oczekiwanym czasie (7 drużyn ~5,8-6,5 s)", () => {
+    // Ceremonia, nie animowany mount - ale też nie osiem sekund.
     const entries = [1, 2, 3, 4, 5, 6, 7].map((p) => entry(p, `t${p}`));
     const total = getRevealTotalMs(buildRevealOrder(entries));
 
-    expect(total).toBeGreaterThanOrEqual(2500);
-    expect(total).toBeLessThanOrEqual(3000);
+    expect(total).toBeGreaterThanOrEqual(5800);
+    expect(total).toBeLessThanOrEqual(6500);
   });
 
   it("ogon ma szybszy rytm niż podium", () => {

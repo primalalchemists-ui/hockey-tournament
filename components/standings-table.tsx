@@ -142,7 +142,12 @@ export function StandingsTable({
 
         {celebration?.kind === "celebration" ? (
           <div className="mt-3 md:hidden">
-            <CelebrationButton cta={celebration} className="w-full" />
+            {/* Na telefonie ten sam przycisk co w hero, ale z wygodniejszym
+                celem dotyku — hero jest tu poza zasięgiem kciuka. */}
+            <CelebrationButton
+              cta={celebration}
+              className="h-12 w-full justify-center text-base"
+            />
           </div>
         ) : null}
 

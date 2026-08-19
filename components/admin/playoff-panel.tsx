@@ -1,19 +1,22 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import {
   completeCurrentRoundAction,
   completeGroupStageAction,
   completeTournamentAction,
+  describeReopenAction,
   reopenPreviousPhaseAction,
   type TournamentActionState,
 } from "@/app/admin/actions";
 import { OperationError } from "@/components/admin/operation-error";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { PlayoffMatchRow } from "@/components/admin/playoff-match-row";
 import type {
   PlayoffScopeView,
   PlayoffStateView,
+  ReopenImpact,
 } from "@/lib/data/postgres/playoff-engine";
 import {
   describeEditabilityLabel,
@@ -55,6 +58,22 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
     reopenPreviousPhaseAction,
     initialState
   );
+
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [impact, setImpact] = useState<ReopenImpact | null>(null);
+  const reopenFormRef = useRef<HTMLFormElement | null>(null);
+
+  /*
+    Skutki cofnięcia pobieramy DOPIERO przy otwieraniu okna — w tym
+    momencie są aktualne, a panel nie odpytuje serwera przy każdym renderze.
+  */
+  async function openReopenDialog() {
+    setImpact(null);
+    setReopenOpen(true);
+
+    const result = await describeReopenAction(tournamentId);
+    if (result.ok) setImpact(result.impact);
+  }
 
   const failed = [groupState, roundState, finishState, reopenState].find(
     (item) => item.error
@@ -117,27 +136,81 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
           ) : null}
 
           {state.phase !== "group_stage" ? (
-            <form
-              action={reopen}
-              onSubmit={(event) => {
-                const confirmed = window.confirm(
-                  "Cofnięcie do poprzedniej fazy usunie wyniki i uczestników bieżącego etapu.\n\n" +
-                    "Wyniki fazy grupowej pozostaną nietknięte.\n\nKontynuować?"
-                );
-
-                if (!confirmed) event.preventDefault();
-              }}
-            >
-              <input type="hidden" name="tournamentId" value={tournamentId} />
-              <input type="hidden" name="confirmDataLoss" value="true" />
+            <>
               <button
-                type="submit"
+                type="button"
+                onClick={openReopenDialog}
                 disabled={isReopenPending}
                 className="btn btn-quiet h-10 min-w-[13rem] justify-center border-amber-300 text-sm text-amber-800"
               >
-                {isReopenPending ? "Cofanie\u2026" : "Cofnij do poprzedniej fazy"}
+                {isReopenPending ? "Cofanie…" : "Cofnij do poprzedniej fazy"}
               </button>
-            </form>
+
+              <ConfirmDialog
+                open={reopenOpen}
+                tone="danger"
+                title="Cofnąć do poprzedniej fazy?"
+                confirmLabel="Cofnij fazę"
+                busyLabel="Cofanie…"
+                isBusy={isReopenPending}
+                onCancel={() => setReopenOpen(false)}
+                onConfirm={() => {
+                  setReopenOpen(false);
+                  reopenFormRef.current?.requestSubmit();
+                }}
+              >
+                <p>
+                  Aktualna faza:{" "}
+                  <span className="font-semibold text-slate-900">
+                    {state.phaseLabel}
+                  </span>
+                </p>
+
+                {impact ? (
+                  <>
+                    <p>
+                      Po cofnięciu:{" "}
+                      <span className="font-semibold text-slate-900">
+                        {impact.targetLabel}
+                      </span>
+                    </p>
+
+                    {/*
+                      Skutki pochodzą z tej samej funkcji, która wykona
+                      operację — nie zgadujemy ich w interfejsie.
+                    */}
+                    {impact.resultsToDiscard > 0 ? (
+                      <p className="font-medium text-amber-800">
+                        {impact.resultsToDiscard === 1
+                          ? "Zostanie usunięty 1 wpisany wynik."
+                          : `Zostaną usunięte wpisane wyniki: ${impact.resultsToDiscard}.`}{" "}
+                        Wyniki wcześniejszych etapów pozostaną bez zmian.
+                      </p>
+                    ) : (
+                      <p>
+                        Żaden wpisany wynik nie zostanie usunięty — bieżący
+                        etap jest jeszcze pusty.
+                      </p>
+                    )}
+
+                    {impact.removesBracket ? (
+                      <p>
+                        Drabinka i minigrupa zostaną rozmontowane, a zamrożone
+                        rozstawienie skasowane. Wyniki fazy grupowej pozostaną
+                        nietknięte.
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p>Sprawdzam skutki cofnięcia…</p>
+                )}
+              </ConfirmDialog>
+
+              <form ref={reopenFormRef} action={reopen} className="hidden">
+                <input type="hidden" name="tournamentId" value={tournamentId} />
+                <input type="hidden" name="confirmDataLoss" value="true" />
+              </form>
+            </>
           ) : null}
         </div>
       </header>

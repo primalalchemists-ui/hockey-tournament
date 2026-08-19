@@ -125,11 +125,11 @@ describe("D-H: kolejność i rytm odsłaniania", () => {
     expect(delay.get("t1")! - delay.get("t2")!).toBeGreaterThan(podiumStep);
   });
 
-  it("cała ceremonia dla siedmiu drużyn mieści się w 2,5-3,0 s", () => {
+  it("A: cała ceremonia dla siedmiu drużyn mieści się w 5,8-6,5 s", () => {
     const total = getRevealTotalMs(buildRevealOrder(entries(7)));
 
-    expect(total).toBeGreaterThanOrEqual(2500);
-    expect(total).toBeLessThanOrEqual(3000);
+    expect(total).toBeGreaterThanOrEqual(5800);
+    expect(total).toBeLessThanOrEqual(6500);
   });
 });
 

@@ -4,6 +4,7 @@ import Image from "next/image";
 import type { Scorer, Team } from "@/types/tournament";
 import { TopScorerTicker } from "@/components/top-scorer-ticker";
 import { resolveHeroPresentation } from "@/lib/public/hero";
+import { describeMatchProgress } from "@/lib/public/match-progress";
 import { CelebrationButton } from "@/components/celebration-cta";
 import type { CelebrationCta } from "@/lib/public/celebration";
 
@@ -21,6 +22,8 @@ type TournamentHeaderProps = {
    * i minigrupą, które w bazie pojawią się dopiero po zamknięciu grup.
    */
   plannedMatchCount: number;
+  /** Ile meczów ma już wynik — licznik po lewej stronie ukośnika. */
+  playedMatchCount: number;
   /**
    * Stan przycisku w hero. Po zakończeniu turnieju TEN SAM slot prowadzi
    * do celebracji zamiast do wyników — bez dokładania drugiego przycisku.
@@ -54,20 +57,25 @@ export function TournamentHeader({
   showTopScorerTicker,
   refreshTick = 0,
   plannedMatchCount,
+  playedMatchCount,
   cta,
 }: TournamentHeaderProps) {
   const hero = resolveHeroPresentation(heroBannerImage);
 
   /*
-    Badge pokazuje SKALĘ turnieju, a nie stan bazy.
+    Badge pokazuje POSTĘP turnieju: rozegrane / zaplanowane.
 
-    Wcześniej liczył tu round-robin z liczby drużyn i odejmował rozegrane
-    mecze, więc dla formatu z play-offem gubił drabinkę i minigrupę
-    (SUN CUP U8: 42 zamiast 56), a dodatkowo liczba spadała w trakcie
-    turnieju. Teraz przychodzi gotowa z konfiguracji i jest stała
-    od pierwszej sekundy aż po finał.
+    Mianownik pochodzi z konfiguracji (drabinka i minigrupa są w nim
+    od pierwszej sekundy, choć w bazie pojawią się później), licznik —
+    wyłącznie z meczów, które naprawdę mają wynik. Sama liczba planowana
+    czytała się po zakończeniu jak rozmiar wydarzenia, a nie jego stan.
   */
-  const plannedMatchesLabel = matchesWord(plannedMatchCount);
+  const progress = describeMatchProgress({
+    played: playedMatchCount,
+    planned: plannedMatchCount,
+  });
+
+  const plannedMatchesLabel = matchesWord(progress.planned);
 
   /*
     CAŁY nagłówek wchodzi JEDNYM ruchem (.ice-rise).
@@ -108,10 +116,35 @@ export function TournamentHeader({
 
         <div className="rounded-full border border-white/20 bg-slate-950/60 px-2 py-1 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md sm:px-5 sm:text-sm">
           🏒{" "}
-          <span data-testid="planned-match-count" className="stat-num text-amber-300">
-            {plannedMatchCount}
+          <span
+            data-testid="match-progress"
+            data-complete={progress.isComplete ? "true" : "false"}
+            className="stat-num"
+          >
+            <span
+              data-testid="played-match-count"
+              className={
+                progress.isComplete ? "text-emerald-300" : "text-white"
+              }
+            >
+              {progress.played}
+            </span>
+            <span className="mx-0.5 text-white/40">/</span>
+            <span data-testid="planned-match-count" className="text-amber-300">
+              {progress.planned}
+            </span>
           </span>{" "}
           {plannedMatchesLabel}
+          {/* Komplet rozegrany — drobny znacznik, nie drugi komunikat. */}
+          {progress.isComplete ? (
+            <span
+              aria-hidden="true"
+              data-testid="match-progress-complete"
+              className="ml-1 text-emerald-300"
+            >
+              ✓
+            </span>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-4">
