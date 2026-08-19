@@ -22,6 +22,7 @@ import {
   describeEditabilityLabel,
   type MatchEditability,
 } from "@/lib/playoff/editability";
+import { getRewindConfirmationCopy } from "@/lib/playoff/rewind-copy";
 
 type PlayoffPanelProps = {
   tournamentId: string;
@@ -44,19 +45,19 @@ const initialState: TournamentActionState = { error: null };
 export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
   const [groupState, completeGroup, isGroupPending] = useActionState(
     completeGroupStageAction,
-    initialState
+    initialState,
   );
   const [roundState, completeRound, isRoundPending] = useActionState(
     completeCurrentRoundAction,
-    initialState
+    initialState,
   );
   const [finishState, finishTournament, isFinishPending] = useActionState(
     completeTournamentAction,
-    initialState
+    initialState,
   );
   const [reopenState, reopen, isReopenPending] = useActionState(
     reopenPreviousPhaseAction,
-    initialState
+    initialState,
   );
 
   const [reopenOpen, setReopenOpen] = useState(false);
@@ -75,8 +76,24 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
     if (result.ok) setImpact(result.impact);
   }
 
+  /*
+    Tekst okna powstaje z tego, co silnik NAPRAWDĘ zrobi: z fazy bieżącej,
+    docelowej, liczby wyników do usunięcia i tego, czy drabinka zostanie
+    rozmontowana. Panel niczego tu nie zgaduje.
+  */
+  const rewindCopy = impact
+    ? getRewindConfirmationCopy({
+        currentPhase: state.phase,
+        targetPhase: impact.targetPhase,
+        targetLabel: impact.targetLabel,
+        resultsToDiscard: impact.resultsToDiscard,
+        removesBracket: impact.removesBracket,
+        thirdPlaceMatch: state.config?.thirdPlaceMatch ?? false,
+      })
+    : null;
+
   const failed = [groupState, roundState, finishState, reopenState].find(
-    (item) => item.error
+    (item) => item.error,
   );
 
   const activeRoundLabel = state.scopes
@@ -149,7 +166,7 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
               <ConfirmDialog
                 open={reopenOpen}
                 tone="danger"
-                title="Cofnąć do poprzedniej fazy?"
+                title={rewindCopy?.title ?? "Cofnąć do poprzedniej fazy?"}
                 confirmLabel="Cofnij fazę"
                 busyLabel="Cofanie…"
                 isBusy={isReopenPending}
@@ -159,47 +176,21 @@ export function PlayoffPanel({ tournamentId, state }: PlayoffPanelProps) {
                   reopenFormRef.current?.requestSubmit();
                 }}
               >
-                <p>
-                  Aktualna faza:{" "}
-                  <span className="font-semibold text-slate-900">
-                    {state.phaseLabel}
-                  </span>
-                </p>
-
-                {impact ? (
+                {rewindCopy ? (
                   <>
-                    <p>
-                      Po cofnięciu:{" "}
-                      <span className="font-semibold text-slate-900">
-                        {impact.targetLabel}
-                      </span>
-                    </p>
-
                     {/*
-                      Skutki pochodzą z tej samej funkcji, która wykona
-                      operację — nie zgadujemy ich w interfejsie.
+                      Krótko i konkretnie: co się stanie po cofnięciu.
+                      Treść pochodzi z realnych skutków operacji, nie
+                      z ogólnego opisu mechanizmu.
                     */}
-                    {impact.resultsToDiscard > 0 ? (
-                      <p className="font-medium text-amber-800">
-                        {impact.resultsToDiscard === 1
-                          ? "Zostanie usunięty 1 wpisany wynik."
-                          : `Zostaną usunięte wpisane wyniki: ${impact.resultsToDiscard}.`}{" "}
-                        Wyniki wcześniejszych etapów pozostaną bez zmian.
-                      </p>
-                    ) : (
-                      <p>
-                        Żaden wpisany wynik nie zostanie usunięty — bieżący
-                        etap jest jeszcze pusty.
-                      </p>
-                    )}
+                    {rewindCopy.lines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
 
-                    {impact.removesBracket ? (
-                      <p>
-                        Drabinka i minigrupa zostaną rozmontowane, a zamrożone
-                        rozstawienie skasowane. Wyniki fazy grupowej pozostaną
-                        nietknięte.
-                      </p>
-                    ) : null}
+                    <p className="text-xs text-slate-500">
+                      Aktualnie: {state.phaseLabel} → po cofnięciu:{" "}
+                      {impact?.targetLabel}
+                    </p>
                   </>
                 ) : (
                   <p>Sprawdzam skutki cofnięcia…</p>

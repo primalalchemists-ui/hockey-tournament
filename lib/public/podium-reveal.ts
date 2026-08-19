@@ -1,3 +1,9 @@
+import {
+  CEREMONY,
+  impactAtMs,
+  tailGapMs,
+} from "./ceremony-timing";
+
 /**
  * CEREMONIA PODIUM — czysta logika, bez Reacta i bez DOM.
  *
@@ -5,56 +11,31 @@
  * są testowalne w Node; komponent jest tylko nakładką.
  */
 
-/**
- * Odstęp w OGONIE klasyfikacji (miejsca 4+).
- * Szybszy rytm: to jeszcze nie jest część uroczysta.
- */
-export const REVEAL_TAIL_STEP_MS = 480;
-/** Odstęp na PODIUM (3 → 2 → 1) — wolniejszy, bo to sedno ceremonii. */
-export const REVEAL_PODIUM_STEP_MS = 700;
-/**
- * Oddech PRZED wejściem na podium.
- *
- * Bez niego ogon i medaliści zlewają się w jedno odliczanie. Ta pauza
- * jest granicą między „resztą tabeli" a ceremonią.
- */
-export const REVEAL_PODIUM_PAUSE_MS = 650;
-/** Czas trwania pojedynczego wjazdu. */
-export const REVEAL_DURATION_MS = 520;
-/** Zwycięzca wjeżdża dłużej — to najmocniejszy moment całej strony. */
-export const REVEAL_WINNER_DURATION_MS = 760;
-/** Dodatkowa pauza przed zwycięzcą — dramaturgia, nie opóźnienie. */
-export const REVEAL_WINNER_EXTRA_MS = 650;
-/**
- * Złoty akcent po wjeździe zwycięzcy. Jednorazowy, bez pętli
- * i bez pulsowania — „winner moment", nie migająca dekoracja.
- */
-export const WINNER_GLOW_MS = 900;
+/*
+  Wszystkie liczby czasu mieszkają w lib/public/ceremony-timing.ts.
+  Tutaj zostaje wyłącznie kolejność i wyliczenie opóźnień.
+*/
 
-/* ==========================================================================
- * CEREMONIA MEDALOWA — opadanie, uderzenie, światło
- * ======================================================================== */
+/** Czas trwania pojedynczego wjazdu w ogonie klasyfikacji. */
+export const REVEAL_DURATION_MS = CEREMONY.tailDurationMs;
+/** Zwycięzca opada dłużej — to najmocniejszy moment całej strony. */
+export const REVEAL_WINNER_DURATION_MS = CEREMONY.dropDurationMs;
 
-/**
- * Medalista nie wjeżdża z boku — jego herb OPADA nad własny stopień.
- *
- * Ruch jest ciężki i kontrolowany: przyspiesza w dół i zatrzymuje się
- * twardo, bo to zatrzymanie jest momentem uderzenia. Żadnego odbicia
- * w stylu kreskówki — to prezentacja sportowa, nie zabawka.
- */
-export const PODIUM_DROP_MS = 620;
-
-/** Mikro-drgnięcie stopnia w chwili lądowania. Kilkadziesiąt milisekund. */
-export const PODIUM_IMPACT_MS = 150;
-
-/** Snop światła z góry — zaczyna się tuż przed lądowaniem i gaśnie. */
-export const PODIUM_BEAM_MS = 700;
-
-/** Amplituda drgnięcia rośnie wraz z rangą miejsca (w pikselach). */
+/** Amplituda drgnięcia stopnia rośnie wraz z rangą miejsca (w pikselach). */
 export const PODIUM_SHAKE_PX: Record<number, number> = {
   3: 1,
   2: 2,
   1: 3,
+};
+
+/**
+ * Mikroreakcja CAŁEJ sceny podium — osobna i słabsza od reakcji stopnia.
+ * Scena to wnętrze karty klasyfikacji, nigdy strona ani <body>.
+ */
+export const STAGE_SHAKE_PX: Record<number, number> = {
+  3: 0.8,
+  2: 1.4,
+  1: 2.2,
 };
 
 /**
@@ -67,14 +48,18 @@ export const PODIUM_HAPTIC_MS: Record<number, number> = {
   1: 35,
 };
 
+export const PODIUM_DROP_MS = CEREMONY.dropDurationMs;
+export const PODIUM_IMPACT_MS = CEREMONY.impactDurationMs;
+export const PODIUM_BEAM_MS = CEREMONY.beamDurationMs;
+
 /**
  * Kiedy dane miejsce faktycznie „ląduje".
  *
- * Herb startuje z opóźnieniem `delayMs`, opada `PODIUM_DROP_MS`
+ * Herb startuje z opóźnieniem `delayMs`, opada `dropDurationMs`
  * i dopiero wtedy następuje uderzenie, światło i blask.
  */
 export function getImpactMs(delayMs: number): number {
-  return delayMs + PODIUM_DROP_MS;
+  return impactAtMs(delayMs);
 }
 
 export type RevealItem = {
@@ -123,31 +108,48 @@ export function buildRevealOrder(entries: EntryLike[]): RevealItem[] {
 
   let step = 0;
   let elapsed = 0;
+  let tailStep = 0;
 
   return ranked.map((entry, index) => {
     const previous = index > 0 ? ranked[index - 1] : null;
 
     if (previous) {
-      const entersPodium = isPodiumPosition(entry.position);
+      elapsed += gapBefore(entry.position, previous.position, tailStep);
 
-      // Odstęp zależy od tego, do której części ceremonii wchodzimy.
-      elapsed += entersPodium ? REVEAL_PODIUM_STEP_MS : REVEAL_TAIL_STEP_MS;
-
-      // Granica ogon → podium dostaje dodatkowy oddech.
-      if (entersPodium && !isPodiumPosition(previous.position)) {
-        elapsed += REVEAL_PODIUM_PAUSE_MS;
-      }
-
-      if (entry.position === 1) elapsed += REVEAL_WINNER_EXTRA_MS;
+      // Licznik narastania dotyczy wyłącznie ogona klasyfikacji.
+      if (!isPodiumPosition(entry.position)) tailStep += 1;
     }
 
-    const delayMs = elapsed;
-
-    const item: RevealItem = { key: entry.team.teamId, step, delayMs };
+    const item: RevealItem = { key: entry.team.teamId, step, delayMs: elapsed };
 
     step += 1;
     return item;
   });
+}
+
+/**
+ * Odstęp PRZED danym miejscem.
+ *
+ * Ogon narasta (`tailGapMs`), wejście na podium poprzedza wyraźna cisza,
+ * a każdy kolejny medal każe czekać dłużej niż poprzedni.
+ */
+function gapBefore(
+  position: number | null,
+  previousPosition: number | null,
+  tailStep: number
+): number {
+  const entersPodium = isPodiumPosition(position);
+
+  if (!entersPodium) return tailGapMs(tailStep);
+
+  // Granica ogon → podium: moment, w którym zaczynają się medale.
+  if (!isPodiumPosition(previousPosition)) {
+    return CEREMONY.prePodiumPauseMs + CEREMONY.bronzeDelayMs;
+  }
+
+  if (position === 1) return CEREMONY.winnerDelayMs;
+
+  return CEREMONY.silverDelayMs;
 }
 
 /** Czas wjazdu jednego wiersza; zwycięzca wjeżdża dłużej. */
@@ -167,10 +169,15 @@ export function getRevealTotalMs(items: RevealItem[]): number {
 
   /*
     Ceremonia kończy się nie w chwili, gdy zwycięzca doleci, tylko gdy
-    wybrzmi jego uderzenie i złoty rozbłysk. Dopiero wtedy zapisujemy
-    „obejrzane".
+    wybrzmi jego uderzenie i rozjaśni się złoty blask. Dopiero wtedy
+    zapisujemy „obejrzane".
   */
-  return last.delayMs + PODIUM_DROP_MS + WINNER_GLOW_MS;
+  return (
+    last.delayMs +
+    CEREMONY.dropDurationMs +
+    CEREMONY.glowDelayMs +
+    CEREMONY.glowFadeMs
+  );
 }
 
 /* ==========================================================================

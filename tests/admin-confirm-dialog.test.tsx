@@ -79,17 +79,21 @@ describe("BB-BD: zmiana wyswietlanego turnieju", () => {
 
 describe("BF-BI: cofniecie fazy", () => {
   it("BF: widac faze biezaca i docelowa", () => {
-    expect(panel).toContain("Aktualna faza:");
-    expect(panel).toContain("Po cofnięciu:");
-    expect(panel).toContain("impact.targetLabel");
+    // Jedna, drobna linia zamiast powtarzania tej samej informacji.
+    expect(panel).toContain("Aktualnie: {state.phaseLabel}");
+    expect(panel).toContain("po cofnięciu:");
+    expect(panel).toContain("impact?.targetLabel");
   });
 
   it("BG: konsekwencje pochodza z realnego zachowania silnika", () => {
     // Ten sam describeReopen, ktory potem wykonuje operacje.
     expect(panel).toContain("describeReopenAction(tournamentId)");
-    expect(panel).toContain("impact.resultsToDiscard");
-    expect(panel).toContain("impact.removesBracket");
-    expect(panel).toContain("Wyniki wcześniejszych etapów pozostaną bez zmian");
+    expect(panel).toContain("resultsToDiscard: impact.resultsToDiscard");
+    expect(panel).toContain("removesBracket: impact.removesBracket");
+
+    // Tresc powstaje w czystym helperze, nie w komponencie.
+    expect(panel).toContain("getRewindConfirmationCopy({");
+    expect(panel).toContain("rewindCopy.lines.map");
   });
 
   it("BH/BI: anulowanie nic nie robi, potwierdzenie cofa faze", () => {

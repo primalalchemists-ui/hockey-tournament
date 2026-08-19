@@ -12,6 +12,7 @@ import {
   getRevealTotalMs,
 } from "@/lib/public/podium-reveal";
 import { shouldVibrate, supportsHaptics } from "@/lib/public/haptics";
+import { CEREMONY, beamAtMs, glowAtMs } from "@/lib/public/ceremony-timing";
 import type { ClassificationView } from "@/lib/data/postgres/playoff-engine";
 import type { ClassificationSlot } from "@/lib/playoff/classification";
 
@@ -119,12 +120,30 @@ describe("N-R: scena bez nazw", () => {
   });
 });
 
+describe("wykonczenie medalu w renderze", () => {
+  it("kazdy medal dostaje wykonczenie odpowiadajace miejscu", () => {
+    const medals = html.split('data-testid="podium-medal"');
+
+    expect(medals).toHaveLength(4);
+    expect(html).toContain("medal-gold");
+    expect(html).toContain("medal-silver");
+    expect(html).toContain("medal-bronze");
+  });
+
+  it("rozmiar krazka pozostaje bez zmian", () => {
+    // Podbita jest wylacznie obwodka, nie geometria medalu.
+    expect(html).toContain("h-11 w-11 sm:h-14 sm:w-14");
+    expect(html).toContain("h-8 w-8 sm:h-10 sm:w-10");
+    expect(html).toContain("h-7 w-7 sm:h-8 sm:w-8");
+  });
+});
+
 describe("S-AD: przebieg ceremonii", () => {
-  it("S: siedem druzyn miesci sie w 5,8-6,5 s", () => {
+  it("S: siedem druzyn miesci sie w 7,2-8,2 s", () => {
     const total = getRevealTotalMs(order);
 
-    expect(total).toBeGreaterThanOrEqual(5800);
-    expect(total).toBeLessThanOrEqual(6500);
+    expect(total).toBeGreaterThanOrEqual(7200);
+    expect(total).toBeLessThanOrEqual(8200);
   });
 
   it("T/U: najpierw ogon od konca, potem 3, 2, 1", () => {
@@ -171,7 +190,8 @@ describe("S-AD: przebieg ceremonii", () => {
   it("X: snop swiatla schodzi w okolicy uderzenia", () => {
     expect(podium).toContain('data-testid="podium-beam"');
     // Snop wyprzedza lądowanie, żeby zdążył oświetlić stopień.
-    expect(podium).toContain("impactMs - PODIUM_BEAM_MS * 0.55");
+    expect(podium).toContain("animationDelay: `${beamAtMs(delayMs)}ms`");
+    expect(beamAtMs(2000)).toBeLessThan(getImpactMs(2000));
 
     const beam = css.slice(css.indexOf(".podium-beam {"));
     expect(beam).toContain("bottom: 100%");

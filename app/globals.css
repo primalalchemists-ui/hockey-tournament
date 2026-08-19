@@ -482,27 +482,51 @@ button {
    nie migająca reklama — dlatego żadnej pętli.
    ========================================================================== */
 
-@keyframes cta-shine {
-  from {
-    transform: translateX(-120%);
-  }
-  to {
-    transform: translateX(220%);
-  }
-}
+/*
+  REFLEKS PRZECHODZI PRZEZ CAŁY PRZYCISK.
 
-/* Odbicie światła przechodzące przez całą szerokość przycisku. */
-@keyframes cta-sheen {
+  Poprzednia wersja animowała `translateX` w procentach — a te liczą się
+  od szerokości SAMEGO PASA, nie przycisku. Pas o szerokości 22% przy
+  `translateX(220%)` przesuwał się o 220% × 22% = 48% szerokości przycisku
+  i zatrzymywał się w jego prawej części; `fill-mode: both` parkował go
+  tam na stałe. Dokładnie to widać było na telefonie.
+
+  Teraz animujemy `left`, którego procenty liczą się od bloku zawierającego,
+  czyli od przycisku. Start i koniec są wyrażone przez szerokość pasa
+  (`--sheen-w`), więc światło ZAWSZE wychodzi poza obie krawędzie —
+  niezależnie od tego, jak szeroki jest przycisk.
+*/
+@keyframes cta-shine {
   0% {
     opacity: 0;
-    transform: translateX(-140%) skewX(-12deg);
+    left: calc(-1 * var(--sheen-w) - 6%);
   }
-  20% {
+  12% {
+    opacity: 1;
+  }
+  88% {
     opacity: 1;
   }
   100% {
     opacity: 0;
-    transform: translateX(420%) skewX(-12deg);
+    left: 106%;
+  }
+}
+
+@keyframes cta-sheen {
+  0% {
+    opacity: 0;
+    left: calc(-1 * var(--sheen-w) - 6%);
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    left: 106%;
   }
 }
 
@@ -521,16 +545,21 @@ button {
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 22%;
+    /* Szerokość pasa jest jednocześnie punktem odniesienia dla toru. */
+    --sheen-w: 26%;
+    width: var(--sheen-w);
+    left: calc(-1 * var(--sheen-w) - 6%);
+    transform: skewX(-12deg);
     background: linear-gradient(
       100deg,
       rgba(255, 236, 196, 0) 0%,
-      rgba(255, 240, 208, 0.45) 45%,
-      rgba(255, 255, 255, 0.75) 50%,
-      rgba(255, 240, 208, 0.45) 55%,
+      rgba(255, 240, 208, 0.4) 42%,
+      rgba(255, 250, 232, 0.62) 50%,
+      rgba(255, 240, 208, 0.4) 58%,
       rgba(255, 236, 196, 0) 100%
     );
-    animation: cta-shine 860ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+    /* Wolniej, nie jaśniej: światło ma sunąć po ciemnym metalu. */
+    animation: cta-shine 1100ms cubic-bezier(0.35, 0, 0.25, 1) 1 both;
     pointer-events: none;
   }
 
@@ -559,22 +588,23 @@ button {
       position: absolute;
       top: 0;
       bottom: 0;
-      left: 0;
-      width: 28%;
-      transform: translateX(-140%) skewX(-12deg);
+      --sheen-w: 26%;
+      width: var(--sheen-w);
+      left: calc(-1 * var(--sheen-w) - 6%);
+      transform: skewX(-12deg);
       background: linear-gradient(
         100deg,
         rgba(255, 240, 208, 0) 0%,
-        rgba(255, 244, 219, 0.35) 50%,
+        rgba(255, 244, 219, 0.34) 50%,
         rgba(255, 240, 208, 0) 100%
       );
       opacity: 0;
       pointer-events: none;
     }
 
-    /* Jeden przejazd na wejście kursora — bez pętli i bez powtórek. */
+    /* Jeden powolny przejazd na wejście kursora — bez pętli i powtórek. */
     .cta-sheen:hover::before {
-      animation: cta-sheen 680ms cubic-bezier(0.4, 0, 0.2, 1) 1 both;
+      animation: cta-sheen 1100ms cubic-bezier(0.35, 0, 0.25, 1) 1 both;
     }
   }
 
@@ -619,6 +649,97 @@ button {
 }
 
 
+
+/* ==========================================================================
+   WYKONCZENIE MEDALU
+   ========================================================================== */
+
+@layer components {
+  /*
+    OBWODKA MEDALU.
+
+    Medale sa grafikami PNG, wiec ich obrysu nie da sie pogrubic w kodzie
+    wprost. Zamiast tego nakladamy warstwy `drop-shadow`, ktore podazaja za
+    ALFA obrazka — czyli za realnym ksztaltem krazka, a nie za prostokatem.
+    Kolejne warstwy naklada sie na wynik poprzedniej, wiec razem tworza
+    czytelny pierscien przylegajacy do krawedzi medalu.
+
+    To filtr, nie geometria: zero wplywu na layout i zero ryzyka przewijania.
+  */
+  .medal-finish {
+    /* Ten sam rozmiar krazka; zmienia sie wylacznie jego wykonczenie. */
+    will-change: auto;
+  }
+
+  /*
+    ZLOTO — najbardziej wyraziste.
+
+    Ciemniejsza linia definiuje krawedz, jasna obraczka daje polysk metalu,
+    a osadzajacy cien odrywa medal od stopnia. Dodatkowy kontrast i nasycenie
+    pograbiaja rysunek bicia, zeby krazek nie czytal sie jak plaski kolor.
+  */
+  .medal-gold {
+    filter: drop-shadow(0 0 0.5px rgba(122, 78, 14, 0.95))
+      drop-shadow(0 0 1.6px rgba(255, 228, 163, 0.95))
+      drop-shadow(0 0 3px rgba(255, 205, 110, 0.55))
+      drop-shadow(0 1px 2.5px rgba(3, 7, 18, 0.5)) saturate(1.14)
+      contrast(1.09);
+  }
+
+  /*
+    SREBRO — szlachetne, chlodne, wyraznie subtelniejsze od zlota:
+    wezszy pierscien i chlodniejszy polysk, bez plastikowego rozjasnienia.
+  */
+  .medal-silver {
+    filter: drop-shadow(0 0 0.5px rgba(71, 85, 105, 0.9))
+      drop-shadow(0 0 1.3px rgba(241, 245, 249, 0.92))
+      drop-shadow(0 0 2.4px rgba(203, 213, 225, 0.45))
+      drop-shadow(0 1px 2.5px rgba(3, 7, 18, 0.5)) saturate(1.05)
+      contrast(1.07);
+  }
+
+  /*
+    BRAZ — bez zmian charakteru po poprzednim etapie, ale dostaje ten sam
+    JEZYK wykonczenia, zeby cala trojka czytala sie jak jedna ceremonia.
+    Pierscien jest tu najwezszy — hierarchia zostaje nienaruszona.
+  */
+  .medal-bronze {
+    filter: drop-shadow(0 0 0.5px rgba(104, 61, 22, 0.85))
+      drop-shadow(0 0 1px rgba(247, 205, 160, 0.85))
+      drop-shadow(0 1px 2px rgba(3, 7, 18, 0.45)) saturate(1.04)
+      contrast(1.05);
+  }
+}
+
+/* ==========================================================================
+   NIEROZSTRZYGNIETA POZYCJA W RANKINGU
+   ========================================================================== */
+
+@layer components {
+  /*
+    „Kazdy moze jeszcze siegnac po zloto".
+
+    Ciemna, lekko przezroczysta powierzchnia ze zlotym obrysem i cieplym,
+    bardzo delikatnym swiatlem. Swiadomie DUZO stonowanej niz zloty medal
+    po zakonczeniu turnieju — to symbol otwartej stawki, nie nagroda.
+    Statyczne: zero pulsowania i zero animacji.
+  */
+  .unresolved-rank {
+    border: 1px solid rgba(196, 154, 78, 0.55);
+    background:
+      radial-gradient(
+        120% 120% at 50% 0%,
+        rgba(214, 172, 96, 0.22) 0%,
+        rgba(214, 172, 96, 0.06) 70%
+      ),
+      rgba(63, 52, 32, 0.08);
+    color: #8a6a2c;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 236, 190, 0.35),
+      0 0 0.75rem -0.35rem rgba(196, 154, 78, 0.5);
+  }
+}
+
 /* ==========================================================================
    CEREMONIA MEDALOWA — opadanie, uderzenie, swiatlo
    ========================================================================== */
@@ -638,6 +759,32 @@ button {
   100% {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/*
+  Mikroreakcja CALEJ SCENY podium — bardzo delikatna, zeby nie sumowala sie
+  z drgnieciem stopnia w dwa niezalezne wstrzasy. Dotyczy wylacznie wnetrza
+  karty klasyfikacji: nigdy <body>, nigdy dokumentu.
+*/
+@keyframes stage-impact {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  30% {
+    transform: translate3d(
+      calc(var(--stage-shake, 1px) * -1),
+      calc(var(--stage-shake, 1px) * 0.35),
+      0
+    );
+  }
+  65% {
+    transform: translate3d(
+      calc(var(--stage-shake, 1px) * 0.5),
+      calc(var(--stage-shake, 1px) * -0.2),
+      0
+    );
   }
 }
 
@@ -671,15 +818,23 @@ button {
 }
 
 /* Blask medalu: narasta po uderzeniu i osiada na spokojnym poziomie. */
+/*
+  Platforma REAGUJE na uderzenie: blask nie zapala sie w tej samej klatce,
+  tylko chwile pozniej i narasta lagodnie, z krotkim szczytem.
+*/
 @keyframes podium-glow {
   0% {
+    opacity: 0;
     box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
   }
-  30% {
-    box-shadow: 0 0 2.5rem -0.35rem var(--glow-peak);
+  45% {
+    opacity: 1;
+    box-shadow: 0 0 3rem -0.25rem var(--glow-peak);
   }
   100% {
-    box-shadow: 0 0 1.5rem -0.5rem var(--glow-rest);
+    opacity: 1;
+    box-shadow: 0 0 var(--glow-rest-blur, 2rem) var(--glow-rest-spread, -0.4rem)
+      var(--glow-rest);
   }
 }
 
@@ -693,47 +848,84 @@ button {
     animation: podium-impact var(--impact-ms, 150ms) ease-out both;
   }
 
+  .stage-impact {
+    animation: stage-impact var(--stage-ms, 160ms) ease-out both;
+  }
+
+  /*
+    SNOP SWIATLA.
+
+    Szerszy niz herb (okolo 1.5x), zeby OTACZAL go swiatlem zamiast celowac
+    w niego punktowo. Boki gasna gradientem poziomym, dol maska pionowa,
+    a delikatny blur zdejmuje z niego charakter prostokatnej kolumny.
+  */
   .podium-beam {
     position: absolute;
     left: 50%;
     bottom: 100%;
-    width: 2.25rem;
-    height: 5.5rem;
-    margin-left: -1.125rem;
+    width: var(--beam-w, 4.5rem);
+    height: 6.5rem;
+    margin-left: calc(var(--beam-w, 4.5rem) / -2);
     transform-origin: top center;
     pointer-events: none;
-    /* Snop konczy sie miekko, zeby nie przykrywal herbu. */
     background: linear-gradient(
-      to bottom,
-      var(--beam-color) 0%,
-      rgba(255, 255, 255, 0) 85%
-    );
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
-    mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
-    animation: podium-beam var(--beam-ms, 700ms) ease-out both;
+        to right,
+        rgba(255, 255, 255, 0) 0%,
+        var(--beam-color) 35%,
+        var(--beam-core) 50%,
+        var(--beam-color) 65%,
+        rgba(255, 255, 255, 0) 100%
+      ),
+      linear-gradient(to bottom, var(--beam-color) 0%, rgba(255, 255, 255, 0) 88%);
+    background-blend-mode: multiply;
+    filter: blur(3px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 94%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 94%);
+    animation: podium-beam var(--beam-ms, 760ms) ease-out both;
   }
 
   .podium-glow {
-    animation: podium-glow 900ms ease-out both;
+    animation: podium-glow var(--glow-ms, 600ms) cubic-bezier(0.33, 1, 0.68, 1)
+      both;
   }
 
   /* Kolory swiatla pochodza od medalu, nie od nowej palety. */
+  /*
+    Na realnym telefonie tlo podium jest bardzo ciemne i poprzednie wartosci
+    ginely. Hierarchia zostaje nienaruszona: zloto > srebro > braz, ale
+    KAZDY z trzech blaskow ma byc zauwazalny.
+  */
   .podium-tone-gold {
-    --beam-color: rgba(255, 214, 124, 0.5);
-    --glow-peak: rgba(255, 214, 124, 0.6);
-    --glow-rest: rgba(255, 214, 124, 0.22);
+    --beam-color: rgba(255, 214, 124, 0.55);
+    --beam-core: rgba(255, 240, 205, 0.9);
+    --glow-peak: rgba(255, 214, 124, 0.82);
+    --glow-rest: rgba(255, 214, 124, 0.45);
+    --glow-rest-blur: 2.4rem;
+    --glow-rest-spread: -0.35rem;
   }
 
   .podium-tone-silver {
-    --beam-color: rgba(226, 232, 240, 0.42);
-    --glow-peak: rgba(226, 232, 240, 0.4);
-    --glow-rest: rgba(226, 232, 240, 0.15);
+    --beam-color: rgba(226, 232, 240, 0.48);
+    --beam-core: rgba(248, 250, 252, 0.85);
+    --glow-peak: rgba(226, 232, 240, 0.63);
+    --glow-rest: rgba(226, 232, 240, 0.36);
+    --glow-rest-blur: 2.6rem;
+    --glow-rest-spread: -0.3rem;
   }
 
+  /*
+    Brąz ginął na ciemnym tle najbardziej, więc dostaje NAJWIĘKSZY zysk:
+    cieplejszą, bardziej miedzianą barwę i najszerszy, najmiększy rozlew.
+    Hierarchia zostaje utrzymana kryciem (złoto .42 > srebro .33 > brąz .30),
+    a widoczność — rozmyciem, nie jaskrawym punktem.
+  */
   .podium-tone-bronze {
-    --beam-color: rgba(214, 154, 100, 0.38);
-    --glow-peak: rgba(214, 154, 100, 0.34);
-    --glow-rest: rgba(214, 154, 100, 0.12);
+    --beam-color: rgba(214, 154, 100, 0.44);
+    --beam-core: rgba(247, 205, 160, 0.8);
+    --glow-peak: rgba(214, 154, 100, 0.51);
+    --glow-rest: rgba(219, 141, 78, 0.3);
+    --glow-rest-blur: 2.9rem;
+    --glow-rest-spread: -0.2rem;
   }
 
   /*
@@ -743,6 +935,7 @@ button {
   @media (prefers-reduced-motion: reduce) {
     .podium-drop,
     .podium-impact,
+    .stage-impact,
     .podium-glow {
       animation: none;
     }
@@ -752,7 +945,10 @@ button {
     }
 
     .podium-glow {
-      box-shadow: 0 0 1.5rem -0.5rem var(--glow-rest);
+      /* Bez ruchu blask jest od razu w stanie koncowym. */
+      opacity: 1;
+      box-shadow: 0 0 var(--glow-rest-blur, 2rem)
+        var(--glow-rest-spread, -0.4rem) var(--glow-rest);
     }
   }
 }

@@ -207,7 +207,7 @@ describe("Q-V: wyglad przycisku", () => {
 
     expect(sheen).toContain("hover: hover");
     expect(sheen).toContain("pointer: fine");
-    expect(sheen).toContain("cta-sheen 680ms");
+    expect(sheen).toContain("cta-sheen 1100ms");
     // Jeden przejazd, bez petli.
     expect(sheen.slice(0, sheen.indexOf("prefers-reduced-motion"))).not.toContain(
       "infinite"
@@ -222,6 +222,31 @@ describe("Q-V: wyglad przycisku", () => {
 
     expect(seen).toContain("cta-sheen");
     expect(seen).not.toContain("cta-shine");
+  });
+
+  it("A/B/C: refleks przejezdza CALY przycisk, od zewnatrz do zewnatrz", () => {
+    const shine = css.slice(
+      css.indexOf("@keyframes cta-shine"),
+      css.indexOf("@keyframes cta-sheen")
+    );
+
+    /*
+      TU BYL BUG. Poprzednio tor liczyl `translateX` w procentach, ktore
+      odnosza sie do szerokosci SAMEGO PASA, a nie przycisku: pas 22%
+      przy translateX(220%) przesuwal sie o 48% szerokosci przycisku
+      i zatrzymywal w jego prawej czesci.
+    */
+    expect(shine).toContain("left: calc(-1 * var(--sheen-w) - 6%)");
+    expect(shine).toContain("left: 106%");
+    expect(shine).not.toContain("translateX");
+
+    // Swiatlo jest widoczne przez caly przejazd, gasnie dopiero na koncu.
+    expect(shine).toContain("88%");
+  });
+
+  it("A/D: oba refleksy jada tym samym, wolniejszym tempem", () => {
+    expect(css).toContain("animation: cta-shine 1100ms");
+    expect(css).toContain("cta-sheen 1100ms");
   });
 
   it("AV: samo kliniecie nie oznacza ceremonii jako obejrzanej", () => {

@@ -4,18 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { CelebrationButton } from "@/components/celebration-cta";
 import { describeCelebrationCta } from "@/lib/public/celebration";
-import {
-  REVEAL_PODIUM_PAUSE_MS,
-  REVEAL_TAIL_STEP_MS,
-  REVEAL_PODIUM_STEP_MS,
-  REVEAL_WINNER_DURATION_MS,
-  REVEAL_WINNER_EXTRA_MS,
-  WINNER_GLOW_MS,
-  buildPodiumStorageKey,
-  buildRevealOrder,
-  getRevealDurationMs,
-  getRevealTotalMs,
-} from "@/lib/public/podium-reveal";
+import { buildRevealOrder, getRevealTotalMs } from "@/lib/public/podium-reveal";
+import { CEREMONY, tailGapMs } from "@/lib/public/ceremony-timing";
 
 /**
  * CEREMONIA I PRZYCISK - warstwa wizualna po recznej probie generalnej.
@@ -43,47 +33,53 @@ function delayMap(count: number) {
 }
 
 describe("A-F: rytm ceremonii", () => {
-  it("A: siedem druzyn to 5,8-6,5 s", () => {
+  it("A: siedem druzyn to 7,2-8,2 s", () => {
     const total = getRevealTotalMs(buildRevealOrder(entries(7)));
 
-    expect(total).toBeGreaterThanOrEqual(5800);
-    expect(total).toBeLessThanOrEqual(6500);
+    expect(total).toBeGreaterThanOrEqual(7200);
+    expect(total).toBeLessThanOrEqual(8200);
   });
 
-  it("B: ogon idzie szybciej niz podium", () => {
+  it("B: ogon idzie szybciej niz podium i NARASTA", () => {
     const delay = delayMap(7);
 
-    const tailStep = delay.get("t6")! - delay.get("t7")!;
+    const firstTail = delay.get("t6")! - delay.get("t7")!;
+    const lastTail = delay.get("t4")! - delay.get("t5")!;
     const podiumStep = delay.get("t2")! - delay.get("t3")!;
 
-    expect(tailStep).toBe(REVEAL_TAIL_STEP_MS);
-    expect(podiumStep).toBe(REVEAL_PODIUM_STEP_MS);
-    expect(tailStep).toBeLessThan(podiumStep);
+    expect(firstTail).toBe(CEREMONY.tailBaseMs);
+    // Kazde kolejne miejsce kaze czekac dluzej niz poprzednie.
+    expect(lastTail).toBeGreaterThan(firstTail);
+    expect(lastTail).toBeLessThan(podiumStep);
   });
 
-  it("C: przed pierwszym medalem jest oddech", () => {
+  it("C: przed pierwszym medalem jest wyrazny oddech", () => {
     const delay = delayMap(7);
 
     const intoPodium = delay.get("t3")! - delay.get("t4")!;
 
-    expect(intoPodium).toBe(REVEAL_PODIUM_STEP_MS + REVEAL_PODIUM_PAUSE_MS);
-    expect(intoPodium).toBeGreaterThan(delay.get("t2")! - delay.get("t3")!);
+    expect(intoPodium).toBe(
+      CEREMONY.prePodiumPauseMs + CEREMONY.bronzeDelayMs
+    );
+    expect(CEREMONY.prePodiumPauseMs).toBeGreaterThanOrEqual(800);
+    expect(CEREMONY.prePodiumPauseMs).toBeLessThanOrEqual(950);
   });
 
-  it("D: przed zwyciezca jest druga pauza", () => {
+  it("D: na zloto czeka sie dluzej niz na srebro", () => {
     const delay = delayMap(7);
 
-    expect(delay.get("t1")! - delay.get("t2")!).toBe(
-      REVEAL_PODIUM_STEP_MS + REVEAL_WINNER_EXTRA_MS
-    );
+    const toSilver = delay.get("t2")! - delay.get("t3")!;
+    const toGold = delay.get("t1")! - delay.get("t2")!;
+
+    expect(toSilver).toBe(CEREMONY.silverDelayMs);
+    expect(toGold).toBe(CEREMONY.winnerDelayMs);
+    expect(toGold).toBeGreaterThan(toSilver);
   });
 
-  it("E: zwyciezca wchodzi ostatni i wchodzi najdluzej", () => {
+  it("E: zwyciezca wchodzi ostatni", () => {
     const order = buildRevealOrder(entries(7));
 
     expect(order[order.length - 1].key).toBe("t1");
-    expect(getRevealDurationMs(1)).toBe(REVEAL_WINNER_DURATION_MS);
-    expect(getRevealDurationMs(2)).toBeLessThan(REVEAL_WINNER_DURATION_MS);
   });
 
   it("rytm nie jest zaszyty pod siedem druzyn", () => {
@@ -95,12 +91,24 @@ describe("A-F: rytm ceremonii", () => {
       getRevealTotalMs(buildRevealOrder(entries(7)))
     );
 
-    // Dziesiec druzyn: dluzszy ogon, ale ta sama kulminacja.
+    // Dziesiec druzyn: dluzszy ogon, ta sama kulminacja.
     const ten = delayMap(10);
-    expect(ten.get("t9")! - ten.get("t10")!).toBe(REVEAL_TAIL_STEP_MS);
-    expect(ten.get("t1")! - ten.get("t2")!).toBe(
-      REVEAL_PODIUM_STEP_MS + REVEAL_WINNER_EXTRA_MS
-    );
+    expect(ten.get("t9")! - ten.get("t10")!).toBe(CEREMONY.tailBaseMs);
+    expect(ten.get("t1")! - ten.get("t2")!).toBe(CEREMONY.winnerDelayMs);
+  });
+
+  it("limit chroni ceremonie przy szesnastu druzynach", () => {
+    const sixteen = delayMap(16);
+    const delays = Array.from({ length: 16 }, (_, i) => sixteen.get(`t${16 - i}`)!);
+    const gaps = delays.slice(1).map((value, index) => value - delays[index]);
+
+    // Zaden odstep w ogonie nie przekracza limitu.
+    const tailGaps = gaps.slice(0, 12);
+    for (const gap of tailGaps) {
+      expect(gap).toBeLessThanOrEqual(CEREMONY.tailCapMs);
+    }
+
+    expect(tailGapMs(99)).toBe(CEREMONY.tailCapMs);
   });
 
   it("F: bez ruchu ceremonia nie trwa pieciu sekund", () => {
@@ -113,16 +121,15 @@ describe("A-F: rytm ceremonii", () => {
     expect(podium).toContain("markSeen(storageKey);");
   });
 
-  it("winner moment jest jednorazowy", () => {
+  it("zadna animacja ceremonii sie nie zapetla", () => {
     const css = source("app/globals.css");
-    const start = css.indexOf("@keyframes winner-glow");
-    const block = css.slice(start, css.indexOf("/* ===", start));
+    const start = css.indexOf("@keyframes podium-drop");
+    const block = css.slice(start, css.indexOf("OBJASNIENIA SKROTOW", start));
 
-    expect(WINNER_GLOW_MS).toBeGreaterThanOrEqual(700);
-    expect(WINNER_GLOW_MS).toBeLessThanOrEqual(1000);
-
-    expect(block).toContain("animation: winner-glow 900ms ease-out 1 both");
     expect(block).not.toContain("infinite");
     expect(block).not.toContain("alternate");
+
+    // Blask konczy sie na stalej wartosci i tam zostaje.
+    expect(css).toContain("animation: podium-glow var(--glow-ms");
   });
 });

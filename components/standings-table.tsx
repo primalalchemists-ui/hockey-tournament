@@ -35,10 +35,19 @@ function renderPositionBadge(row: StandingRow, positionsEstablished: boolean) {
     sportową. Do czasu pierwszego rozegranego meczu każde miejsce to „?".
   */
   if (!positionsEstablished) {
+    /*
+      Zamiast szarego placeholdera: stonowany, ciemnozłoty stan
+      „wszystko jest jeszcze możliwe". Przed pierwszym gwizdkiem każda
+      drużyna może sięgnąć po złoto — i tak ma to wyglądać.
+
+      To NIE jest medal: dużo ciemniejszy i spokojniejszy niż złoto po
+      zakończeniu turnieju, statyczny, bez pulsowania.
+    */
     return (
       <span
+        data-testid="rank-unresolved"
         title="Miejsce zostanie wyłonione po pierwszych meczach"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--surface-border)] bg-white/70 text-base font-bold text-slate-400"
+        className="unresolved-rank flex h-9 w-9 items-center justify-center rounded-full text-base font-bold"
       >
         ?
       </span>
@@ -46,10 +55,15 @@ function renderPositionBadge(row: StandingRow, positionsEstablished: boolean) {
   }
 
   if (row.isTieUnresolved) {
+    /*
+      Pozycja nierozstrzygnięta mimo rozegranych meczów — ten sam język
+      wizualny, bo domena nadal nie zna odpowiedzi.
+    */
     return (
       <span
+        data-testid="rank-unresolved"
         title={row.tieNote ?? "Miejsce nierozstrzygnięte"}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-300 bg-amber-50 text-base font-bold text-amber-700 shadow-sm"
+        className="unresolved-rank flex h-9 w-9 items-center justify-center rounded-full text-base font-bold"
       >
         ?
       </span>
