@@ -6,6 +6,9 @@ import { loadCurrentTournament } from "@/lib/data";
 import { mergeTournamentData } from "@/lib/merge-data";
 import { calculatePlannedMatchCount } from "@/lib/playoff/planned-matches";
 import { countPlayedMatches } from "@/lib/public/match-progress";
+import { PreviousTournaments } from "@/components/history/previous-tournaments";
+import type { ArchivedTournamentCard } from "@/lib/data/postgres/public-history";
+import type { PublicCategory } from "@/lib/data/postgres/collections";
 
 type SearchParams = Promise<{
   tab?: string;
@@ -137,12 +140,54 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     }
   }
 
+  /*
+    KATEGORIE WYDARZENIA.
+
+    Lekkie metadane (identyfikator, etykieta, kolor) — bez drużyn i meczów
+    pozostałych turniejów. Świeże wejście na stronę ZAWSZE startuje od
+    turnieju wyświetlanego globalnie; przełącznik działa dopiero potem.
+  */
+  let categories: PublicCategory[] | null = null;
+
+  if (tournamentId) {
+    try {
+      const { getPublicCategories } = await import(
+        "@/lib/data/postgres/collections"
+      );
+
+      categories = await getPublicCategories(tournamentId);
+    } catch (error) {
+      // Przełącznik jest dodatkiem — jego awaria nie zabiera wyników.
+      console.error("[public] categories failed:", error);
+    }
+  }
+
   // Turniej ligowy nie ma snapshotu pucharowego — postęp liczymy wprost.
   if (!playoffState) {
     playedMatchCount = countPlayedMatches({
       groups: tournament.groups,
       playoffState: null,
     });
+  }
+
+  /*
+    POPRZEDNIE TURNIEJE.
+
+    Jedno lekkie zapytanie po stronie serwera — bez publicznego endpointu
+    z całą historią. Gdy nie ma nic zarchiwizowanego, sekcja w ogóle nie
+    powstaje (żadnego „brak turniejów").
+  */
+  let archived: ArchivedTournamentCard[] = [];
+
+  try {
+    const { listArchivedTournamentsForPublic } = await import(
+      "@/lib/data/postgres/public-history"
+    );
+
+    archived = await listArchivedTournamentsForPublic();
+  } catch (error) {
+    // Historia jest dodatkiem — jej awaria nie może zabrać bieżących wyników.
+    console.error("[public] history list failed:", error);
   }
 
   // Ta sama reguła co w snapshotcie — jedno źródło prawdy o skali turnieju.
@@ -167,6 +212,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           }
           plannedMatchCount={plannedMatchCount}
           playedMatchCount={playedMatchCount}
+          categories={categories}
+          previousTournaments={
+            archived.length > 0 ? (
+              <PreviousTournaments tournaments={archived} />
+            ) : null
+          }
           playoffState={playoffState}
           tournamentId={tournamentId}
           revision={revision}

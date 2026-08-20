@@ -78,6 +78,27 @@
       "when": 1787066753723,
       "tag": "0010_scorers_enabled",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787137463083,
+      "tag": "0011_camp_registration",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787140947547,
+      "tag": "0012_countdown_pin_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787146561828,
+      "tag": "0013_tournament_collections",
+      "breakpoints": true
     }
   ]
 }

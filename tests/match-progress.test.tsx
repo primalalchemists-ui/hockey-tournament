@@ -29,6 +29,7 @@ const RESULTS_CTA = {
   label: "Sprawdź wyniki",
   shine: false,
   targetId: "wyniki",
+  cinematic: false,
 };
 
 function renderBadge(played: number, planned: number) {
@@ -168,27 +169,41 @@ describe("badge w nagłówku", () => {
 });
 
 describe.skipIf(!hasDatabase)("A-E: realne turnieje", () => {
-  it("A/B: realny SUN CUP U8 to 0 / 56", async () => {
+  it("A/B: realny SUN CUP U8 liczy postęp względem planu 56", async () => {
+    /*
+      MIANOWNIK jest stały — bierze się z konfiguracji, nie z terminarza.
+      LICZNIK należy do organizatora i rośnie w miarę wpisywania wyników,
+      więc test pilnuje zakresu i spójności flagi, a nie chwili w czasie.
+    */
     const progress = await progressForSlug("sun-cup-2026-u8");
 
     expect(progress.planned).toBe(56);
-    expect(progress.played).toBe(0);
-    expect(progress.isComplete).toBe(false);
+    expect(progress.played).toBeGreaterThanOrEqual(0);
+    expect(progress.played).toBeLessThanOrEqual(56);
+    expect(progress.isComplete).toBe(progress.played === 56);
   });
 
-  it("D: zakończony visual rehearsal to 56 / 56", async () => {
+  it("D: rozgrywany klon liczy postęp względem planu 56", async () => {
+    /*
+      Klon służy do ręcznego przechodzenia turnieju, więc liczba rozegranych
+      meczów rośnie i maleje razem z cofaniem faz. Stały jest MIANOWNIK
+      i to, że licznik nigdy go nie przekracza.
+    */
     const progress = await progressForSlug("sun-cup-u8-visual-rehearsal");
 
     expect(progress.planned).toBe(56);
-    expect(progress.played).toBe(56);
-    expect(progress.isComplete).toBe(true);
+    expect(progress.played).toBeGreaterThan(0);
+    expect(progress.played).toBeLessThanOrEqual(56);
+    expect(progress.isComplete).toBe(progress.played === 56);
   });
 
-  it("E: realny SUN CUP U10 to 0 / 90", async () => {
+  it("E: realny SUN CUP U10 planuje 90 meczów", async () => {
     const progress = await progressForSlug("sun-cup-2026-u10");
 
+    // Mianownik pochodzi z konfiguracji (2 x 10 drużyn) i nie zmienia się,
+    // gdy sędzia wpisuje kolejne wyniki.
     expect(progress.planned).toBe(90);
-    expect(progress.played).toBe(0);
+    expect(progress.played).toBeLessThanOrEqual(90);
   });
 
   it("C: rozegrana faza grupowa liczy się w całości", async () => {

@@ -16,6 +16,8 @@ import type { TournamentStructure } from "@/types/tournament-config";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import { usePublicAutoRefresh } from "@/components/use-public-auto-refresh";
 import { useCelebration } from "@/components/use-celebration";
+import { CategorySwitcher } from "@/components/public/category-switcher";
+import type { CategoryLike } from "@/lib/public/tournament-collection";
 
 type MainTab = "live" | "schedule" | "regulation" | "scorers";
 
@@ -30,6 +32,16 @@ type TournamentShellProps = {
   plannedMatchCount: number;
   /** Ile z nich ma już wynik — licznik postępu w nagłówku. */
   playedMatchCount: number;
+  /**
+   * Gotowa sekcja „Poprzednie turnieje" wyrenderowana na serwerze.
+   * Shell tylko przekazuje ją dalej — nie wie nic o archiwum.
+   */
+  previousTournaments?: React.ReactNode;
+  /**
+   * Kategorie tego samego wydarzenia (np. U8 / U10). Puste albo mniej niż
+   * dwie = przełącznik się nie pojawia.
+   */
+  categories?: CategoryLike[] | null;
   /** Punkt startowy dla auto-odświeżania — z renderu serwerowego. */
   tournamentId: string | null;
   revision: number;
@@ -51,6 +63,8 @@ export function TournamentShell({
   scorersEnabled: initialScorersEnabled,
   plannedMatchCount: initialPlannedMatchCount,
   playedMatchCount: initialPlayedMatchCount,
+  previousTournaments,
+  categories,
   tournamentId,
   revision,
   initialTab = "live",
@@ -65,6 +79,9 @@ export function TournamentShell({
     plannedMatchCount,
     playedMatchCount,
     refreshTick,
+    selectedTournamentId,
+    isSwitching,
+    switchTournament,
   } = usePublicAutoRefresh({
       initialTournamentId: tournamentId,
       initialRevision: revision,
@@ -79,6 +96,20 @@ export function TournamentShell({
   const searchParams = useSearchParams();
 
   const [activeTab, setActiveTab] = useState<MainTab>(initialTab);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+
+  /*
+    Zmiana kategorii jest lokalna dla tej sesji: nie dotyka `is_current`,
+    niczego nie zapisuje i po odświeżeniu strony kibic wraca do turnieju
+    wyświetlanego globalnie.
+  */
+  async function handleSelectCategory(tournamentId: string) {
+    setSwitchError(null);
+
+    const ok = await switchTournament(tournamentId);
+
+    if (!ok) setSwitchError("Nie udało się wczytać tej kategorii.");
+  }
 
   /*
     CELEBRACJA — jedna decyzja, dwa miejsca prezentacji.
@@ -226,6 +257,16 @@ export function TournamentShell({
         refreshTick={refreshTick}
         plannedMatchCount={plannedMatchCount}
         playedMatchCount={playedMatchCount}
+        categorySwitcher={
+          <CategorySwitcher
+            variant="inline"
+            categories={categories ?? []}
+            selectedTournamentId={selectedTournamentId}
+            isSwitching={isSwitching}
+            onSelect={handleSelectCategory}
+            error={switchError}
+          />
+        }
         cta={celebration}
       />
 
@@ -280,13 +321,34 @@ export function TournamentShell({
             {tournament.campStartDate ? (
               <CampBanner
                 date={tournament.campStartDate}
-                signupLink={tournament.campSignupLink || "#"}
+                signupLink={tournament.campSignupLink || ""}
+                campTitle={tournament.campTitle}
+                registrationEnabled={tournament.campRegistrationEnabled}
+                countdownPinColor={tournament.countdownPinColor}
                 bannerImage={tournament.assets.campBannerImage}
                 leftPosterImage={tournament.assets.campPosterLeft}
                 rightPosterImage={tournament.assets.campPosterRight}
+                previousTournaments={previousTournaments}
               />
             ) : null}
       </div>
+
+      {/*
+        Wariant telefonowy: bąbelek pływa nad treścią, przy prawej krawędzi
+        i nad dolną. Na desktopie ten sam przełącznik siedzi w nagłówku,
+        więc oba warianty nigdy nie są widoczne jednocześnie.
+
+        Przełącznik pojawia się WYŁĄCZNIE wtedy, gdy wydarzenie ma co
+        najmniej dwie publicznie dostępne kategorie.
+      */}
+      <CategorySwitcher
+        variant="floating"
+        categories={categories ?? []}
+        selectedTournamentId={selectedTournamentId}
+        isSwitching={isSwitching}
+        onSelect={handleSelectCategory}
+        error={switchError}
+      />
     </div>
   );
 }

@@ -3,6 +3,10 @@
 import { Trophy } from "lucide-react";
 
 import type { CelebrationCta } from "@/lib/public/celebration";
+import {
+  CELEBRATION_REQUEST_EVENT,
+  type CelebrationRequestDetail,
+} from "@/lib/public/cinematic-focus";
 
 type CelebrationButtonProps = {
   cta: CelebrationCta;
@@ -12,18 +16,57 @@ type CelebrationButtonProps = {
 /**
  * Przycisk prowadzący do sekcji wyników albo do klasyfikacji końcowej.
  *
- * Świadomie NIE uruchamia animacji: przewija do sekcji, a ceremonia rusza
- * dopiero wtedy, gdy podium naprawdę wejdzie w pole widzenia. Kliknięcie
- * z góry strony nie może „zużyć" celebracji, której kibic nie zobaczył.
+ * TRZY ZACHOWANIA, JEDEN PRZYCISK:
+ *
+ *   1. zwykłe wyniki i obejrzana już ceremonia → spokojne przewinięcie,
+ *   2. nieobejrzana ceremonia → prośba o kadr kinowy; to podium wyjeżdża
+ *      do kibica, a nie kibic do podium, więc nie przewijamy,
+ *   3. nieobejrzana ceremonia przy ograniczonym ruchu → przewinięcie plus
+ *      natychmiastowy stan końcowy, bez ośmiu sekund czekania.
+ *
+ * Przycisk NIE zna choreografii i niczego nie oznacza jako obejrzane —
+ * jedno i drugie należy do podium, które jest jedynym źródłem prawdy.
  */
 export function CelebrationButton({ cta, className }: CelebrationButtonProps) {
   const isCelebration = cta.kind === "celebration";
 
-  function handleClick() {
+  function scrollToTarget() {
     const target = document.getElementById(cta.targetId);
     if (!target) return;
 
     target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function requestCinematic(): boolean {
+    const scopeKey = cta.targetId.replace(/^celebration-/, "");
+    if (!scopeKey) return false;
+
+    const event = new CustomEvent<CelebrationRequestDetail>(
+      CELEBRATION_REQUEST_EVENT,
+      { detail: { scopeKey } }
+    );
+
+    window.dispatchEvent(event);
+    return true;
+  }
+
+  function handleClick() {
+    if (!cta.cinematic) {
+      scrollToTarget();
+      return;
+    }
+
+    const reducedMotion = Boolean(
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    );
+
+    /*
+      Przy ograniczonym ruchu nie ma czego oglądać w kadrze, więc kibic idzie
+      do sekcji normalnie — podium samo domknie się do stanu końcowego.
+    */
+    if (reducedMotion) scrollToTarget();
+
+    requestCinematic();
   }
 
   return (

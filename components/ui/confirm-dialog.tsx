@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { AlertTriangle } from "lucide-react";
 
 import { ModalPortal } from "@/components/ui/modal-portal";
+import { lockBodyScroll } from "@/lib/public/scroll-lock";
 
 /**
  * OKNO POTWIERDZENIA — jedno dla całego panelu.
@@ -29,6 +31,10 @@ type ConfirmDialogProps = {
   cancelLabel?: string;
   /** "danger" dla operacji kasujących wyniki. */
   tone?: "default" | "danger";
+  /** Rozszerza okno dla dłuższych formularzy (np. łączenie kategorii). */
+  size?: "compact" | "form";
+  /** "warning" dodaje wyraźny znak ostrzegawczy przy tytule. */
+  icon?: "none" | "warning";
   /** Etykieta na czas trwania operacji; przycisk zachowuje wymiary. */
   busyLabel?: string;
   isBusy?: boolean;
@@ -46,6 +52,8 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Anuluj",
   tone = "default",
+  size = "compact",
+  icon = "none",
   busyLabel,
   isBusy = false,
   onConfirm,
@@ -63,19 +71,10 @@ export function ConfirmDialog({
     cancelRef.current?.focus();
 
     /*
-      BLOKADA PRZEWIJANIA BEZ SKOKU.
-
-      Samo `overflow: hidden` na <body> zabiera pasek przewijania i cała
-      strona przeskakuje w bok o jego szerokość. Rekompensujemy tę
-      szerokość paddingiem, więc tło pod rozmyciem stoi nieruchomo.
+      Blokada przewijania bez skoku strony — ten sam helper, którego używa
+      kadr kinowy podium. Jedna implementacja, jedna rekompensata paska.
     */
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    const previousPadding = body.style.paddingRight;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-
-    body.style.overflow = "hidden";
-    if (scrollbar > 0) body.style.paddingRight = `${scrollbar}px`;
+    const restoreScroll = lockBodyScroll();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -106,8 +105,7 @@ export function ConfirmDialog({
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      body.style.overflow = previousOverflow;
-      body.style.paddingRight = previousPadding;
+      restoreScroll();
       restoreRef.current?.focus();
     };
   }, [open, onCancel]);
@@ -131,16 +129,57 @@ export function ConfirmDialog({
           aria-modal="true"
           aria-labelledby={titleId}
           data-testid="confirm-dialog"
-          className="ice-surface w-full max-w-md rounded-3xl p-5 shadow-2xl sm:p-6"
-        >
-          <h2 id={titleId} className="text-lg font-bold text-slate-900">
-            {title}
-          </h2>
+          data-size={size}
+          /*
+            OKNO NIGDY NIE PRZERASTA EKRANU.
 
-          <div className="mt-3 space-y-3 text-sm text-slate-600">{children}</div>
+            Formularz łączenia kategorii jest wysoki (dwa pola, dwa pickery),
+            więc na telefonie okno potrafiło ciągnąć się przez cały ekran,
+            a przyciski uciekały poza zasięg. Nagłówek i stopka są teraz
+            przyklejone, a przewija się wyłącznie środek.
+          */
+          className={[
+            "ice-surface flex w-full max-h-[88dvh] flex-col rounded-3xl shadow-2xl",
+            size === "form" ? "max-w-lg" : "max-w-md",
+          ].join(" ")}
+        >
+          <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-5 sm:px-6 sm:pt-6">
+            <div className="flex min-w-0 items-center gap-3">
+              {/* Operacja wysokiego ryzyka dostaje jednoznaczny znak. */}
+              {icon === "warning" ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="confirm-warning-icon"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-700"
+                >
+                  <AlertTriangle size={18} />
+                </span>
+              ) : null}
+
+              <h2 id={titleId} className="text-lg font-bold text-slate-900">
+                {title}
+              </h2>
+            </div>
+
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isBusy}
+              aria-label="Zamknij"
+              data-testid="confirm-close"
+              className="btn btn-quiet h-9 w-9 shrink-0 justify-center p-0 text-sm"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Przewija się WYŁĄCZNIE treść — nagłówek i akcje zostają w kadrze. */}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-3 text-sm text-slate-600 sm:px-6">
+            {children}
+          </div>
 
           {/* Na telefonie akcje układają się w pionie i mają pełny cel dotyku. */}
-          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--surface-line)] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
             <button
               ref={cancelRef}
               type="button"

@@ -249,16 +249,28 @@ export async function setTournamentArchivedAction(
     return { error: "Brak identyfikatora turnieju." };
   }
 
+  let slug: string | null = null;
+
   try {
-    await getTournamentRepository().setTournamentArchived(
-      tournamentId,
-      archived
-    );
+    const repository = getTournamentRepository();
+
+    await repository.setTournamentArchived(tournamentId, archived);
+
+    // Slug potrzebny WYŁĄCZNIE do odświeżenia właściwej strony historii.
+    const summaries = await repository.listTournaments();
+    slug = summaries.find((item) => item.id === tournamentId)?.slug ?? null;
   } catch (error) {
-    return { error: toMessage(error) };
+    return toActionError(error);
   }
 
+  /*
+    Archiwizacja i przywrócenie zmieniają DWA publiczne widoki: karuzelę
+    „Poprzednie turnieje" na stronie głównej oraz samą stronę wyników
+    archiwalnych, która po przywróceniu przestaje być dostępna.
+  */
   revalidatePath("/admin");
+  revalidatePath("/");
+  if (slug) revalidatePath(`/turnieje/${slug}`);
 
   return { error: null };
 }
@@ -475,5 +487,152 @@ export async function savePlayoffAssetAction(
 
   revalidatePath("/");
   revalidatePath("/admin");
+  return { error: null };
+}
+
+/* ==========================================================================
+ * KATEGORIE WYDARZENIA
+ * ======================================================================== */
+
+/**
+ * Połączenie turniejów w jedno wydarzenie.
+ *
+ * ŻADNA z tych operacji nie zmienia turnieju wyświetlanego publicznie —
+ * `is_current` pozostaje wyłączną decyzją administratora podejmowaną
+ * w selektorze turniejów.
+ */
+export async function connectTournamentsAction(
+  _prevState: TournamentActionState,
+  formData: FormData
+): Promise<TournamentActionState> {
+  await requireAdmin();
+
+  const currentId = getString(formData, "tournamentId");
+  const targetId = getString(formData, "targetTournamentId");
+
+  if (!currentId || !targetId) {
+    return { error: "Wybierz turniej, z którym chcesz połączyć." };
+  }
+
+  try {
+    const { connectTournaments, getCollectionForTournament } = await import(
+      "@/lib/data/postgres/collections"
+    );
+
+    /*
+      Dodanie TRZECIEJ i kolejnej kategorii nie każe administratorowi
+      przepisywać ustawień turnieju, w którym stoi — jego etykietę i kolor
+      bierzemy z istniejącego członkostwa.
+    */
+    const existing = (await getCollectionForTournament(currentId))?.members.find(
+      (member) => member.tournamentId === currentId
+    );
+
+    await connectTournaments({
+      members: [
+        {
+          tournamentId: currentId,
+          label: getString(formData, "currentLabel") || existing?.label || "",
+          bubbleColor:
+            getString(formData, "currentColor") || existing?.bubbleColor || "",
+        },
+        {
+          tournamentId: targetId,
+          label: getString(formData, "targetLabel"),
+          bubbleColor: getString(formData, "targetColor"),
+        },
+      ],
+    });
+  } catch (error) {
+    return toActionError(error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+
+  return { error: null };
+}
+
+/** Zmiana etykiety i koloru jednej kategorii. */
+export async function updateCategoryAction(
+  _prevState: TournamentActionState,
+  formData: FormData
+): Promise<TournamentActionState> {
+  await requireAdmin();
+
+  const tournamentId = getString(formData, "tournamentId");
+  if (!tournamentId) return { error: "Brak identyfikatora turnieju." };
+
+  try {
+    const { updateCollectionMember } = await import(
+      "@/lib/data/postgres/collections"
+    );
+
+    await updateCollectionMember({
+      tournamentId,
+      label: getString(formData, "label"),
+      bubbleColor: getString(formData, "bubbleColor"),
+    });
+  } catch (error) {
+    return toActionError(error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+
+  return { error: null };
+}
+
+/** Zmiana kolejności kategorii na przełączniku. */
+export async function moveCategoryAction(
+  _prevState: TournamentActionState,
+  formData: FormData
+): Promise<TournamentActionState> {
+  await requireAdmin();
+
+  const tournamentId = getString(formData, "tournamentId");
+  const direction = getString(formData, "direction") === "up" ? -1 : 1;
+
+  if (!tournamentId) return { error: "Brak identyfikatora turnieju." };
+
+  try {
+    const { moveCollectionMember } = await import(
+      "@/lib/data/postgres/collections"
+    );
+
+    await moveCollectionMember({ tournamentId, direction });
+  } catch (error) {
+    return toActionError(error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+
+  return { error: null };
+}
+
+/** Usunięcie turnieju z przełącznika. Sam turniej zostaje nietknięty. */
+export async function removeCategoryAction(
+  _prevState: TournamentActionState,
+  formData: FormData
+): Promise<TournamentActionState> {
+  await requireAdmin();
+
+  const tournamentId = getString(formData, "tournamentId");
+  if (!tournamentId) return { error: "Brak identyfikatora turnieju." };
+
+  try {
+    const { removeCollectionMember } = await import(
+      "@/lib/data/postgres/collections"
+    );
+
+    await removeCollectionMember(tournamentId);
+  } catch (error) {
+    return toActionError(error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+
   return { error: null };
 }

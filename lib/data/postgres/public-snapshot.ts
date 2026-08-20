@@ -45,15 +45,27 @@ export type PublicVersion = {
   revision: number;
 };
 
-/** Lekkie odpytanie: wyłącznie identyfikator i wersja. */
-export async function getPublicVersion(): Promise<PublicVersion> {
+/**
+ * Lekkie odpytanie: wyłącznie identyfikator i wersja.
+ *
+ * Bez argumentu dotyczy turnieju wyświetlanego globalnie. Z argumentem —
+ * konkretnej kategorii tego samego wydarzenia; dostęp jest wtedy sprawdzany
+ * przez `isPubliclyReadable`, więc znajomość UUID nie wystarcza.
+ */
+export async function getPublicVersion(
+  tournamentId?: string | null
+): Promise<PublicVersion> {
   const rows = await getDb()
     .select({
       id: tournaments.id,
       revision: tournaments.publicRevision,
     })
     .from(tournaments)
-    .where(eq(tournaments.isCurrent, true))
+    .where(
+      tournamentId
+        ? eq(tournaments.id, tournamentId)
+        : eq(tournaments.isCurrent, true)
+    )
     .limit(1);
 
   if (!rows[0]) {
@@ -63,17 +75,19 @@ export async function getPublicVersion(): Promise<PublicVersion> {
   return { tournamentId: rows[0].id, revision: rows[0].revision };
 }
 
-async function buildSnapshotOnce(): Promise<{
+async function buildSnapshotOnce(tournamentId?: string | null): Promise<{
   snapshot: PublicSnapshot | null;
   revisionAfter: number;
 }> {
-  const before = await getPublicVersion();
+  const before = await getPublicVersion(tournamentId);
 
   if (!before.tournamentId) {
     return { snapshot: null, revisionAfter: 0 };
   }
 
-  const result = await postgresRepository.getCurrentTournament();
+  const result = tournamentId
+    ? await postgresRepository.getTournamentById(tournamentId)
+    : await postgresRepository.getCurrentTournament();
 
   if (result.status !== "ok") {
     throw new Error(
@@ -107,7 +121,7 @@ async function buildSnapshotOnce(): Promise<{
     playoffState,
   });
 
-  const after = await getPublicVersion();
+  const after = await getPublicVersion(tournamentId);
 
   return {
     snapshot: {
@@ -124,13 +138,15 @@ async function buildSnapshotOnce(): Promise<{
   };
 }
 
-export async function getPublicSnapshot(): Promise<PublicSnapshot | null> {
-  const first = await buildSnapshotOnce();
+export async function getPublicSnapshot(
+  tournamentId?: string | null
+): Promise<PublicSnapshot | null> {
+  const first = await buildSnapshotOnce(tournamentId);
 
   if (!first.snapshot) return null;
   if (first.revisionAfter === first.snapshot.revision) return first.snapshot;
 
   // Ktoś zapisał zmianę w trakcie budowania — powtarzamy raz.
-  const second = await buildSnapshotOnce();
+  const second = await buildSnapshotOnce(tournamentId);
   return second.snapshot;
 }

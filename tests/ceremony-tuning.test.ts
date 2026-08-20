@@ -182,8 +182,13 @@ describe("AG-AL: reakcja calej sceny", () => {
 
   it("AJ: drga wylacznie wnetrze sceny", () => {
     expect(podium).toContain('data-testid="podium-stage-shake"');
+    /*
+      Drgania nie maja prawa dotknac strony. Kadr ceremonii CZYTA
+      `documentElement` (strefy bezpieczne), wiec pilnujemy tego, co
+      naprawde grozi: zadnego PISANIA po stylach dokumentu ani <body>.
+    */
     expect(podium).not.toContain("document.body");
-    expect(podium).not.toContain("documentElement");
+    expect(podium).not.toContain("documentElement.style");
   });
 
   it("AJ: kazde ladowanie ma wlasna warstwe", () => {

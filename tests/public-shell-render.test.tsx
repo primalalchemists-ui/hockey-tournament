@@ -19,6 +19,7 @@ const RESULTS_CTA = {
   label: "Sprawdź wyniki",
   shine: false,
   targetId: "results-section",
+  cinematic: false,
 };
 
 const GROUP: Group = {
@@ -147,26 +148,44 @@ describe("L: mechanika ceremonii pozostaje nietknięta", () => {
   it("ceremonia nadal startuje z IntersectionObserver, nie z nadejścia danych", () => {
     expect(code).toContain("new IntersectionObserver");
     // Próg dobrany tak, żeby wysoka sekcja też potrafiła go osiągnąć.
-    expect(code).toContain("threshold: 0");
-    expect(code).toContain('rootMargin: "0px 0px -20% 0px"');
+    expect(code).toContain("shouldStartOnViewport");
+    expect(code).toContain("threshold: [0,");
   });
 
   it("„obejrzane” zapisujemy dopiero po pełnej ceremonii", () => {
     expect(code).toContain("getRevealTotalMs(revealOrder)");
     // markSeen zapisuje i ogłasza koniec ceremonii przyciskowi celebracji.
     expect(code).toContain("markRevealSeen(key)");
-    expect(code).toContain("markSeen(storageKey)");
+    expect(code).toContain("markSeen();");
   });
 });
 
 describe("po intro strona jest spokojna", () => {
-  const files = ["components/tournament-shell.tsx", "components/group-tabs.tsx"];
-
-  it.each(files)("%s nie animuje pierwszego wejścia treści", (file) => {
-    const code = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+  it("zakładki turnieju nie animują pierwszego wejścia treści", () => {
+    const code = readFileSync(
+      new URL("../components/tournament-shell.tsx", import.meta.url),
+      "utf8"
+    );
 
     // Animujemy PRZEŁĄCZANIE, nie pierwsze pojawienie się strony.
     expect(code).toContain('<AnimatePresence mode="wait" initial={false}>');
+  });
+
+  it("zmiana grupy przechodzi jako jeden blok, bez animacji na starcie", () => {
+    const code = readFileSync(
+      new URL("../components/group-tabs.tsx", import.meta.url),
+      "utf8"
+    );
+
+    /*
+      Grupy przeszły z AnimatePresence na własny, sterowany stan przejścia:
+      pierwsza faza to „idle", więc pierwszy render nie animuje niczego,
+      a wejście pojawia się dopiero po realnym kliknięciu użytkownika.
+      Patrz tests/group-transition.test.tsx.
+    */
+    expect(code).toContain("useGroupTransition(activeGroup)");
+    expect(code).toContain("<GroupTransition phase={groupPhase}");
+    expect(code).not.toContain("AnimatePresence");
   });
 
   it("nagłówek wchodzi jednym ruchem, nie elementem po elemencie", () => {

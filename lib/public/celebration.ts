@@ -17,6 +17,15 @@ export type CelebrationCta = {
   shine: boolean;
   /** Identyfikator sekcji, do której przewija przycisk. */
   targetId: string;
+  /**
+   * Czy kliknięcie ma uruchomić kadr kinowy.
+   *
+   * Prawda WYŁĄCZNIE dla nieobejrzanej ceremonii. Po obejrzeniu przycisk
+   * zostaje zwykłym skrótem do wyników: przewija i nic więcej. Osobne pole,
+   * a nie odczytywanie `shine`, bo błysk to decyzja wizualna, a to jest
+   * decyzja o zachowaniu — te dwie rzeczy mogą się kiedyś rozejść.
+   */
+  cinematic: boolean;
 };
 
 /** Stabilny identyfikator sekcji klasyfikacji danej grupy. */
@@ -45,6 +54,7 @@ export function describeCelebrationCta(input: {
       label: "Sprawdź wyniki",
       shine: false,
       targetId: RESULTS_SECTION_ID,
+      cinematic: false,
     };
   }
 
@@ -57,5 +67,6 @@ export function describeCelebrationCta(input: {
     label: input.seen ? "Zobacz klasyfikację" : "Zobacz celebrację",
     shine: !input.seen,
     targetId: celebrationSectionId(input.scopeKey!),
+    cinematic: !input.seen,
   };
 }

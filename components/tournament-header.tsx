@@ -25,6 +25,12 @@ type TournamentHeaderProps = {
   /** Ile meczów ma już wynik — licznik po lewej stronie ukośnika. */
   playedMatchCount: number;
   /**
+   * Przełącznik kategorii w wariancie desktopowym — stoi w klastrze
+   * informacyjnym po lewej, obok „Wyniki Live". Na telefonie ten sam
+   * przełącznik pływa nad treścią i jest renderowany gdzie indziej.
+   */
+  categorySwitcher?: React.ReactNode;
+  /**
    * Stan przycisku w hero. Po zakończeniu turnieju TEN SAM slot prowadzi
    * do celebracji zamiast do wyników — bez dokładania drugiego przycisku.
    */
@@ -58,6 +64,7 @@ export function TournamentHeader({
   refreshTick = 0,
   plannedMatchCount,
   playedMatchCount,
+  categorySwitcher,
   cta,
 }: TournamentHeaderProps) {
   const hero = resolveHeroPresentation(heroBannerImage);
@@ -91,30 +98,51 @@ export function TournamentHeader({
         showTopScorerTicker={showTopScorerTicker}
       />
 
-      <div className="flex flex-row items-center justify-between gap-4 px-3 sm:px-0">
-        <div className="ice-surface inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-slate-600 md:px-4 md:py-2">
-          <span className="relative flex h-2.5 w-2.5">
-            <span
-              aria-hidden="true"
-              className="live-ping absolute inline-flex h-full w-full rounded-full bg-red-400"
-            />
+      {/*
+        PASEK NARZĘDZIOWY — trzy strefy, nie cztery pływające elementy.
 
-            <span
-              key={refreshTick}
-              data-testid="live-dot"
-              className={[
-                "relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500",
-                // Jeden krótki puls PO zastosowaniu świeżych danych.
-                // Bez toastów, bez tekstu, bez zmiany layoutu.
-                refreshTick > 0 ? "live-pulse" : "",
-              ].join(" ")}
-            />
-          </span>
+        Od `md` to siatka `1fr auto 1fr`: skrajne kolumny są z definicji
+        równe, więc środkowa kolumna stoi dokładnie na środku kontenera.
+        Licznik meczów nie drgnie, kiedy kategoria zmieni się z U8 na OPEN
+        albo kiedy dojdzie kolejna ikona społecznościowa.
 
-          Wyniki Live
+        `minmax(0, 1fr)` zamiast gołego `1fr` — bez tego długa etykieta
+        rozepchnęłaby swoją kolumnę i zepchnęła środek w bok.
+
+        Poniżej `md` zostaje dotychczasowy `justify-between`: telefon
+        wygląda dobrze i nie jest przedmiotem tej zmiany.
+      */}
+      <div className="flex flex-row items-center justify-between gap-3 px-3 sm:gap-4 sm:px-0 md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        {/*
+          LEWY KLASTER. Kategoria należy do „Wyniki Live", a nie do
+          osobnej kolumny — stąd wspólny wrapper zamiast rodzeństwa.
+        */}
+        <div className="flex items-center gap-2 md:justify-self-start">
+          <div className="ice-surface inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold text-slate-600 md:px-4 md:py-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span
+                aria-hidden="true"
+                className="live-ping absolute inline-flex h-full w-full rounded-full bg-red-400"
+              />
+
+              <span
+                key={refreshTick}
+                data-testid="live-dot"
+                className={[
+                  "relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500",
+                  // Jeden krótki puls PO zastosowaniu świeżych danych.
+                  // Bez toastów, bez tekstu, bez zmiany layoutu.
+                  refreshTick > 0 ? "live-pulse" : "",
+                ].join(" ")}
+              />
+            </span>
+            Wyniki Live
+          </div>
+
+          {categorySwitcher}
         </div>
 
-        <div className="rounded-full border border-white/20 bg-slate-950/60 px-2 py-1 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md sm:px-5 sm:text-sm">
+        <div className="rounded-full border border-white/20 bg-slate-950/60 px-2 py-1 text-center text-xs font-semibold text-white shadow-lg backdrop-blur-md sm:px-5 sm:text-sm md:justify-self-center">
           🏒{" "}
           <span
             data-testid="match-progress"
@@ -147,7 +175,7 @@ export function TournamentHeader({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 md:justify-self-end">
           <a
             href="https://www.instagram.com/festiwal_hokeja/"
             target="_blank"

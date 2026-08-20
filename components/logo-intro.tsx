@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { BrandLoader } from "@/components/brand-loader";
+
 /**
  * Krótkie, brandowane intro.
  *
@@ -9,6 +11,9 @@ import { useEffect, useState } from "react";
  * Nie blokuje renderowania danych, nie czeka na hero, na API ani na
  * obrazki — poprzedni etap celowo usunął takie sprzężenie i nie wracamy
  * do niego. Overlay znika po ustalonym czasie niezależnie od wszystkiego.
+ *
+ * Sam wizual (logo, tło, puls) mieszka w BrandLoader, wspólnym z granicą
+ * ładowania trasy — publiczna aplikacja ma JEDEN język stanu ładowania.
  */
 
 /**
@@ -47,32 +52,12 @@ export function LogoIntro() {
 
   return (
     <div
-      aria-hidden="true"
-      data-testid="logo-intro"
-      className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-[var(--ice-base)]"
       style={{
         opacity: fading ? 0 : 1,
         transition: `opacity ${FADE_MS}ms ease-out`,
       }}
     >
-      <img
-        src="/icons/festiwal-logo.png"
-        alt=""
-        className="h-28 w-auto sm:h-36"
-        style={{
-          animation: `intro-pulse ${PULSE_CYCLE_MS}ms ease-in-out ${PULSE_CYCLES} both`,
-        }}
-      />
-
-      <style>{`
-        @keyframes intro-pulse {
-          0%, 100% { opacity: 0.4; transform: scale(0.97); }
-          50%      { opacity: 1;   transform: scale(1); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          [data-testid="logo-intro"] img { animation: none !important; opacity: 1; }
-        }
-      `}</style>
+      <BrandLoader cycles={PULSE_CYCLES} testId="logo-intro" />
     </div>
   );
 }

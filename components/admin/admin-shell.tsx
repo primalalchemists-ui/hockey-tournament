@@ -6,6 +6,15 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
 import { CampBanner } from "@/components/camp-banner";
+import { CategorySwitcherSettings } from "@/components/admin/category-switcher-settings";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ColorPicker } from "@/components/admin/color-picker";
+import { CountdownPinPreview } from "@/components/admin/color-previews";
+import {
+  CAMP_DEFAULT_TITLE,
+  CAMP_URL_ERROR,
+  isValidRegistrationUrl,
+} from "@/lib/public/camp";
 import { EditableGroupTabs } from "@/components/admin/editable-group-tabs";
 import { ScorersManager } from "@/components/admin/scorers-manager";
 import { EditableTournamentHeader } from "@/components/admin/editable-tournament-header";
@@ -19,6 +28,7 @@ import {
 import { PlayoffPanel } from "@/components/admin/playoff-panel";
 import { PlayoffAssetManager } from "@/components/admin/playoff-asset-manager";
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
+import type { CollectionMember } from "@/lib/data/postgres/collections";
 import type { TournamentSummary } from "@/lib/data/types";
 import type { TournamentSettings } from "@/types/tournament-config";
 import type { Tournament } from "@/types/tournament";
@@ -29,6 +39,7 @@ type MainTab =
   | "regulation"
   | "scorers"
   | "camp"
+  | "categories"
   | "ticker";
 
 type AdminShellProps = {
@@ -40,6 +51,10 @@ type AdminShellProps = {
   settings: TournamentSettings;
   /** null dla turniejów ligowych — silnik pucharowy ich nie dotyczy. */
   playoffState: PlayoffStateView | null;
+  /** Kategorie tego samego wydarzenia; puste = turniej samodzielny. */
+  collectionMembers: CollectionMember[];
+  /** Turnieje, które można jeszcze dołączyć do wydarzenia. */
+  connectableTournaments: Array<{ id: string; title: string }>;
 };
 
 const mainTabs: Array<{ key: MainTab; label: string }> = [
@@ -48,6 +63,11 @@ const mainTabs: Array<{ key: MainTab; label: string }> = [
   { key: "schedule", label: "Harmonogram" },
   { key: "regulation", label: "Regulamin" },
   { key: "camp", label: "Camp i bannery" },
+  /*
+    Kategorie to osobny system konfiguracji, nie dodatek do campu.
+    Wcześniej mieszkały wewnątrz „Camp i bannery" i były nie do znalezienia.
+  */
+  { key: "categories", label: "Kategorie" },
   { key: "ticker", label: "Pasek info" },
 ];
 
@@ -123,6 +143,8 @@ export function AdminShell({
   multiTournamentEnabled,
   settings,
   playoffState,
+  collectionMembers,
+  connectableTournaments,
 }: AdminShellProps) {
   const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
   const [activeTab, setActiveTab] = useState<MainTab>("live");
@@ -141,6 +163,7 @@ export function AdminShell({
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
+  const [clearOpen, setClearOpen] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "error">(
     "idle"
   );
@@ -513,6 +536,14 @@ export function AdminShell({
     });
   }
 
+  /*
+    Widoczność pola z adresem zależy od włącznika, a nie odwrotnie —
+    dlatego stan czytamy w jednym miejscu.
+  */
+  const campRegistrationEnabled = draft.campRegistrationEnabled ?? true;
+  const campUrlError =
+    campRegistrationEnabled && !isValidRegistrationUrl(draft.campSignupLink);
+
   function handleChangeCampStartDate(value: string) {
     updateDraft((prev) => {
       prev.campStartDate = value;
@@ -523,6 +554,31 @@ export function AdminShell({
   function handleChangeCampSignupLink(value: string) {
     updateDraft((prev) => {
       prev.campSignupLink = value;
+      return prev;
+    });
+  }
+
+  function handleChangeCampTitle(value: string) {
+    updateDraft((prev) => {
+      prev.campTitle = value;
+      return prev;
+    });
+  }
+
+  function handleChangeCountdownPinColor(value: string) {
+    updateDraft((prev) => {
+      prev.countdownPinColor = value;
+      return prev;
+    });
+  }
+
+  function handleToggleCampRegistration(value: boolean) {
+    updateDraft((prev) => {
+      /*
+        Wyłączenie zapisów NIE kasuje adresu — administrator włącza je
+        później jednym kliknięciem, bez wpisywania linku od nowa.
+      */
+      prev.campRegistrationEnabled = value;
       return prev;
     });
   }
@@ -639,14 +695,11 @@ export function AdminShell({
   }
 
   function handleClearAll() {
-    const confirmed = window.confirm(
-      "Wyczyścić CAŁY turniej?\n\n" +
-        "Usunie to z formularza wszystkie grupy, drużyny, mecze i strzelców.\n" +
-        "Zmiany zostaną zapisane w bazie dopiero po kliknięciu „Zapisz”.\n\n" +
-        "Kliknij OK tylko jeśli naprawdę chcesz zacząć od zera."
-    );
-
-    if (!confirmed) return;
+    /*
+      Potwierdzenie należy do okna — patrz `clearOpen` i ConfirmDialog niżej.
+      Wcześniej stało tu natywne `window.confirm`, które w przeglądarce
+      wygląda jak alert systemowy i nie ma nic wspólnego z resztą panelu.
+    */
 
     // Świadomie NIE kolejkujemy tu usunięcia plików z Cloudinary.
     // Wyczyszczenie draftu bywa pomyłką, a skasowanie assetów jest
@@ -659,6 +712,9 @@ export function AdminShell({
       scorers: [],
       campStartDate: "",
       campSignupLink: "",
+      campTitle: "",
+      campRegistrationEnabled: true,
+      countdownPinColor: "",
       tickerMessage: "",
       showTopScorerTicker: true,
       assets: {
@@ -684,6 +740,7 @@ export function AdminShell({
     });
 
     setSaveStatus("idle");
+    setClearOpen(false);
   }
 
   function handleSave() {
@@ -898,8 +955,29 @@ export function AdminShell({
             />
           </section>
 
-          <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 ice-surface flush-card p-4 shadow-sm sm:rounded-3xl sm:p-6">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Ustawienia campu
+            </h2>
+
             <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label
+                  htmlFor="camp-title"
+                  className="text-sm font-semibold text-slate-700"
+                >
+                  Nagłówek sekcji
+                </label>
+                <input
+                  id="camp-title"
+                  type="text"
+                  value={draft.campTitle ?? ""}
+                  onChange={(event) => handleChangeCampTitle(event.target.value)}
+                  placeholder={CAMP_DEFAULT_TITLE}
+                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
+                />
+              </div>
+
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">
                   Data startu campa
@@ -911,21 +989,68 @@ export function AdminShell({
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
                 />
               </div>
+            </div>
 
+            <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                data-testid="camp-registration-toggle"
+                checked={campRegistrationEnabled}
+                onChange={(event) =>
+                  handleToggleCampRegistration(event.target.checked)
+                }
+                className="h-5 w-5 rounded border-slate-300"
+              />
+              Zapisy na camp są aktywne
+            </label>
+
+            {campRegistrationEnabled ? (
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">
+                <label
+                  htmlFor="camp-signup"
+                  className="text-sm font-semibold text-slate-700"
+                >
                   Link do zapisów
                 </label>
                 <input
-                  type="text"
+                  id="camp-signup"
+                  type="url"
                   value={draft.campSignupLink ?? ""}
-                  onChange={(event) => handleChangeCampSignupLink(event.target.value)}
+                  onChange={(event) =>
+                    handleChangeCampSignupLink(event.target.value)
+                  }
                   placeholder="https://..."
-                  className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
+                  aria-invalid={campUrlError ? "true" : undefined}
+                  className={[
+                    "w-full rounded-2xl border px-4 py-3 text-sm outline-none",
+                    campUrlError
+                      ? "border-rose-300 focus:border-rose-500"
+                      : "border-slate-300 focus:border-slate-900",
+                  ].join(" ")}
                 />
+                {campUrlError ? (
+                  <p
+                    data-testid="camp-url-error"
+                    className="text-xs font-medium text-rose-700"
+                  >
+                    {CAMP_URL_ERROR}
+                  </p>
+                ) : null}
               </div>
+            ) : null}
+
+            <div className="space-y-3 border-t border-[var(--surface-line)] pt-4">
+              <p className="section-eyebrow">Kolor pinezek odliczania</p>
+
+              <ColorPicker
+                value={draft.countdownPinColor ?? ""}
+                onChange={handleChangeCountdownPinColor}
+                renderPreview={(color) => <CountdownPinPreview color={color} />}
+              />
             </div>
           </section>
+
+
 
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1108,13 +1233,31 @@ export function AdminShell({
 
             <CampBanner
               date={draft.campStartDate ?? ""}
-              signupLink={draft.campSignupLink || "#"}
+              signupLink={draft.campSignupLink || ""}
+              campTitle={draft.campTitle}
+              registrationEnabled={draft.campRegistrationEnabled}
+              countdownPinColor={draft.countdownPinColor}
               bannerImage={draft.assets.campBannerImage}
               leftPosterImage={draft.assets.campPosterLeft}
               rightPosterImage={draft.assets.campPosterRight}
             />
           </section>
         </section>
+      );
+    }
+
+    if (effectiveTab === "categories") {
+      /*
+        Osobna zakładka: przełącznik kategorii jest niezależnym systemem
+        konfiguracji, a nie dodatkiem do sekcji campu.
+      */
+      return (
+        <CategorySwitcherSettings
+          tournamentId={tournamentId}
+          title={draft.title}
+          members={collectionMembers}
+          connectable={connectableTournaments}
+        />
       );
     }
 
@@ -1263,7 +1406,12 @@ export function AdminShell({
           {/* Na telefonie akcje idą na samą górę. */}
           <div className="order-first flex flex-col gap-2 lg:order-none lg:shrink-0 lg:items-end">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={handleClearAll} className="btn btn-danger">
+              <button
+                type="button"
+                onClick={() => setClearOpen(true)}
+                data-testid="admin-clear"
+                className="btn btn-danger"
+              >
                 Wyczyść
               </button>
 
@@ -1340,6 +1488,34 @@ export function AdminShell({
           {content}
         </motion.div>
       </AnimatePresence>
+
+      {/*
+        WYCZYSZCZENIE FORMULARZA.
+
+        Treść mówi dokładnie to, co robi kod: opróżnia FORMULARZ, a do bazy
+        nic nie trafia, dopóki nie klikniesz „Zapisz". Świadomie nie obiecuję
+        „operacji nieodwracalnej" ani „zachowania ustawień" — jedno i drugie
+        byłoby nieprawdą wobec `handleClearAll`.
+      */}
+      <ConfirmDialog
+        open={clearOpen}
+        tone="danger"
+        icon="warning"
+        title="Wyczyścić cały turniej?"
+        confirmLabel="Wyczyść turniej"
+        busyLabel="Wyczyszczanie…"
+        onCancel={() => setClearOpen(false)}
+        onConfirm={handleClearAll}
+      >
+        <p>
+          Formularz zostanie opróżniony: znikną wszystkie grupy, drużyny,
+          mecze i strzelcy, a także ustawienia campu, grafiki i nazwa turnieju.
+        </p>
+        <p className="font-medium text-slate-800">
+          Zmiany trafią do bazy dopiero po kliknięciu „Zapisz”.
+        </p>
+        <p>Pliki wgrane do biblioteki grafik pozostaną nietknięte.</p>
+      </ConfirmDialog>
     </div>
   );
 }

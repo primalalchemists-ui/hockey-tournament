@@ -140,24 +140,34 @@ describe.skipIf(!hasDatabase)("G-N: SUN CUP U8", () => {
     expect(names.join(" ")).not.toContain("BA Polonia");
   });
 
-  it("K: pełny round-robin 21 + 21 meczów", async () => {
+  it("K: obie grupy mają co najmniej pełny round-robin 21 meczów", async () => {
+    /*
+      21 = round-robin siedmiu drużyn i to jest DOLNA granica, nie sztywna
+      liczba. Terminarz należy do organizatora: może dopisać mecz towarzyski
+      albo powtórkę i test nie ma prawa tego blokować.
+    */
     const [row] = await tournamentBySlug("sun-cup-2026-u8");
 
-    expect(await countMatches(row.id, "A")).toBe(21);
-    expect(await countMatches(row.id, "B")).toBe(21);
+    expect(await countMatches(row.id, "A")).toBeGreaterThanOrEqual(21);
+    expect(await countMatches(row.id, "B")).toBeGreaterThanOrEqual(21);
   });
 
-  it("L: żaden mecz nie ma wpisanego wyniku", async () => {
+  it("L: wyniki należą do organizatora, ale żaden nie jest połowiczny", async () => {
+    /*
+      Setup nie wpisuje wyników — wpisuje je człowiek w panelu, więc licznik
+      rozegranych meczów rośnie w czasie i nie da się go przybić do zera.
+      Twarda jest za to zasada: mecz ma albo oba wyniki, albo żadnego.
+    */
     const [row] = await tournamentBySlug("sun-cup-2026-u8");
 
-    const rows = await getDb()
+    const [half] = await getDb()
       .select({ n: sql<number>`count(*)::int` })
       .from(matches)
       .where(
-        sql`${matches.tournamentId} = ${row.id} and (${matches.homeScore} is not null or ${matches.awayScore} is not null)`
+        sql`${matches.tournamentId} = ${row.id} and ((${matches.homeScore} is null) <> (${matches.awayScore} is null))`
       );
 
-    expect(rows[0].n).toBe(0);
+    expect(half.n).toBe(0);
   });
 
   it("M: drabinka nie została jeszcze wygenerowana", async () => {
@@ -231,24 +241,35 @@ describe.skipIf(!hasDatabase)("O-V: SUN CUP U10", () => {
     expect(await groupTeamNames(row.id, "B")).toEqual(U10_B);
   });
 
-  it("S: pełny round-robin 45 + 45 meczów", async () => {
+  it("S: obie grupy mają rozpisany pełny round-robin", async () => {
     const [row] = await tournamentBySlug("sun-cup-2026-u10");
 
-    expect(await countMatches(row.id, "A")).toBe(45);
-    expect(await countMatches(row.id, "B")).toBe(45);
+    /*
+      Terminarz może rosnąć: administrator dopisuje mecze w panelu i to jest
+      jego prawo. Niezmiennikiem jest KOMPLET par każdego z każdym —
+      dziesięć drużyn to co najmniej 45 spotkań w grupie.
+    */
+    expect(await countMatches(row.id, "A")).toBeGreaterThanOrEqual(45);
+    expect(await countMatches(row.id, "B")).toBeGreaterThanOrEqual(45);
   });
 
-  it("T: żaden mecz nie ma wyniku", async () => {
+  it("T: wpisane wyniki są kompletne — nigdy połowiczne", async () => {
     const [row] = await tournamentBySlug("sun-cup-2026-u10");
 
-    const rows = await getDb()
+    /*
+      Turniej jest prowadzony ręcznie, więc liczba wyników rośnie i nie jest
+      niezmiennikiem. Niezmiennikiem jest SPÓJNOŚĆ zapisu: mecz ma albo oba
+      wyniki, albo żadnego.
+    */
+    const [half] = await getDb()
       .select({ n: sql<number>`count(*)::int` })
       .from(matches)
       .where(
-        sql`${matches.tournamentId} = ${row.id} and (${matches.homeScore} is not null or ${matches.awayScore} is not null)`
+        sql`${matches.tournamentId} = ${row.id}
+            and ((${matches.homeScore} is null) <> (${matches.awayScore} is null))`
       );
 
-    expect(rows[0].n).toBe(0);
+    expect(half.n).toBe(0);
   });
 
   it("U: brak jakiegokolwiek stanu pucharowego", async () => {
@@ -318,6 +339,8 @@ describe.skipIf(!hasDatabase)("W-AC: biblioteka, idempotencja i Rabbit Cup", () 
       ["sun-cup-2026-u8", 14, 42],
       ["sun-cup-2026-u10", 20, 90],
     ] as const) {
+      // Dublowanie objawiłoby się WIELOKROTNOŚCIĄ tych liczb, nie ich wzrostem
+      // o pojedynczy mecz dopisany ręcznie w panelu.
       const [row] = await tournamentBySlug(slug);
 
       const [t] = await getDb()
@@ -336,7 +359,8 @@ describe.skipIf(!hasDatabase)("W-AC: biblioteka, idempotencja i Rabbit Cup", () 
         .where(eq(groups.tournamentId, row.id));
 
       expect(t.n).toBe(teamCount);
-      expect(m.n).toBe(matchCount);
+      expect(m.n).toBeGreaterThanOrEqual(matchCount);
+      expect(m.n).toBeLessThan(matchCount * 2);
       expect(g.n).toBe(2);
     }
   });
@@ -417,20 +441,43 @@ describe.skipIf(!hasDatabase)("terminarz przeżywa zapis z panelu", () => {
       .from(matches)
       .where(eq(matches.tournamentId, row.id));
 
+    // Liczy się to, że zapis niczego nie zjadł — nie konkretna liczba meczów.
     expect(after[0].n).toBe(before[0].n);
-    expect(after[0].n).toBe(42);
+    expect(after[0].n).toBeGreaterThanOrEqual(42);
   });
 
-  it("mecze nadal nie mają wyników", async () => {
+  it("zapis z panelu nie kasuje wpisanych wyników", async () => {
+    /*
+      Poprzednio stało tu `toBe(0)`, bo turniej dopiero czekał na start.
+      Organizator zaczął wpisywać wyniki, więc pilnujemy niezmiennika, a nie
+      konkretnej liczby: przejazd „Zapisz" zostawia wyniki tam, gdzie były.
+    */
     const [row] = await tournamentBySlug("sun-cup-2026-u8");
 
-    const played = await getDb()
-      .select({ n: sql<number>`count(*)::int` })
-      .from(matches)
-      .where(
-        sql`${matches.tournamentId} = ${row.id} and ${matches.homeScore} is not null`
-      );
+    const countPlayed = async () => {
+      const rows = await getDb()
+        .select({ n: sql<number>`count(*)::int` })
+        .from(matches)
+        .where(
+          sql`${matches.tournamentId} = ${row.id} and ${matches.homeScore} is not null`
+        );
 
-    expect(played[0].n).toBe(0);
+      return rows[0].n;
+    };
+
+    const before = await countPlayed();
+
+    const loaded = await postgresRepository.getTournamentById(row.id);
+    if (loaded.status !== "ok") throw new Error("brak turnieju");
+
+    await postgresRepository.saveTournament(row.id, {
+      id: row.id,
+      title: loaded.tournament.title ?? "SUN CUP 2026 — U8",
+      scorers: loaded.tournament.scorers ?? [],
+      assets: loaded.tournament.assets!,
+      groups: loaded.tournament.groups ?? [],
+    });
+
+    expect(await countPlayed()).toBe(before);
   });
 });

@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import type {
   BracketTeamView,
@@ -12,6 +21,22 @@ import { celebrationSectionId } from "@/lib/public/celebration";
 import { pulse } from "@/lib/public/haptics";
 import { CEREMONY, beamAtMs, glowAtMs } from "@/lib/public/ceremony-timing";
 import { CELEBRATION_SEEN_EVENT } from "@/components/use-celebration";
+import { CinematicBackdrop } from "@/components/playoff/cinematic-backdrop";
+import { lockBodyScroll } from "@/lib/public/scroll-lock";
+import {
+  CELEBRATION_REQUEST_EVENT,
+  FOCUS,
+  IDLE_FOCUS,
+  computeFocusTransform,
+  isCeremonyDone,
+  isFocusLayerActive,
+  isRevealing,
+  reduceFocus,
+  shouldStartOnViewport,
+  type CelebrationRequestDetail,
+  type FocusTransform,
+  type Rect,
+} from "@/lib/public/cinematic-focus";
 import {
   PODIUM_DROP_MS,
   PODIUM_HAPTIC_MS,
@@ -394,6 +419,40 @@ function TailSlot({
  * SEKCJA
  * ======================================================================== */
 
+/**
+ * Odczyt strefy bezpiecznej w pikselach.
+ *
+ * `env(safe-area-inset-*)` nie da się przeczytać z JS-a wprost, więc arkusz
+ * przepisuje je do zmiennych, a tutaj tylko je odbieramy. Brak wartości
+ * (przeglądarka desktopowa) znaczy zero, nie błąd.
+ */
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void): () => void {
+  const query = window.matchMedia?.(REDUCED_MOTION_QUERY);
+  if (!query) return () => {};
+
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function getReducedMotion(): boolean {
+  return Boolean(window.matchMedia?.(REDUCED_MOTION_QUERY)?.matches);
+}
+
+function readSafeInset(name: string): number {
+  if (typeof window === "undefined") return 0;
+
+  const raw = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+
+  const value = Number.parseFloat(raw);
+
+  return Number.isFinite(value) ? value : 0;
+}
+
 export function PodiumSection({
   tournamentId,
   scopeKey,
@@ -403,9 +462,39 @@ export function PodiumSection({
   backgroundUrl,
 }: PodiumSectionProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const [revealed, setRevealed] = useState(false);
-  const [ceremonyDone, setCeremonyDone] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  /** Sama scena: tytuł i trzy stopnie. To ona decyduje o starcie ze scrolla. */
+  const coreRef = useRef<HTMLDivElement | null>(null);
+  /*
+    Ograniczony ruch czytamy jako ZEWNĘTRZNE źródło, a nie przez efekt
+    ustawiający stan. Migawka serwerowa mówi „pełny ruch", klient poprawia
+    ją zaraz po hydracji — bez rozjazdu i bez kaskady renderów.
+  */
+  const reducedMotion = useSyncExternalStore(
+    subscribeReducedMotion,
+    getReducedMotion,
+    () => false,
+  );
+
+  /*
+    JEDNA MASZYNA STANÓW NA CAŁĄ CEREMONIĘ.
+
+    Wcześniej stały tu dwa niezależne `useState` (`revealed`, `ceremonyDone`).
+    Kadr kinowy dokłada wejście, oddech, przytrzymanie i wyjazd — przy
+    flagach skończyłoby się to kilkunastoma booleanami, które da się ustawić
+    w niemożliwe kombinacje. Tu sekwencja jest zamknięta w redukcji i to ona
+    rozstrzyga wyścig „przycisk kontra obserwator".
+  */
+  const [focus, dispatch] = useReducer(reduceFocus, IDLE_FOCUS);
+
+  const revealed = isRevealing(focus);
+  const ceremonyDone = isCeremonyDone(focus);
+  const layerActive = isFocusLayerActive(focus);
+
+  /** Zmierzony prostokąt sekcji w dokumencie — baza dla FLIP-a i podkładki. */
+  const [naturalRect, setNaturalRect] = useState<Rect | null>(null);
+  const [transform, setTransform] = useState<FocusTransform | null>(null);
+  /** Poprawka na wypadek przodka tworzącego własny kontener pozycjonowania. */
+  const driftRef = useRef({ x: 0, y: 0 });
 
   const isComplete = Boolean(classification?.complete && completionToken);
   const entries = useMemo(
@@ -447,110 +536,361 @@ export function PodiumSection({
   /** Te same momenty, których używa mikroreakcja całej sceny. */
   const stageImpacts = impacts;
 
+  const storageKey =
+    isComplete && completionToken
+      ? buildPodiumStorageKey({ tournamentId, scopeKey, completionToken })
+      : null;
+
+  /*
+    ODPORNOŚĆ NA AUTO-ODŚWIEŻANIE.
+
+    Wszystko, czego potrzebują liczniki ceremonii, trzymamy w referencjach.
+    Efekt sterujący sekwencją zależy WYŁĄCZNIE od fazy, więc snapshot co 13 s
+    nie ma jak przestawić ani jednego licznika: zmiana danych nie zmienia
+    fazy, a bez zmiany fazy efekt się nie uruchamia ponownie.
+  */
   const impactsRef = useRef(impacts);
+  const totalRef = useRef(revealTotalMs);
+  const keyRef = useRef(storageKey);
+  const reducedRef = useRef(reducedMotion);
+  const sourceRef = useRef(focus.source);
 
   useEffect(() => {
     impactsRef.current = impacts;
-  }, [impacts]);
+    totalRef.current = revealTotalMs;
+    keyRef.current = storageKey;
+    reducedRef.current = reducedMotion;
+    sourceRef.current = focus.source;
+  }, [impacts, revealTotalMs, storageKey, reducedMotion, focus.source]);
 
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    setReducedMotion(Boolean(query?.matches));
+  /** „Obejrzane" plus sygnał dla przycisku celebracji. */
+  const markSeen = useCallback(() => {
+    const key = keyRef.current;
+    if (!key) return;
+
+    markRevealSeen(key);
+    window.dispatchEvent(new Event(CELEBRATION_SEEN_EVENT));
   }, []);
 
-  /**
-   * Ceremonia startuje dopiero, gdy podium wejdzie w pole widzenia —
-   * nie w momencie otrzymania danych. Kibic wysoko na stronie
-   * nie „przegapia” finału.
-   */
+  /* --- ceremonia już oglądana ------------------------------------------ */
+
   useEffect(() => {
-    if (!isComplete || !completionToken) return;
+    if (!storageKey) return;
+    if (!hasSeenReveal(storageKey)) return;
 
+    // Pełny stan końcowy i od razu działające dymki — bez ceremonii.
+    dispatch({ type: "ALREADY_SEEN" });
+  }, [storageKey]);
+
+  /* --- pomiar naturalnego miejsca sekcji -------------------------------- */
+
+  const measure = useCallback((): Rect | null => {
     const node = sectionRef.current;
+    if (!node) return null;
+
+    const box = node.getBoundingClientRect();
+
+    return {
+      top: box.top,
+      left: box.left,
+      width: box.width,
+      height: box.height,
+    };
+  }, []);
+
+  /* --- żądanie kadru z przycisku celebracji ----------------------------- */
+
+  useEffect(() => {
+    function onRequest(event: Event) {
+      const detail = (event as CustomEvent<CelebrationRequestDetail>).detail;
+
+      // Przycisk prowadzi do podium OGLĄDANEJ grupy — nie do cudzej.
+      if (detail?.scopeKey !== scopeKey) return;
+      if (!keyRef.current) return;
+
+      /*
+        Pomiar MUSI się odbyć, zanim sekcja wyskoczy z dokumentu — potem
+        jej naturalny prostokąt już nie istnieje.
+      */
+      const rect = measure();
+      if (rect) setNaturalRect(rect);
+
+      // Świeży FLIP zawsze startuje od zera — nigdy od kadru poprzedniej próby.
+      setTransform(null);
+
+      dispatch({
+        type: "REQUEST",
+        source: "cta",
+        reducedMotion: reducedRef.current,
+      });
+    }
+
+    window.addEventListener(CELEBRATION_REQUEST_EVENT, onRequest);
+    return () =>
+      window.removeEventListener(CELEBRATION_REQUEST_EVENT, onRequest);
+  }, [scopeKey, measure]);
+
+  /* --- naturalny scroll: ceremonia w miejscu ---------------------------- */
+
+  useEffect(() => {
+    if (!storageKey) return;
+    if (hasSeenReveal(storageKey)) return;
+
+    const node = coreRef.current;
     if (!node) return;
-
-    const storageKey = buildPodiumStorageKey({
-      tournamentId,
-      scopeKey,
-      completionToken,
-    });
-
-    if (hasSeenReveal(storageKey)) {
-      setRevealed(true);
-      // Ceremonia już była: pełny stan końcowy i od razu działające dymki.
-      setCeremonyDone(true);
-      return;
-    }
-
-    const timers: number[] = [];
-
-    function markSeen(key: string) {
-      markRevealSeen(key);
-      setCeremonyDone(true);
-      // Przycisk celebracji słucha tego zdarzenia i przestaje zapraszać.
-      window.dispatchEvent(new Event(CELEBRATION_SEEN_EVENT));
-    }
 
     const observer = new IntersectionObserver(
       (records) => {
-        if (!records.some((record) => record.isIntersecting)) return;
+        for (const record of records) {
+          const start = shouldStartOnViewport({
+            ratio: record.intersectionRatio,
+            coreHeight: record.boundingClientRect.height,
+            viewportHeight: window.innerHeight,
+          });
 
-        observer.disconnect();
-        setRevealed(true);
+          if (!start) continue;
 
-        if (reducedMotion) {
-          markSeen(storageKey);
+          observer.disconnect();
+
+          /*
+            Jeśli kadr już jedzie, redukcja to żądanie ODRZUCI — obserwator
+            nie ma prawa dopisać drugiej osi czasu do trwającej ceremonii.
+          */
+          dispatch({
+            type: "REQUEST",
+            source: "viewport",
+            reducedMotion: reducedRef.current,
+          });
           return;
-        }
-
-        // "Obejrzane" zapisujemy DOPIERO po zakończeniu animacji —
-        // zamknięcie strony w połowie pozwala zobaczyć ceremonię ponownie.
-        timers.push(
-          window.setTimeout(() => markSeen(storageKey), revealTotalMs),
-        );
-
-        /*
-          Wibracja to WYŁĄCZNIE wzmocnienie lądowania medalisty. Każdy
-          warunek bezpieczeństwa (brak API, ograniczony ruch, ukryta
-          karta) kończy się ciszą, nigdy błędem.
-        */
-        for (const impact of impactsRef.current) {
-          timers.push(
-            window.setTimeout(() => {
-              pulse(PODIUM_HAPTIC_MS[impact.position] ?? 0, {
-                isLiveReveal: true,
-                reducedMotion,
-                documentVisible:
-                  typeof document === "undefined" ||
-                  document.visibilityState === "visible",
-              });
-            }, impact.atMs),
-          );
         }
       },
       /*
-        Sekcja bywa wyższa niż ekran, więc próg 25% jej powierzchni bywa
-        nieosiągalny. Wystarczy, że kibic realnie dotarł do klasyfikacji:
-        widoczny fragment przy dolnej krawędzi ekranu uruchamia ceremonię,
-        ale nie kilka ekranów wcześniej.
+        Gęsta drabinka progów: przy jednym progu przeglądarka nie zgłasza
+        zmian pomiędzy nimi i adaptacyjna reguła nie miałaby czego czytać.
       */
-      { threshold: 0, rootMargin: "0px 0px -20% 0px" },
+      { threshold: [0, 0.25, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 1] },
     );
 
     observer.observe(node);
 
+    return () => observer.disconnect();
+  }, [storageKey]);
+
+  /* --- sekwencja: jedyny sterownik czasu -------------------------------- */
+
+  useEffect(() => {
+    const phase = focus.phase;
+
+    if (phase === "idle" || phase === "finished") return;
+
+    const timers: number[] = [];
+
+    if (phase === "entering") {
+      timers.push(
+        window.setTimeout(() => dispatch({ type: "ENTERED" }), FOCUS.enterMs),
+      );
+    }
+
+    if (phase === "focused") {
+      // Oddech przed pierwszym miejscem — kadr już stoi.
+      timers.push(
+        window.setTimeout(
+          () => dispatch({ type: "READY" }),
+          FOCUS.readyPauseMs,
+        ),
+      );
+    }
+
+    if (phase === "revealing") {
+      /*
+        „Obejrzane" zapisujemy DOPIERO po pełnym odsłonięciu — zamknięcie
+        strony w połowie pozwala zobaczyć ceremonię ponownie.
+      */
+      timers.push(
+        window.setTimeout(() => {
+          markSeen();
+          dispatch({ type: "REVEALED" });
+        }, totalRef.current),
+      );
+
+      /*
+        Wibracja to WYŁĄCZNIE wzmocnienie lądowania medalisty. Każdy warunek
+        bezpieczeństwa (brak API, ograniczony ruch, ukryta karta) kończy się
+        ciszą, nigdy błędem.
+      */
+      for (const impact of impactsRef.current) {
+        timers.push(
+          window.setTimeout(() => {
+            pulse(PODIUM_HAPTIC_MS[impact.position] ?? 0, {
+              isLiveReveal: true,
+              reducedMotion: reducedRef.current,
+              documentVisible:
+                typeof document === "undefined" ||
+                document.visibilityState === "visible",
+            });
+          }, impact.atMs),
+        );
+      }
+    }
+
+    if (phase === "finalHold") {
+      timers.push(
+        window.setTimeout(() => dispatch({ type: "HELD" }), FOCUS.finalHoldMs),
+      );
+    }
+
+    if (phase === "exiting") {
+      timers.push(
+        window.setTimeout(() => dispatch({ type: "EXITED" }), FOCUS.exitMs),
+      );
+    }
+
     return () => {
-      observer.disconnect();
       for (const timer of timers) window.clearTimeout(timer);
     };
-  }, [
-    isComplete,
-    completionToken,
-    tournamentId,
-    scopeKey,
-    revealTotalMs,
-    reducedMotion,
-  ]);
+    /*
+      ZALEŻNOŚĆ JEST JEDNA I TO JEST CELOWE. Reszta wchodzi przez referencje,
+      więc odświeżenie danych w trakcie ceremonii nie restartuje ani liczników,
+      ani kadru, ani zapisu „obejrzane".
+    */
+  }, [focus.phase, markSeen]);
+
+  /* --- ograniczony ruch: klik daje od razu stan końcowy ------------------ */
+
+  useEffect(() => {
+    if (focus.phase !== "finished") return;
+    if (focus.source === null) return;
+
+    // Wejście przez REQUEST z ograniczonym ruchem albo zwykłe domknięcie.
+    markSeen();
+  }, [focus.phase, focus.source, markSeen]);
+
+  /* --- FLIP: przejazd na środek kadru ----------------------------------- */
+
+  useLayoutEffect(() => {
+    if (focus.phase !== "entering") return;
+
+    const node = sectionRef.current;
+    if (!node || !naturalRect) return;
+
+    /*
+      KOREKTA KONTENERA POZYCJONOWANIA.
+
+      `position: fixed` liczy się względem viewportu tylko wtedy, gdy żaden
+      przodek nie ma `transform`, `filter` ani `backdrop-filter`. Dziś łańcuch
+      jest czysty, ale zamiast na to liczyć — mierzymy. Różnicę wyrównujemy
+      jeszcze przed odmalowaniem klatki, więc start FLIP-a jest zawsze w tym
+      samym miejscu, w którym sekcja stała w dokumencie.
+    */
+    const box = node.getBoundingClientRect();
+
+    /*
+      Dryf trzymamy w referencji i wliczamy do PRZESUNIĘCIA, zamiast
+      przestawiać `top`/`left` przez stan. Przy czystym łańcuchu przodków
+      jest zerowy i nic nie kosztuje; przy zabrudzonym kadr wraca na miejsce
+      w tej samej klatce, w której i tak startuje ruch.
+    */
+    driftRef.current = {
+      x: naturalRect.left - box.left,
+      y: naturalRect.top - box.top,
+    };
+
+    const base = computeFocusTransform({
+      rect: naturalRect,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      safeTop: readSafeInset("--safe-top"),
+      safeBottom: readSafeInset("--safe-bottom"),
+    });
+
+    const next: FocusTransform = {
+      ...base,
+      translateX: base.translateX + driftRef.current.x,
+      translateY: base.translateY + driftRef.current.y,
+    };
+
+    // Klatka zerowa FLIP-a to brak transformacji; ruch startuje w następnej.
+    const frame = window.requestAnimationFrame(() => setTransform(next));
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focus.phase, naturalRect]);
+
+  /* --- zmiana rozmiaru okna w trakcie kadru ----------------------------- */
+
+  useEffect(() => {
+    if (!layerActive) return;
+
+    function recompute() {
+      setNaturalRect((rect) => {
+        if (!rect) return rect;
+
+        setTransform(
+          computeFocusTransform({
+            rect,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            safeTop: readSafeInset("--safe-top"),
+            safeBottom: readSafeInset("--safe-bottom"),
+          }),
+        );
+
+        return rect;
+      });
+    }
+
+    window.addEventListener("resize", recompute);
+    window.addEventListener("orientationchange", recompute);
+
+    return () => {
+      window.removeEventListener("resize", recompute);
+      window.removeEventListener("orientationchange", recompute);
+    };
+  }, [layerActive]);
+
+  /* --- blokada strony, klawiatura i focus -------------------------------- */
+
+  useEffect(() => {
+    if (!layerActive) return;
+
+    const restoreScroll = lockBodyScroll();
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    sectionRef.current?.focus({ preventScroll: true });
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        // Koniec ruchu, pełny wynik. Ceremonia NIE wraca do „nieobejrzanej".
+        markSeen();
+        dispatch({ type: "SKIP" });
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      /*
+        W kadrze nie ma formularza, więc nie budujemy pełnej pętli focusu.
+        Wystarczy, że klawiatura nie ucieka na header, zakładki i przełącznik
+        kategorii schowane pod przyciemnieniem.
+      */
+      const node = sectionRef.current;
+      if (!node) return;
+
+      const active = document.activeElement;
+      if (!active || !node.contains(active)) {
+        event.preventDefault();
+        node.focus({ preventScroll: true });
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      restoreScroll();
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [layerActive, markSeen]);
 
   /** Dymki z nazwami budzą się dopiero po ceremonii — patrz TeamLogo. */
   const interactive = ceremonyDone || reducedMotion;
@@ -577,46 +917,120 @@ export function PodiumSection({
   const delayOf = (entry: ClassificationView["entries"][number] | null) =>
     entry ? (delayFor.get(entry.team.teamId) ?? 0) : 0;
 
-  return (
-    <section
-      ref={sectionRef}
-      // Cel przewijania dla przycisku celebracji — osobny dla każdej grupy.
-      id={celebrationSectionId(scopeKey)}
-      className="flush-card relative overflow-hidden rounded-none border border-white/10 shadow-[0_1.5rem_3rem_-2rem_rgba(15,23,42,0.55)] sm:rounded-3xl"
-      aria-label="Klasyfikacja końcowa"
-    >
+  /* --- kadr ------------------------------------------------------------- */
+
+  /*
+    PODKŁADKA.
+
+    Sekcja wychodzi z przepływu dokumentu, więc bez zastępczej wysokości
+    strona pod spodem zapadłaby się o kilkaset pikseli, a pasek przewijania
+    skoczyłby w chwili, w której najbardziej ma stać nieruchomo.
+  */
+  const placeholder =
+    layerActive && naturalRect ? (
       <div
-        className="absolute inset-0 bg-slate-900 bg-cover bg-center"
-        style={
-          backgroundUrl
-            ? { backgroundImage: `url(${backgroundUrl})` }
-            : undefined
+        aria-hidden="true"
+        data-testid="podium-placeholder"
+        style={{ height: naturalRect.height }}
+      />
+    ) : null;
+
+  /*
+    ODWRÓCONY FLIP.
+
+    Wyjście z kadru to po prostu BRAK przesunięcia — ta sama droga, tylko
+    w drugą stronę. Liczymy to przy renderze zamiast kasować stan w efekcie:
+    faza jest jedynym źródłem prawdy, więc nie ma czego rozjeżdżać.
+  */
+  const appliedTransform = focus.phase === "exiting" ? null : transform;
+
+  const focusStyle: React.CSSProperties =
+    layerActive && naturalRect
+      ? {
+          position: "fixed",
+          top: naturalRect.top,
+          left: naturalRect.left,
+          width: naturalRect.width,
+          margin: 0,
+          zIndex: "var(--z-cinematic-stage)" as unknown as number,
+          transformOrigin: "center center",
+          transform: appliedTransform
+            ? `translate3d(${appliedTransform.translateX}px, ${appliedTransform.translateY}px, 0) scale(${appliedTransform.scale})`
+            : "translate3d(0, 0, 0) scale(1)",
+          transition: `transform ${
+            focus.phase === "exiting" ? FOCUS.exitMs : FOCUS.enterMs
+          }ms ${FOCUS.easing}`,
+          willChange: "transform",
         }
-        aria-hidden="true"
-      />
-      <div
-        className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,rgba(30,41,59,0.72),rgba(2,6,23,0.94))]"
-        aria-hidden="true"
-      />
-      {/* Dolny scrim: nazwy i rzedy 4+ nigdy nie gina w artworku turnieju. */}
-      <div
-        className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/85 to-transparent"
-        aria-hidden="true"
-      />
+      : {};
 
-      <div className="relative px-4 py-6 sm:px-6 sm:py-8">
-        <h3 className="text-base font-semibold tracking-tight text-white sm:text-lg">
-          Klasyfikacja końcowa
-        </h3>
+  return (
+    <>
+      {placeholder}
 
-        {/*
+      {layerActive ? <CinematicBackdrop phase={focus.phase} /> : null}
+
+      <section
+        ref={sectionRef}
+        // Cel przewijania dla przycisku celebracji — osobny dla każdej grupy.
+        id={celebrationSectionId(scopeKey)}
+        data-testid="podium-section"
+        data-focus-phase={focus.phase}
+        data-focus-source={focus.source ?? "none"}
+        /*
+        W kadrze sekcja jest modalna ZACHOWANIEM (blokada strony, przechwycony
+        wskaźnik, klawiatura zamknięta w środku), mimo że wyglądem pozostaje
+        sceną transmisji, a nie oknem dialogowym. Czytnik ekranu ma o tym
+        wiedzieć — stąd `role` i `aria-modal` wyłącznie na czas kadru.
+      */
+        role={layerActive ? "dialog" : undefined}
+        aria-modal={layerActive ? true : undefined}
+        tabIndex={layerActive ? -1 : undefined}
+        className="flush-card relative overflow-hidden rounded-none border border-white/10 shadow-[0_1.5rem_3rem_-2rem_rgba(15,23,42,0.55)] outline-none sm:rounded-3xl"
+        aria-label="Klasyfikacja końcowa"
+        style={focusStyle}
+      >
+        <div
+          className="absolute inset-0 bg-slate-900 bg-cover bg-center"
+          style={
+            backgroundUrl
+              ? { backgroundImage: `url(${backgroundUrl})` }
+              : undefined
+          }
+          aria-hidden="true"
+        />
+        <div
+          className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_0%,rgba(30,41,59,0.72),rgba(2,6,23,0.94))]"
+          aria-hidden="true"
+        />
+        {/* Dolny scrim: nazwy i rzedy 4+ nigdy nie gina w artworku turnieju. */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-slate-950/85 to-transparent"
+          aria-hidden="true"
+        />
+
+        <div className="relative px-4 py-6 sm:px-6 sm:py-8">
+          {/*
+          RDZEŃ SCENY — tytuł i trzy stopnie.
+
+          To ten fragment, a nie cała sekcja, decyduje o starcie ceremonii
+          przy naturalnym scrollu. Sekcja bywa wyższa niż ekran przez ogon
+          klasyfikacji; gdyby próg liczył się od niej, na telefonie nie dałoby
+          się go osiągnąć.
+        */}
+          <div ref={coreRef}>
+            <h3 className="text-base font-semibold tracking-tight text-white sm:text-lg">
+              Klasyfikacja końcowa
+            </h3>
+
+            {/*
           Podium: 2 z lewej, 1 centralnie i najwyżej, 3 z prawej.
 
           `w-full` na rzędzie jest istotne: bez niego rząd przyjmował
           szerokość max-content trzech stopni i — wyśrodkowany — wystawał
           poza scenę, przez co brązowy medal był przycinany na telefonie.
         */}
-        {/*
+            {/*
           MIKROREAKCJA SCENY.
 
           Każde lądowanie medalisty porusza CAŁYM wnętrzem sceny — trzy
@@ -627,104 +1041,108 @@ export function PodiumSection({
           Zakres jest świadomie ograniczony do tego kontenera: ani <body>,
           ani karta klasyfikacji nie drgają.
         */}
-        <StageShake impacts={stageImpacts} animate={revealed && !reducedMotion}>
+            <StageShake
+              impacts={stageImpacts}
+              animate={revealed && !reducedMotion}
+            >
+              <div
+                data-testid="podium-scene"
+                className="mx-auto mt-6 flex w-full max-w-[34rem] items-end justify-center gap-2 sm:gap-5"
+              >
+                {podiumSlots.some((slot) => slot.position === 2) ? (
+                  <Step
+                    entry={stepFor(2)}
+                    label="2"
+                    heightClass="h-16 sm:h-20"
+                    medalClass="h-8 w-8 sm:h-10 sm:w-10"
+                    revealed={revealed}
+                    delayMs={delayOf(stepFor(2))}
+                    isWinner={false}
+                    reducedMotion={reducedMotion}
+                    interactive={interactive}
+                  />
+                ) : null}
+
+                <Step
+                  entry={stepFor(1)}
+                  label="1"
+                  heightClass="h-24 sm:h-28"
+                  medalClass="h-11 w-11 sm:h-14 sm:w-14"
+                  revealed={revealed}
+                  delayMs={delayOf(stepFor(1))}
+                  isWinner
+                  reducedMotion={reducedMotion}
+                  interactive={interactive}
+                />
+
+                {podiumSlots.some((slot) => slot.position === 3) ? (
+                  <Step
+                    entry={stepFor(3)}
+                    label="3"
+                    heightClass="h-12 sm:h-14"
+                    medalClass="h-7 w-7 sm:h-8 sm:w-8"
+                    revealed={revealed}
+                    delayMs={delayOf(stepFor(3))}
+                    isWinner={false}
+                    reducedMotion={reducedMotion}
+                    interactive={interactive}
+                  />
+                ) : null}
+              </div>
+            </StageShake>
+          </div>
+
           <div
-            data-testid="podium-scene"
-            className="mx-auto mt-6 flex w-full max-w-[34rem] items-end justify-center gap-2 sm:gap-5"
-          >
-            {podiumSlots.some((slot) => slot.position === 2) ? (
-              <Step
-                entry={stepFor(2)}
-                label="2"
-                heightClass="h-16 sm:h-20"
-                medalClass="h-8 w-8 sm:h-10 sm:w-10"
-                revealed={revealed}
-                delayMs={delayOf(stepFor(2))}
-                isWinner={false}
-                reducedMotion={reducedMotion}
-                interactive={interactive}
-              />
-            ) : null}
+            aria-hidden="true"
+            className="mx-auto mt-0 h-px w-full max-w-[30rem] bg-gradient-to-r from-transparent via-white/25 to-transparent"
+          />
 
-            <Step
-              entry={stepFor(1)}
-              label="1"
-              heightClass="h-24 sm:h-28"
-              medalClass="h-11 w-11 sm:h-14 sm:w-14"
-              revealed={revealed}
-              delayMs={delayOf(stepFor(1))}
-              isWinner
-              reducedMotion={reducedMotion}
-              interactive={interactive}
-            />
-
-            {podiumSlots.some((slot) => slot.position === 3) ? (
-              <Step
-                entry={stepFor(3)}
-                label="3"
-                heightClass="h-12 sm:h-14"
-                medalClass="h-7 w-7 sm:h-8 sm:w-8"
-                revealed={revealed}
-                delayMs={delayOf(stepFor(3))}
-                isWinner={false}
-                reducedMotion={reducedMotion}
-                interactive={interactive}
-              />
-            ) : null}
-          </div>
-        </StageShake>
-
-        <div
-          aria-hidden="true"
-          className="mx-auto mt-0 h-px w-full max-w-[30rem] bg-gradient-to-r from-transparent via-white/25 to-transparent"
-        />
-
-        {/* Miejsca dzielone — brak meczu o 3. miejsce. */}
-        {hasSharedTop ? (
-          <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
-              3–4. miejsce
-            </p>
-            <ul className="mt-2 space-y-2">
-              {(sharedEntries.length > 0 ? sharedEntries : [null, null]).map(
-                (entry, index) => (
-                  <li
-                    key={entry?.team.teamId ?? `shared-${index}`}
-                    className="flex items-center gap-3 text-sm text-white"
-                    style={{
-                      opacity: revealed ? 1 : 0,
-                      transform: revealed
-                        ? "translateX(0)"
-                        : "translateX(-1.25rem)",
-                      transition: reducedMotion
-                        ? "opacity 160ms ease-out"
-                        : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms`,
-                    }}
-                  >
-                    {/* Miejsca dzielone czyta się jak zdanie, więc tu nazwa
-                      zostaje — to nie jest scena podium. */}
-                    <TeamLogo
-                      team={entry?.team ?? null}
-                      size="sm"
-                      position={entry?.position ?? null}
-                      interactive={interactive}
-                    />
-                    <span
-                      className={[
-                        "truncate",
-                        entry ? "font-medium" : "font-semibold text-white/30",
-                      ].join(" ")}
+          {/* Miejsca dzielone — brak meczu o 3. miejsce. */}
+          {hasSharedTop ? (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                3–4. miejsce
+              </p>
+              <ul className="mt-2 space-y-2">
+                {(sharedEntries.length > 0 ? sharedEntries : [null, null]).map(
+                  (entry, index) => (
+                    <li
+                      key={entry?.team.teamId ?? `shared-${index}`}
+                      className="flex items-center gap-3 text-sm text-white"
+                      style={{
+                        opacity: revealed ? 1 : 0,
+                        transform: revealed
+                          ? "translateX(0)"
+                          : "translateX(-1.25rem)",
+                        transition: reducedMotion
+                          ? "opacity 160ms ease-out"
+                          : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms`,
+                      }}
                     >
-                      {entry ? entry.team.name : "?"}
-                    </span>
-                  </li>
-                ),
-              )}
-            </ul>
-          </div>
-        ) : null}
+                      {/* Miejsca dzielone czyta się jak zdanie, więc tu nazwa
+                      zostaje — to nie jest scena podium. */}
+                      <TeamLogo
+                        team={entry?.team ?? null}
+                        size="sm"
+                        position={entry?.position ?? null}
+                        interactive={interactive}
+                      />
+                      <span
+                        className={[
+                          "truncate",
+                          entry ? "font-medium" : "font-semibold text-white/30",
+                        ].join(" ")}
+                      >
+                        {entry ? entry.team.name : "?"}
+                      </span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+          ) : null}
 
-        {/*
+          {/*
           MIEJSCA 4+ — jeden rząd w dolnej, ciemnej części sceny.
 
           Karty nie leżą na fizycznych stopniach podium: te należą do
@@ -734,29 +1152,30 @@ export function PodiumSection({
           Liczba slotów pochodzi ze szkieletu klasyfikacji, nie z hardkodu.
           Przy większej liczbie drużyn rząd zawija się w kolejne linie.
         */}
-        {tailSlots.length > 0 ? (
-          <ul
-            data-testid="podium-tail"
-            className="mt-6 flex flex-wrap items-stretch justify-center gap-1.5 border-t border-white/10 pt-4 sm:gap-2.5"
-          >
-            {tailSlots.map((slot) => {
-              const entry = stepFor(slot.position!);
+          {tailSlots.length > 0 ? (
+            <ul
+              data-testid="podium-tail"
+              className="mt-6 flex flex-wrap items-stretch justify-center gap-1.5 border-t border-white/10 pt-4 sm:gap-2.5"
+            >
+              {tailSlots.map((slot) => {
+                const entry = stepFor(slot.position!);
 
-              return (
-                <TailSlot
-                  key={slot.position}
-                  label={slot.label}
-                  entry={entry}
-                  revealed={revealed}
-                  delayMs={delayOf(entry)}
-                  reducedMotion={reducedMotion}
-                  interactive={interactive}
-                />
-              );
-            })}
-          </ul>
-        ) : null}
-      </div>
-    </section>
+                return (
+                  <TailSlot
+                    key={slot.position}
+                    label={slot.label}
+                    entry={entry}
+                    revealed={revealed}
+                    delayMs={delayOf(entry)}
+                    reducedMotion={reducedMotion}
+                    interactive={interactive}
+                  />
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
+      </section>
+    </>
   );
 }

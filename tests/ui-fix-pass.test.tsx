@@ -28,6 +28,9 @@ const ROW: StandingRow = {
 
 describe("A: intro nie dotyka przewijania dokumentu", () => {
   const code = source("components/logo-intro.tsx");
+  // Sam wizual (logo, tlo, puls) mieszka w komponencie wspoldzielonym
+  // z granica ladowania trasy - patrz tests/public-loading.test.tsx.
+  const visual = source("components/brand-loader.tsx");
 
   it("nie ustawia overflow na body ani html", () => {
     expect(code).not.toMatch(/document\.(body|documentElement)/);
@@ -35,8 +38,8 @@ describe("A: intro nie dotyka przewijania dokumentu", () => {
   });
 
   it("jest wyłącznie nakładką, nie blokuje interakcji", () => {
-    expect(code).toContain("pointer-events-none");
-    expect(code).toContain("fixed inset-0");
+    expect(visual).toContain("pointer-events-none");
+    expect(visual).toContain("fixed inset-0");
   });
 });
 
@@ -60,6 +63,7 @@ describe("B: pasek przewijania jest zarezerwowany i ostylowany", () => {
 
 describe("C: intro to dokładnie trzy spokojne pulsy", () => {
   const code = source("components/logo-intro.tsx");
+  const visual = source("components/brand-loader.tsx");
 
   it("ma trzy cykle i mieści się w ~2 s", () => {
     const cycles = Number(code.match(/PULSE_CYCLES = (\d+)/)?.[1]);
@@ -75,7 +79,7 @@ describe("C: intro to dokładnie trzy spokojne pulsy", () => {
   });
 
   it("logo jest wyraźnie większe niż wcześniejsze 96 px", () => {
-    expect(code).toContain("h-28 w-auto sm:h-36");
+    expect(visual).toContain("h-28 w-auto sm:h-36");
   });
 
   it("przy prefers-reduced-motion intro praktycznie nie istnieje", () => {

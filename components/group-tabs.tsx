@@ -1,6 +1,5 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -20,6 +19,10 @@ import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import { PlayoffBracket } from "@/components/playoff/playoff-bracket";
 import type { CelebrationCta } from "@/lib/public/celebration";
 import { PlacementSection } from "@/components/playoff/placement-section";
+import {
+  GroupTransition,
+  useGroupTransition,
+} from "@/components/public/group-transition";
 import { PodiumSection } from "@/components/playoff/podium-section";
 
 type GroupTabsProps = {
@@ -53,6 +56,12 @@ export function GroupTabs({
     searchParams.get("group") || initialGroupKey || groups[0]?.key
   );
 
+  /*
+    Grupa WYBRANA steruje przyciskami, grupa POKAZYWANA treścią. Rozjeżdżają
+    się wyłącznie na czas krótkiego przejścia — patrz useGroupTransition.
+  */
+  const { displayedKey, phase: groupPhase } = useGroupTransition(activeGroup);
+
   useEffect(() => {
     const groupFromUrl = searchParams.get("group");
     if (groupFromUrl) {
@@ -61,8 +70,8 @@ export function GroupTabs({
   }, [searchParams]);
 
   const currentGroup = useMemo(
-    () => groups.find((group) => group.key === activeGroup) ?? groups[0],
-    [activeGroup, groups]
+    () => groups.find((group) => group.key === displayedKey) ?? groups[0],
+    [displayedKey, groups]
   );
 
   const displayedGroup = useMemo(() => {
@@ -135,15 +144,16 @@ export function GroupTabs({
         </div>
       )}
 
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={`${displayedGroup.key}-${STANDINGS_TEST_MODE ? ACTIVE_STANDINGS_TEST_SCENARIO : "prod"}`}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.2 }}
-          className="space-y-4"
-        >
+      {/*
+        CAŁY blok zależny od grupy przechodzi jako JEDNA treść.
+
+        Poprzednio zmiana grupy podmieniała zawartość natychmiast i widać
+        było, jak wiersze przeskakują między pozycjami. Teraz stara treść
+        gaśnie, dopiero potem następuje podmiana, a nowa wchodzi z delikatnym
+        uniesieniem — bez animowania pojedynczych drużyn.
+      */}
+      <GroupTransition phase={groupPhase} contentKey={displayedKey}>
+        <div className="space-y-4">
           {/*
             W formacie z play-offem Ranking pokazuje statystyki CAŁEGO
             turnieju (grupa + drabinka + minigrupa) i kolejność zależną od
@@ -192,8 +202,8 @@ export function GroupTabs({
               />
             </>
           ) : null}
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </GroupTransition>
     </section>
   );
 }

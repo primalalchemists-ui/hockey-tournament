@@ -141,9 +141,17 @@ describe("BJ-BO: dostepnosc i uklad", () => {
   });
 
   it("BN: otwarcie okna nie przesuwa strony", () => {
-    // Szerokosc paska przewijania jest rekompensowana paddingiem.
-    expect(dialog).toContain("window.innerWidth - document.documentElement.clientWidth");
-    expect(dialog).toContain("body.style.paddingRight");
+    /*
+      Rekompensata paska przewijania mieszka teraz w jednym helperze,
+      wspolnym z kadrem ceremonii podium — okno tylko go wola.
+    */
+    const lock = source("lib/public/scroll-lock.ts");
+
+    expect(dialog).toContain("lockBodyScroll()");
+    expect(lock).toContain(
+      "window.innerWidth - document.documentElement.clientWidth"
+    );
+    expect(lock).toContain("body.style.paddingRight");
   });
 
   it("BO: na telefonie akcje ida w pionie i maja pelny cel dotyku", () => {

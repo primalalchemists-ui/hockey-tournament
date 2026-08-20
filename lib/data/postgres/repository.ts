@@ -40,6 +40,7 @@ import {
   type UpdateTournamentSettingsInput,
 } from "../types";
 import { slugifyTournamentTitle } from "../slug";
+import { normalizeColorToHex } from "@/lib/public/color";
 import { bumpPublicRevisionStatement } from "./public-revision";
 import { learnAlias, resolveLogoAssetIds } from "./logo-library";
 import {
@@ -681,6 +682,19 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
         title: tournament.title,
         campStartDate: tournament.campStartDate || "",
         campSignupLink: tournament.campSignupLink || "",
+        campTitle: tournament.campTitle || "",
+        /*
+          Wyłączenie zapisów NIE kasuje adresu — administrator może je
+          włączyć ponownie bez wpisywania linku od nowa.
+        */
+        campRegistrationEnabled: tournament.campRegistrationEnabled ?? true,
+        /*
+          Do bazy trafia WYŁĄCZNIE postać kanoniczna `#RRGGBB`. Wartość
+          niepoprawna nie jest zapisywana — pinezki wracają do domyślnego
+          czerwonego, zamiast dostać uszkodzony kolor.
+        */
+        countdownPinColor:
+          normalizeColorToHex(tournament.countdownPinColor) ?? null,
         tickerMessage: tournament.tickerMessage || "",
         showTopScorerTicker: tournament.showTopScorerTicker ?? true,
         updatedAt: new Date(),

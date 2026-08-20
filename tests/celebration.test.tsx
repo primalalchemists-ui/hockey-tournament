@@ -234,14 +234,14 @@ describe("Q-U: wyzwalanie i zapamiętanie", () => {
 
   it("Q/R: ceremonia rusza z obserwatora widoczności, nie z kliknięcia", () => {
     expect(podium).toContain("new IntersectionObserver");
-    // Wysoka sekcja też musi umieć osiągnąć próg.
-    expect(podium).toContain("threshold: 0");
-    expect(podium).toContain('rootMargin: "0px 0px -20% 0px"');
+    // Wysoka sekcja też musi umieć osiągnąć próg — patrz `requiredVisibleRatio`.
+    expect(podium).toContain("shouldStartOnViewport");
+    expect(podium).toContain("threshold: [0,");
   });
 
   it("S: pełna ceremonia oznacza celebrację jako obejrzaną", () => {
     expect(podium).toContain("getRevealTotalMs(revealOrder)");
-    expect(podium).toContain("markSeen(storageKey)");
+    expect(podium).toContain("markSeen();");
     expect(podium).toContain("CELEBRATION_SEEN_EVENT");
   });
 
@@ -293,6 +293,6 @@ describe("AA: prefers-reduced-motion", () => {
 
     // Podium pokazuje stan końcowy od razu i od razu zapisuje „obejrzane".
     expect(podium).toContain("reducedMotion");
-    expect(podium).toContain("markSeen(storageKey)");
+    expect(podium).toContain("markSeen();");
   });
 });

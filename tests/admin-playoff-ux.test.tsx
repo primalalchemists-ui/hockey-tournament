@@ -117,7 +117,10 @@ describe("I-K: inputy tylko dla biezacego etapu", () => {
     });
 
     expect(html).not.toContain('data-testid="playoff-save"');
-    expect(html).toContain("4 : 1");
+    // Wynik rozbity na osobne liczby, zeby dalo sie je pokolorowac.
+    expect(html).toContain('data-testid="score-home-value"');
+    expect(html).toContain(">4<");
+    expect(html).toContain(">1<");
   });
 
   it("I: biezacy etap ma inputy i przycisk", () => {

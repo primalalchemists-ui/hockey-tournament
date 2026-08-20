@@ -239,8 +239,9 @@ describe("S-AD: przebieg ceremonii", () => {
   });
 
   it("AD: obejrzana ceremonia pomija cala sekwencje", () => {
-    expect(podium).toContain("if (hasSeenReveal(storageKey))");
-    expect(podium).toContain("setCeremonyDone(true)");
+    expect(podium).toContain("if (!hasSeenReveal(storageKey)) return;");
+    // Maszyna stanow wchodzi wprost w stan koncowy — bez ceremonii.
+    expect(podium).toContain('dispatch({ type: "ALREADY_SEEN" })');
 
     const reduced = css.slice(
       css.indexOf("prefers-reduced-motion", css.indexOf(".podium-glow"))

@@ -20,6 +20,7 @@ const RESULTS_CTA = {
   label: "Sprawdź wyniki",
   shine: false,
   targetId: "results-section",
+  cinematic: false,
 };
 
 function renderHeader(heroBannerImage?: string) {

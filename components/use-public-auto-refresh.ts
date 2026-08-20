@@ -38,6 +38,16 @@ type Options = {
  * w lib/public/auto-refresh.ts i jest testowana bez DOM.
  */
 export function usePublicAutoRefresh(options: Options) {
+  /*
+    CEL ODPYTYWANIA.
+
+    Przełącznik kategorii zmienia wyłącznie ten identyfikator — nigdy
+    `is_current` w bazie. Od chwili zmiany zarówno polling, jak i pełne
+    pobranie snapshotu dotyczą WYBRANEJ kategorii, a nie turnieju
+    wyświetlanego globalnie.
+  */
+  const [targetId, setTargetId] = useState(options.initialTournamentId);
+  const [isSwitching, setIsSwitching] = useState(false);
   const [tournament, setTournament] = useState(options.initialTournament);
   const [structure, setStructure] = useState(options.initialStructure);
   const [scorersEnabled, setScorersEnabled] = useState(
@@ -53,6 +63,9 @@ export function usePublicAutoRefresh(options: Options) {
   /** Rośnie po KAŻDYM udanym zastosowaniu snapshotu — mikro-feedback w UI. */
   const [refreshTick, setRefreshTick] = useState(0);
 
+  /** Ostatnio zastosowana wersja — punkt startowy nowego kontrolera. */
+  const revisionRef = useRef(options.initialRevision);
+
   // Ref, żeby zmiana danych nie tworzyła nowego kontrolera.
   const applyRef = useRef((snapshot: PublicSnapshotShape) => {
     setTournament(snapshot.tournament);
@@ -67,13 +80,10 @@ export function usePublicAutoRefresh(options: Options) {
 
   useEffect(() => {
     const controller = createAutoRefreshController<PublicSnapshotShape>({
-      initial: {
-        tournamentId: options.initialTournamentId,
-        revision: options.initialRevision,
-      },
+      initial: { tournamentId: targetId, revision: revisionRef.current },
       intervalMs: PUBLIC_REFRESH_INTERVAL_MS,
       fetchVersion: async (signal) => {
-        const response = await fetch("/api/tournament/version", {
+        const response = await fetch(versionUrl(targetId), {
           signal,
           cache: "no-store",
         });
@@ -82,7 +92,7 @@ export function usePublicAutoRefresh(options: Options) {
         return response.json();
       },
       fetchSnapshot: async (signal) => {
-        const response = await fetch("/api/tournament/snapshot", {
+        const response = await fetch(snapshotUrl(targetId), {
           signal,
           cache: "no-store",
         });
@@ -97,7 +107,10 @@ export function usePublicAutoRefresh(options: Options) {
           snapshot,
         };
       },
-      onSnapshot: (snapshot) => applyRef.current(snapshot),
+      onSnapshot: (snapshot) => {
+        revisionRef.current = snapshot.revision;
+        applyRef.current(snapshot);
+      },
       onError: (error) => {
         // Cicho: kibic nie dostaje alertów, ostatnie dobre dane zostają.
         console.warn("[public] auto-refresh failed", error);
@@ -129,9 +142,46 @@ export function usePublicAutoRefresh(options: Options) {
       window.removeEventListener("focus", handleVisibility);
       controller.stop();
     };
-    // Kontroler tworzymy raz — dane początkowe pochodzą z renderu serwera.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    /*
+      Kontroler przebudowuje się WYŁĄCZNIE przy zmianie kategorii. Sprzątanie
+      woła `controller.stop()`, więc żądanie w locie dla poprzedniego turnieju
+      zostaje przerwane i jego odpowiedź nie może już nadpisać widoku.
+      eslint-disable-next-line react-hooks/exhaustive-deps
+    */
+  }, [targetId]);
+
+  /**
+   * Przełączenie kategorii.
+   *
+   * Widok wymienia się ATOMOWO: dotychczasowe dane zostają na ekranie,
+   * dopóki nie przyjdzie komplet nowych. Nieudane pobranie zostawia
+   * poprzednią kategorię nietkniętą i zwraca `false`.
+   */
+  async function switchTournament(nextId: string): Promise<boolean> {
+    if (nextId === targetId || isSwitching) return false;
+
+    setIsSwitching(true);
+
+    try {
+      const response = await fetch(snapshotUrl(nextId), { cache: "no-store" });
+
+      if (!response.ok) throw new Error(`snapshot ${response.status}`);
+
+      const snapshot = (await response.json()) as PublicSnapshotShape;
+
+      revisionRef.current = snapshot.revision;
+      applyRef.current(snapshot);
+      // Dopiero teraz polling zaczyna dotyczyć nowej kategorii.
+      setTargetId(snapshot.tournamentId);
+
+      return true;
+    } catch (error) {
+      console.warn("[public] category switch failed", error);
+      return false;
+    } finally {
+      setIsSwitching(false);
+    }
+  }
 
   return {
     tournament,
@@ -141,5 +191,21 @@ export function usePublicAutoRefresh(options: Options) {
     plannedMatchCount,
     playedMatchCount,
     refreshTick,
+    selectedTournamentId: targetId,
+    isSwitching,
+    switchTournament,
   };
+}
+
+/** Adresy odpytań — bez parametru dla turnieju wyświetlanego globalnie. */
+function versionUrl(tournamentId: string | null): string {
+  return tournamentId
+    ? `/api/tournament/version?tournamentId=${encodeURIComponent(tournamentId)}`
+    : "/api/tournament/version";
+}
+
+function snapshotUrl(tournamentId: string | null): string {
+  return tournamentId
+    ? `/api/tournament/snapshot?tournamentId=${encodeURIComponent(tournamentId)}`
+    : "/api/tournament/snapshot";
 }

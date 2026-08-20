@@ -23,6 +23,7 @@ const RESULTS_CTA = {
   label: "Sprawdź wyniki",
   shine: false,
   targetId: "wyniki",
+  cinematic: false,
 };
 
 /** Liczba planowana wyliczona z tego, co realnie stoi w bazie. */

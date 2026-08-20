@@ -2,6 +2,7 @@
 import { AdminLogin } from "@/components/admin/admin-login";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { TournamentSelector } from "@/components/admin/tournament-selector";
+import type { CollectionMember } from "@/lib/data/postgres/collections";
 import { DataError } from "@/components/data-error";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getTournamentRepository } from "@/lib/data";
@@ -106,6 +107,24 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
     }
   }
 
+  /*
+    Kategorie wydarzenia — wyłącznie metadane przełącznika. Nie dotykają
+    turnieju wyświetlanego publicznie ani danych sportowych.
+  */
+  let collectionMembers: CollectionMember[] = [];
+  let connectable: Array<{ id: string; title: string }> = [];
+
+  try {
+    const { getCollectionForTournament, listConnectableTournaments } =
+      await import("@/lib/data/postgres/collections");
+
+    collectionMembers =
+      (await getCollectionForTournament(selectedId))?.members ?? [];
+    connectable = await listConnectableTournaments(selectedId);
+  } catch (error) {
+    console.error("[admin] collections failed:", error);
+  }
+
   return (
     <main className="min-h-screen bg-slate-100">
       <div className="mx-auto max-w-[1400px] px-0 py-4 sm:px-4 sm:py-6 lg:px-6">
@@ -119,6 +138,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           multiTournamentEnabled={repository.supportsMultipleTournaments}
           settings={result.settings}
           playoffState={playoffState}
+          collectionMembers={collectionMembers}
+          connectableTournaments={connectable}
         />
       </div>
     </main>

@@ -18,7 +18,7 @@ import { getRabbitCupId, loadRabbitCup } from "./helpers/rabbit-cup";
 const hasDatabase = Boolean(process.env.DATABASE_URL);
 
 describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
-  it("istnieje, nie jest zarchiwizowany i ma nietknięty format", async () => {
+  it("istnieje i ma nietknięty format", async () => {
     const rows = await getDb()
       .select({
         id: tournaments.id,
@@ -33,10 +33,12 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].title).toBe("Rabbit Cup");
-    // To, KTÓRY turniej jest publiczny, wybiera administrator — tu
-    // sprawdzamy wyłącznie integralność samego Rabbit Cupa.
-    expect(rows[0].archivedAt).toBeNull();
-    expect(rows[0].archivedAt).toBeNull();
+    /*
+      Ani stan publiczny, ani archiwalny NIE są tu niezmiennikiem —
+      obie rzeczy wybiera administrator (archiwizacja publikuje turniej
+      w sekcji „Poprzednie turnieje"). Ten test pilnuje integralności
+      SAMEGO Rabbit Cupa, a nie tego, gdzie akurat jest pokazywany.
+    */
     // Format pozostaje ligowy — formaty turniejowe to kolejny etap.
     expect(rows[0].format).toBe("league");
 
@@ -77,12 +79,12 @@ describe.skipIf(!hasDatabase)("Rabbit Cup po migracji", () => {
     expect(JSON.stringify(tournament)).not.toContain("airtableusercontent.com");
   });
 
-  it("jest widoczny na liście turniejów i nie jest zarchiwizowany", async () => {
+  it("jest widoczny na liście turniejów", async () => {
     const list = await postgresRepository.listTournaments();
     const rabbit = list.find((item) => item.slug === "rabbit-cup");
 
     expect(rabbit).toBeDefined();
-    expect(rabbit?.archivedAt).toBeNull();
+    expect(rabbit?.title).toBe("Rabbit Cup");
     // Dokładnie jeden turniej jest publiczny — który, decyduje admin.
     expect(list.filter((item) => item.isCurrent)).toHaveLength(1);
   });

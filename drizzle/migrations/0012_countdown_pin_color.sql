@@ -1,0 +1,1 @@
+ALTER TABLE "tournaments" ADD COLUMN "countdown_pin_color" text;

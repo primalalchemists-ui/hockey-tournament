@@ -116,9 +116,17 @@ describe("A-F: rytm ceremonii", () => {
 
     // Reduced motion: krotkie przejscie zamiast pelnej sekwencji.
     expect(podium).toContain('"opacity 160ms ease-out"');
-    // Seen zapisujemy natychmiast, wiec stan „obejrzane" nie ginie.
-    expect(podium).toContain("if (reducedMotion) {");
-    expect(podium).toContain("markSeen(storageKey);");
+
+    /*
+      Skrot przy ograniczonym ruchu zszedl do maszyny stanow: zadanie
+      ceremonii ladujе od razu w stanie koncowym, wiec nikt nie czeka
+      pieciu sekund na „animacje bez animacji".
+    */
+    const focus = source("lib/public/cinematic-focus.ts");
+
+    expect(focus).toContain("if (event.reducedMotion)");
+    expect(focus).toContain('return { phase: "finished", source: event.source }');
+    expect(podium).toContain("markSeen();");
   });
 
   it("zadna animacja ceremonii sie nie zapetla", () => {

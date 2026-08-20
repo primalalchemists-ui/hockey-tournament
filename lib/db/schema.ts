@@ -129,7 +129,30 @@ export const tournaments = pgTable(
       .default("penalties"),
 
     campStartDate: text("camp_start_date"),
+    /**
+     * Adres zapisów na camp.
+     *
+     * To JEST docelowe pole rejestracji — świadomie nie dublujemy go nową
+     * kolumną `camp_registration_url`, bo ten sam adres jest tu trzymany
+     * od początku i korzysta z niego również warstwa Airtable.
+     */
     campSignupLink: text("camp_signup_link"),
+    /** Nagłówek sekcji campu; puste = historyczne „Najbliższy camp". */
+    campTitle: text("camp_title"),
+    /**
+     * Czy zapisy są w tej chwili otwarte.
+     *
+     * Domyślnie `true`, żeby turnieje sprzed migracji zachowały dotychczasowe
+     * zachowanie: przycisk „Zapisz się" prowadzący pod zapisany adres.
+     */
+    campRegistrationEnabled: boolean("camp_registration_enabled")
+      .notNull()
+      .default(true),
+    /**
+     * Kolor pinezek na kartach odliczania, w postaci `#RRGGBB`.
+     * NULL = dotychczasowy czerwony (patrz DEFAULT_PIN_COLOR).
+     */
+    countdownPinColor: text("countdown_pin_color"),
     tickerMessage: text("ticker_message"),
     showTopScorerTicker: boolean("show_top_scorer_ticker")
       .notNull()
@@ -213,6 +236,57 @@ export const tournamentAssets = pgTable(
       "tournament_assets_kind_check",
       sql`${table.kind} in ('schedule', 'regulation', 'hero_banner', 'camp_banner', 'camp_poster_left', 'camp_poster_right', 'playoff_bracket_background', 'podium_background')`
     ),
+  ]
+);
+
+/* ==========================================================================
+ * KOLEKCJE TURNIEJÓW — jedno wydarzenie, kilka kategorii
+ * ======================================================================== */
+
+/**
+ * Kilka technicznie NIEZALEŻNYCH turniejów należących do jednego wydarzenia.
+ *
+ * Świadomie generyczne: to nie są „grupy wiekowe". Etykietą może być U8,
+ * OPEN, PRO, KOBIETY albo cokolwiek innego — domena nie zna tego znaczenia.
+ *
+ * Kolekcja NIE zmienia niczego w danych sportowych: każdy turniej zachowuje
+ * własne drużyny, mecze, fazę i własny `public_revision`.
+ */
+export const tournamentCollections = pgTable("tournament_collections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const tournamentCollectionMembers = pgTable(
+  "tournament_collection_members",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    collectionId: uuid("collection_id")
+      .notNull()
+      .references(() => tournamentCollections.id, { onDelete: "cascade" }),
+    /**
+     * UNIQUE — turniej należy najwyżej do JEDNEJ kolekcji.
+     * To jest niezmiennik pilnowany przez bazę, nie przez kod.
+     */
+    tournamentId: uuid("tournament_id")
+      .notNull()
+      .unique()
+      .references(() => tournaments.id, { onDelete: "cascade" }),
+    /** Krótka etykieta na przełączniku, np. „U8". */
+    label: text("label").notNull(),
+    /** Kolor bąbelka w postaci kanonicznej `#RRGGBB`. */
+    bubbleColor: text("bubble_color").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    index("collection_members_collection_idx").on(table.collectionId),
+    /* Etykiety muszą być jednoznaczne — przełącznik nie może mieć dwóch „U8". */
+    unique("collection_members_label_unique").on(table.collectionId, table.label),
   ]
 );
 

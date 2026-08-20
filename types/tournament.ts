@@ -83,7 +83,17 @@ export type Tournament = {
   scorers: Scorer[];
   assets: TournamentAssets;
   campStartDate?: string;
+  /** Adres zapisów na camp — używany, gdy zapisy są otwarte. */
   campSignupLink?: string;
+  /** Nagłówek sekcji campu, np. „Zapisy od 31.08". */
+  campTitle?: string;
+  /**
+   * Czy zapisy są otwarte. Gdy `false`, przycisk „Zapisz się" zostaje
+   * na swoim miejscu, ale jest nieaktywny i donikąd nie prowadzi.
+   */
+  campRegistrationEnabled?: boolean;
+  /** Kolor pinezek odliczania (`#RRGGBB`); puste = domyślny czerwony. */
+  countdownPinColor?: string;
   tickerMessage?: string;
   showTopScorerTicker?: boolean;
 };
