@@ -205,6 +205,7 @@ function Step({
   delayMs,
   isWinner,
   reducedMotion,
+  animate,
   interactive,
 }: {
   entry: ClassificationView["entries"][number] | null;
@@ -216,6 +217,15 @@ function Step({
   delayMs: number;
   isWinner: boolean;
   reducedMotion: boolean;
+  /**
+   * Czy ceremonia ODTWARZA SIĘ TERAZ.
+   *
+   * To nie to samo co `revealed`. Kibic, który widział już ceremonię, wchodzi
+   * od razu w stan końcowy: wszystko jest odsłonięte (`revealed`), ale nic
+   * się nie animuje. Bez tego rozróżnienia opadanie herbów, snopy światła
+   * i uderzenia odtwarzały się przy KAŻDYM wejściu na stronę.
+   */
+  animate: boolean;
   interactive: boolean;
 }) {
   const position = entry?.position ?? null;
@@ -230,7 +240,6 @@ function Step({
     więc nic nie zapala się jednocześnie.
   */
   const impactMs = getImpactMs(delayMs);
-  const animate = revealed && !reducedMotion;
 
   /*
     Snop jest około półtora raza szerszy od herbu tego miejsca — zwycięzca
@@ -337,12 +346,12 @@ function Step({
             data-testid="podium-glow"
             className="podium-glow absolute inset-0 rounded-t-2xl"
             style={
-              reducedMotion
-                ? undefined
-                : {
+              animate
+                ? {
                     animationDelay: `${glowAtMs(delayMs)}ms`,
                     ["--glow-ms" as string]: `${CEREMONY.glowFadeMs}ms`,
                   }
+                : undefined
             }
           />
         ) : null}
@@ -488,6 +497,22 @@ export function PodiumSection({
 
   const revealed = isRevealing(focus);
   const ceremonyDone = isCeremonyDone(focus);
+
+  /*
+    CEREMONIA JEST JEDNORAZOWA — DLA KAŻDEGO KIBICA OSOBNO.
+
+    Prawdziwa dekoracja odbywa się raz, więc i tutaj ma się odbyć raz.
+    Wejście przez `ALREADY_SEEN` (czyli „ten kibic już to widział") jest
+    jedyną drogą do stanu końcowego BEZ źródła wyzwolenia — i po niej nic
+    się nie animuje.
+
+    Wcześniej `revealed` samo w sobie włączało animacje, więc pełny stan
+    końcowy odtwarzał całą choreografię przy każdym wejściu na stronę,
+    przy każdym powrocie do zakładki i po każdym kliknięciu „Zobacz
+    klasyfikację".
+  */
+  const alreadySeen = focus.phase === "finished" && focus.source === null;
+  const animateCeremony = revealed && !reducedMotion && !alreadySeen;
   const layerActive = isFocusLayerActive(focus);
 
   /** Zmierzony prostokąt sekcji w dokumencie — baza dla FLIP-a i podkładki. */
@@ -1043,7 +1068,7 @@ export function PodiumSection({
         */}
             <StageShake
               impacts={stageImpacts}
-              animate={revealed && !reducedMotion}
+              animate={animateCeremony}
             >
               <div
                 data-testid="podium-scene"
@@ -1059,6 +1084,7 @@ export function PodiumSection({
                     delayMs={delayOf(stepFor(2))}
                     isWinner={false}
                     reducedMotion={reducedMotion}
+                    animate={animateCeremony}
                     interactive={interactive}
                   />
                 ) : null}
@@ -1072,6 +1098,7 @@ export function PodiumSection({
                   delayMs={delayOf(stepFor(1))}
                   isWinner
                   reducedMotion={reducedMotion}
+                  animate={animateCeremony}
                   interactive={interactive}
                 />
 
@@ -1085,6 +1112,7 @@ export function PodiumSection({
                     delayMs={delayOf(stepFor(3))}
                     isWinner={false}
                     reducedMotion={reducedMotion}
+                    animate={animateCeremony}
                     interactive={interactive}
                   />
                 ) : null}

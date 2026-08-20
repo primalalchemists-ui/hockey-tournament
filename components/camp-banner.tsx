@@ -117,16 +117,17 @@ export function CampBanner({
   const rightPosterSrc = rightPosterImage || "/images/wiosna.jpg";
 
   /*
-    Banner wchodzi jako JEDEN blok logiczny.
-    Wcześniej każdy element (grafika, plakaty, nagłówek, licznik, przyciski,
-    stopka) miał własne opóźnienie i sekcja składała się kawałek po kawałku.
+    SEKCJA JEST PO PROSTU WIDOCZNA.
+
+    Wcześniej wjeżdżała na `whileInView` z `opacity: 0`. Wyglądało to
+    nieźle przy powolnym przewijaniu, ale rozwalało skoki: przycisk
+    „Zobacz klasyfikację" przewijał do sekcji, która była jeszcze
+    przezroczysta, a wysokość strony zmieniała się w trakcie płynnego
+    przewijania — na telefonie kończyło się to lądowaniem na pustym
+    ekranie. Skok do konkretnego miejsca musi zastać gotową stronę.
   */
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+    <section
       style={pinStyle}
       data-testid="camp-section"
       className="mb-12"
@@ -204,7 +205,7 @@ export function CampBanner({
           {previousTournaments}
         </div>
       </div>
-    </motion.section>
+    </section>
   );
 }
 
