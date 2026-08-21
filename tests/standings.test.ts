@@ -185,10 +185,13 @@ describe("remis nierozstrzygnięty", () => {
   });
 });
 
-describe("remis 3+ drużyn — utrwalenie DZISIEJSZEJ logiki", () => {
-  it("przy remisie trzech drużyn bezpośrednie mecze są ignorowane", () => {
-    // a wygrało bezpośredni mecz z b, ale b ma lepszy bilans ogólny.
-    // Obecna implementacja stosuje bilans ogólny, bez małej tabelki.
+describe("remis 3+ drużyn — regulaminowa mała tabela", () => {
+  it("o kolejności decyduje bilans meczów między zainteresowanymi", () => {
+    /*
+      a wygrało bezpośredni mecz z b, ale w małej tabeli (a, b, c) to b ma
+      bilans +4 wobec +1 u a. Mecz c-d jest poza koszykiem punktowym, więc
+      do małej tabeli w ogóle nie wchodzi.
+    */
     const group = buildGroup(
       ["a", "b", "c", "d"],
       [match("a", "b", 1, 0), match("b", "c", 5, 0), match("c", "d", 1, 0)]
@@ -201,7 +204,6 @@ describe("remis 3+ drużyn — utrwalenie DZISIEJSZEJ logiki", () => {
     expect(byId.get("b")?.points).toBe(3);
     expect(byId.get("c")?.points).toBe(3);
 
-    // Gdyby liczył się bezpośredni mecz, "a" byłoby przed "b".
     expect(orderOf(rows)).toEqual(["b", "a", "c", "d"]);
   });
 

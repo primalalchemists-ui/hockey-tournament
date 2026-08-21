@@ -51,8 +51,14 @@ const TIMING = {
 
   /** Zawodnicy ruszają, gdy krążek jest już wyraźnie w kadrze. */
   playersDelay: 420,
-  /** Jak długo jadą z krawędzi do środka. Mniej = szybciej. */
-  enter: 850,
+  /**
+   * Jak długo jadą z krawędzi do środka. Mniej = szybciej.
+   *
+   * Podniesione z 850 ms razem ze zmianą startu: sylwetka wyjeżdża teraz
+   * zza krawędzi, więc pokonuje o ~100 px dłuższą drogę. Bez tej korekty
+   * ruch byłby szybszy niż wcześniej, mimo niezmienionego czasu.
+   */
+  enter: 980,
 
   /**
    * WYBUCH.
@@ -65,7 +71,7 @@ const TIMING = {
    * bo ma być na miejscu, zanim zawodnicy się o niego zetną — a nie
    * dolatywać do gotowego wybuchu.
    */
-  impactAt: 1270,
+  impactAt: 1400,
   burst: 460,
   vanish: 260,
 
@@ -91,14 +97,18 @@ const LAYOUT = {
   /** Wysokość sylwetki — obie strony dostają tę samą. */
   playerSize: "clamp(6rem, 24vw, 9rem)",
   /**
-   * Pozycja startowa w procentach szerokości sekcji.
+   * Ile PONAD krawędź sceny odsunięta jest sylwetka na starcie.
    *
-   * Telefon i desktop potrzebują różnych wartości: na wąskim ekranie
-   * sylwetka ma być CAŁA za krawędzią, a na szerokim ma startować przy
-   * granicy kontenera treści, a nie kilkaset pikseli poza nią.
+   * Sam punkt startu liczy się z szerokości sylwetki, nie z procenta
+   * szerokości sekcji — inaczej „50%" stawiało ŚRODEK grafiki na krawędzi
+   * i na desktopie widać było przyciętą połowę zawodnika, zanim ruszył.
+   *
+   * Na OBU szerokościach sylwetka startuje w całości za krawędzią sceny
+   * i dopiero z niej wyjeżdża. Te wartości odsuwają ją dodatkowo —
+   * większa = dalej od środka, czyli dłuższy rozbieg poza kadrem.
    */
-  startMobile: "74%",
-  startDesktop: "50%",
+  startGapMobile: "1rem",
+  startGapDesktop: "1rem",
   /**
    * Gdzie zatrzymują się kije — jak głęboko zawodnicy wjeżdżają na siebie.
    *
@@ -220,8 +230,8 @@ export function FooterAnimation() {
       style={
         {
           "--pb-opacity": LAYOUT.playerOpacity,
-          "--pb-start-mobile": LAYOUT.startMobile,
-          "--pb-start-desktop": LAYOUT.startDesktop,
+          "--pb-start-gap-mobile": LAYOUT.startGapMobile,
+          "--pb-start-gap-desktop": LAYOUT.startGapDesktop,
           "--pb-meet-mobile": LAYOUT.meetMobile,
           "--pb-meet-desktop": LAYOUT.meetDesktop,
           "--pb-puck-from": LAYOUT.puckFrom,
@@ -322,6 +332,7 @@ function Overlay() {
 
 function Player({ side }: { side: "left" | "right" }) {
   const height = `calc(${LAYOUT.playerSize} * ${PLAYER_SCALE[side]})`;
+  const width = `calc(${height} * ${PLAYER_ASPECT[side]})`;
 
   return (
     /*
@@ -337,11 +348,17 @@ function Player({ side }: { side: "left" | "right" }) {
       data-testid="footer-player"
       data-side={side}
       className={`pb-player pb-player--${side} absolute inset-x-0 bottom-0 flex justify-center`}
+      /*
+        Połowa szerokości TEJ sylwetki. Punkt startu liczy się względem
+        krawędzi sceny plus/minus ta wartość, więc grafika zawsze wchodzi
+        w kadr w całości — nigdy przycięta w połowie.
+      */
+      style={{ ["--pb-half" as string]: `calc(${width} / 2)` }}
     >
       {/* Grafiki są już skierowane do środka — żadnego odbicia w poziomie. */}
       <div
         className="pb-player-body relative shrink-0"
-        style={{ height, width: `calc(${height} * ${PLAYER_ASPECT[side]})` }}
+        style={{ height, width }}
       >
         <Image
           src={PLAYER_SRC[side]}

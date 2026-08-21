@@ -16,6 +16,11 @@ import {
   tournaments,
 } from "@/lib/db/schema";
 import { calculateStandings } from "@/lib/standings";
+import {
+  resolvePlacementStandings,
+  type PlacementResolution,
+} from "@/lib/playoff/placement";
+import type { RankingEntry } from "@/lib/playoff/aggregate-stats";
 import type { Group, StandingRow, Team } from "@/types/tournament";
 import {
   MAIN_POOL_KEY,
@@ -258,6 +263,8 @@ async function loadContext(db: Database, tournamentId: string) {
           snapshotId: standingsSnapshotRows.snapshotId,
           teamId: standingsSnapshotRows.teamId,
           position: standingsSnapshotRows.position,
+          // Bilans z fazy grupowej rozstrzyga remisy w minigrupie.
+          goalDifference: standingsSnapshotRows.goalDifference,
         })
         .from(standingsSnapshotRows)
         .innerJoin(
@@ -400,6 +407,12 @@ function describeSlot(
     : `Przegrany ${roundName} ${slotNumber}`;
 }
 
+/** Brak minigrupy = nie ma czego rozstrzygać. */
+const EMPTY_PLACEMENT_RESOLUTION: PlacementResolution = {
+  standings: [],
+  unresolvedTeamIds: [],
+};
+
 export async function getPlayoffState(
   tournamentId: string
 ): Promise<PlayoffStateView> {
@@ -438,6 +451,7 @@ export async function getPlayoffState(
           .map((row) => ({
             position: row.position,
             teamId: externalByUuid.get(row.teamId) ?? "",
+            goalDifference: row.goalDifference,
           }))
       : null;
 
@@ -570,6 +584,7 @@ export async function getPlayoffState(
     );
 
     let placement: PlacementView | null = null;
+    let placementResolution = EMPTY_PLACEMENT_RESOLUTION;
 
     if (placementMatches.length > 0) {
       const placementTeamIds = Array.from(
@@ -610,6 +625,24 @@ export async function getPlayoffState(
 
       const qualified = settings.playoffConfig?.qualifiedTeamCount ?? 0;
 
+      /*
+        JEDEN RESOLVER NA MIEJSCA POZA PODIUM.
+
+        Minigrupa liczy się normalnie, a dopiero układ, którego tabela nie
+        umie rozdzielić, dostaje regułę organizatora: decyduje bilans
+        z fazy grupowej. Wynik idzie do WSZYSTKICH trzech widoków —
+        minitabeli, klasyfikacji końcowej i Rankingu — więc nie ma już
+        trzech niezależnych interpretacji tych samych danych.
+      */
+      placementResolution = resolvePlacementStandings({
+        standings: calculateStandings(placementGroup),
+        frozen: (snapshotEntries ?? []).map((entry) => ({
+          teamId: entry.teamId,
+          position: entry.position,
+          goalDifference: entry.goalDifference,
+        })),
+      });
+
       placement = {
         teamIds: placementTeamIds,
         // Zakres miejsc liczony z konfiguracji — bez hardkodu "5-7".
@@ -625,7 +658,7 @@ export async function getPlayoffState(
             awayScore: m.awayScore,
             editability: placementEditability,
           })),
-        standings: calculateStandings(placementGroup),
+        standings: placementResolution.standings,
         complete: placementMatches.every(
           (m) => m.homeScore !== null && m.awayScore !== null
         ),
@@ -660,6 +693,12 @@ export async function getPlayoffState(
             thirdPlaceMatch: settings.playoffConfig.thirdPlaceMatch,
             placementStandings: placement?.standings ?? null,
             placementComplete: placement?.complete ?? true,
+            /*
+              Reguła bilansu nie zadziałała (np. brak zamrożonej tabeli).
+              Nie udajemy wtedy oficjalnego miejsca — turniej po prostu nie
+              jest jeszcze rozstrzygnięty do końca.
+            */
+            placementUnresolvedTeamIds: placementResolution.unresolvedTeamIds,
             /*
               Zamrożona tabela grupowa rozstrzyga dwa przypadki, w których
               nie ma meczu: przegranych półfinałów bez meczu o 3. miejsce
@@ -769,29 +808,62 @@ export async function getPlayoffState(
     */
     const teamIdsInGroup = domainGroup.teams.map((team) => team.id);
 
-    let orderedTeamIds: string[] = groupStandings.map((row) => row.teamId);
+    let ordered: RankingEntry[] = groupStandings.map((row) => ({
+      teamId: row.teamId,
+      position: row.position,
+    }));
 
-    if (phase === "completed" && classification?.complete) {
-      const classified = classification.entries
-        .filter((entry) => entry.position !== null)
-        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-        .map((entry) => entry.team.teamId);
+    if (phase === "completed" && classification) {
+      /*
+        RANKING NIE WYMYŚLA MIEJSC.
 
-      orderedTeamIds = [
-        ...classified,
-        ...teamIdsInGroup.filter((teamId) => !classified.includes(teamId)),
+        Wcześniej wiersze bez pozycji były odfiltrowywane, a potem doklejane
+        z `teamIdsInGroup` — czyli w kolejności REJESTRACJI drużyn w grupie.
+        Techniczny fallback trafiał na ekran jako werdykt sportowy i tabela
+        pokazywała twarde 5/6/7 tam, gdzie minitabela i podium uczciwie
+        stawiały „?".
+
+        Teraz jedynym źródłem jest klasyfikacja końcowa. Drużyna bez miejsca
+        zachowuje `position: null` aż do widoku.
+      */
+      const classified = [...classification.entries].sort((left, right) => {
+        const a = left.position ?? Number.MAX_SAFE_INTEGER;
+        const b = right.position ?? Number.MAX_SAFE_INTEGER;
+        return a - b;
+      });
+
+      const seen = new Set(classified.map((entry) => entry.team.teamId));
+
+      ordered = [
+        ...classified.map((entry) => ({
+          teamId: entry.team.teamId,
+          position: entry.position,
+        })),
+        // Drużyna spoza klasyfikacji też nie dostaje zmyślonego miejsca.
+        ...teamIdsInGroup
+          .filter((teamId) => !seen.has(teamId))
+          .map((teamId) => ({ teamId, position: null })),
       ];
     } else if (snapshotEntries && snapshotEntries.length > 0) {
       const frozen = snapshotEntries.map((entry) => entry.teamId);
 
-      orderedTeamIds = [
-        ...frozen,
-        ...teamIdsInGroup.filter((teamId) => !frozen.includes(teamId)),
+      // Po zamrożeniu miejsca pochodzą z oficjalnej, zapisanej tabeli.
+      ordered = [
+        ...snapshotEntries.map((entry) => ({
+          teamId: entry.teamId,
+          position: entry.position,
+        })),
+        ...teamIdsInGroup
+          .filter((teamId) => !frozen.includes(teamId))
+          .map((teamId, index) => ({
+            teamId,
+            position: frozen.length + index + 1,
+          })),
       ];
     }
 
     const ranking = buildRankingRows({
-      orderedTeamIds,
+      ordered,
       stats,
       presentation,
     });

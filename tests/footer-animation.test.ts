@@ -131,7 +131,7 @@ describe("układ i assety", () => {
   it("wybuch nastepuje PO zetknieciu kijow", () => {
     // Wybuch rowny koncowi wjazdu — zero pauzy miedzy zetknieciem a energia.
     expect(scene).toContain("playersDelay: 420");
-    expect(scene).toContain("enter: 850");
-    expect(scene).toContain("impactAt: 1270");
+    expect(scene).toContain("enter: 980");
+    expect(scene).toContain("impactAt: 1400");
   });
 });

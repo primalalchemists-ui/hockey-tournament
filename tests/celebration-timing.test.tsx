@@ -114,8 +114,14 @@ describe("A-F: rytm ceremonii", () => {
   it("F: bez ruchu ceremonia nie trwa pieciu sekund", () => {
     const podium = source("components/playoff/podium-section.tsx");
 
-    // Reduced motion: krotkie przejscie zamiast pelnej sekwencji.
-    expect(podium).toContain('"opacity 160ms ease-out"');
+    /*
+      Ograniczony ruch nie dostaje juz nawet skroconego przejscia — dostaje
+      ZERO ruchu. Ta sama flaga gasi choreografie i przejscia w ogonie
+      klasyfikacji, wiec wiersze po prostu sa na swoich miejscach.
+    */
+    expect(podium).toContain("transition: animate");
+    expect(podium).toContain(": undefined,");
+    expect(podium).not.toContain('"opacity 160ms ease-out"');
 
     /*
       Skrot przy ograniczonym ruchu zszedl do maszyny stanow: zadanie

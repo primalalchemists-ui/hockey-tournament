@@ -117,9 +117,22 @@ export function aggregateTeamStats(input: {
  * Rozdzielenie jest celowe. Po zamrożeniu fazy grupowej tabela nie może
  * przeskakiwać po każdym meczu play-off, ale liczby mają żyć.
  */
+/**
+ * Jedna pozycja rankingu.
+ *
+ * `position: null` znaczy „miejsce nierozstrzygnięte" i MUSI przetrwać do
+ * warstwy widoku. Wcześniej ranking dostawał gołą listę identyfikatorów,
+ * więc ta informacja ginęła po drodze i tabela pokazywała numer tam, gdzie
+ * domena go nie znała.
+ */
+export type RankingEntry = {
+  teamId: string;
+  position: number | null;
+};
+
 export function buildRankingRows(input: {
-  /** Identyfikatory drużyn w docelowej kolejności wyświetlania. */
-  orderedTeamIds: string[];
+  /** Drużyny w docelowej kolejności, z oficjalnymi miejscami. */
+  ordered: RankingEntry[];
   stats: Map<string, TeamStats>;
   /** Dane prezentacyjne drużyny — nazwa, logo, kolejność źródłowa. */
   presentation: Map<
@@ -127,12 +140,14 @@ export function buildRankingRows(input: {
     { teamName: string; logoText?: string; logoUrl?: string; sourceOrder: number }
   >;
 }): StandingRow[] {
-  return input.orderedTeamIds.map((teamId, index) => {
+  return input.ordered.map((entry, index) => {
+    const { teamId } = entry;
     const stats = input.stats.get(teamId) ?? emptyStats(teamId);
     const presentation = input.presentation.get(teamId);
 
     return {
-      position: index + 1,
+      // Numer jest tylko etykietą; o „?" decyduje `isTieUnresolved` niżej.
+      position: entry.position ?? index + 1,
       teamId,
       teamName: presentation?.teamName ?? teamId,
       logoText: presentation?.logoText,
@@ -146,6 +161,16 @@ export function buildRankingRows(input: {
       goalsAgainst: stats.goalsAgainst,
       goalDifference: stats.goalDifference,
       sourceOrder: presentation?.sourceOrder ?? index,
+      /*
+        Brak oficjalnego miejsca zostaje widoczny — tabela pokaże „?",
+        dokładnie tak samo jak minitabela i podium. Zero wymyślania.
+      */
+      isTieUnresolved: entry.position === null,
+      tieWithTeamIds: [],
+      tieNote:
+        entry.position === null
+          ? "Miejsce nierozstrzygnięte — brak danych z fazy grupowej."
+          : undefined,
     };
   });
 }

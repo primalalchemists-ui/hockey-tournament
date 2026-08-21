@@ -20,6 +20,11 @@ function match(home: string, away: string, hs: number | null, as: number | null)
   return { homeTeamId: home, awayTeamId: away, homeScore: hs, awayScore: as };
 }
 
+/** Kolejnosc z jawnymi miejscami — ranking nie dostaje juz golej listy. */
+function ranked(teamIds: string[]) {
+  return teamIds.map((teamId, index) => ({ teamId, position: index + 1 }));
+}
+
 describe("X-AA: punktacja we wszystkich rodzajach meczów", () => {
   it("X: wygrana w grupie daje 3 punkty", () => {
     const stats = aggregateTeamStats({
@@ -111,7 +116,7 @@ describe("AE-AH: kolejność wierszy zależy od etapu", () => {
     const frozen = ["mistrz", "finalista", "trzeci"];
 
     const rows = buildRankingRows({
-      orderedTeamIds: frozen,
+      ordered: ranked(frozen),
       stats,
       presentation,
     });
@@ -125,12 +130,12 @@ describe("AE-AH: kolejność wierszy zależy od etapu", () => {
     const frozen = ["mistrz", "finalista", "trzeci"];
 
     const before = buildRankingRows({
-      orderedTeamIds: frozen,
+      ordered: ranked(frozen),
       stats: aggregateTeamStats({ teamIds: frozen, matches: [] }),
       presentation,
     });
 
-    const after = buildRankingRows({ orderedTeamIds: frozen, stats, presentation });
+    const after = buildRankingRows({ ordered: ranked(frozen), stats, presentation });
 
     expect(before.map((row) => row.teamId)).toEqual(
       after.map((row) => row.teamId)
@@ -141,7 +146,7 @@ describe("AE-AH: kolejność wierszy zależy od etapu", () => {
 
   it("AH: po zakończeniu kolejność to klasyfikacja końcowa", () => {
     const rows = buildRankingRows({
-      orderedTeamIds: ["mistrz", "finalista", "trzeci"],
+      ordered: ranked(["mistrz", "finalista", "trzeci"]),
       stats,
       presentation,
     });

@@ -390,14 +390,15 @@ function TailSlot({
   entry,
   revealed,
   delayMs,
-  reducedMotion,
+  animate,
   interactive,
 }: {
   label: string;
   entry: ClassificationView["entries"][number] | null;
   revealed: boolean;
   delayMs: number;
-  reducedMotion: boolean;
+  /** Czy ceremonia odtwarza się TERAZ — patrz `Step`. */
+  animate: boolean;
   interactive: boolean;
 }) {
   return (
@@ -407,9 +408,18 @@ function TailSlot({
       style={{
         opacity: revealed ? 1 : 0,
         transform: revealed ? "translateY(0)" : "translateY(0.5rem)",
-        transition: reducedMotion
-          ? "opacity 160ms ease-out"
-          : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms`,
+        /*
+          BEZ PRZEJŚCIA POZA CEREMONIĄ.
+
+          Serwer renderuje wiersz jako niewidoczny — nie zna pamięci
+          przeglądarki. Kibic, który ceremonię już widział, przełączał go na
+          widoczny dopiero po hydracji i wtedy odpalało się przejście
+          z opóźnieniem z kolejności odsłaniania: czwarte miejsce
+          „wskakiwało", zamiast po prostu być na swoim miejscu.
+        */
+        transition: animate
+          ? `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms`
+          : undefined,
       }}
     >
       <span className="stat-num text-xs font-bold text-white/45">{label}</span>
@@ -1066,10 +1076,7 @@ export function PodiumSection({
           Zakres jest świadomie ograniczony do tego kontenera: ani <body>,
           ani karta klasyfikacji nie drgają.
         */}
-            <StageShake
-              impacts={stageImpacts}
-              animate={animateCeremony}
-            >
+            <StageShake impacts={stageImpacts} animate={animateCeremony}>
               <div
                 data-testid="podium-scene"
                 className="mx-auto mt-6 flex w-full max-w-[34rem] items-end justify-center gap-2 sm:gap-5"
@@ -1142,9 +1149,10 @@ export function PodiumSection({
                         transform: revealed
                           ? "translateX(0)"
                           : "translateX(-1.25rem)",
-                        transition: reducedMotion
-                          ? "opacity 160ms ease-out"
-                          : `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms`,
+                        // Jak w ogonie klasyfikacji: przejscie tylko w ceremonii.
+                        transition: animateCeremony
+                          ? `opacity ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms, transform ${REVEAL_DURATION_MS}ms cubic-bezier(0.22,1,0.36,1) ${delayOf(entry)}ms`
+                          : undefined,
                       }}
                     >
                       {/* Miejsca dzielone czyta się jak zdanie, więc tu nazwa
@@ -1195,7 +1203,7 @@ export function PodiumSection({
                     entry={entry}
                     revealed={revealed}
                     delayMs={delayOf(entry)}
-                    reducedMotion={reducedMotion}
+                    animate={animateCeremony}
                     interactive={interactive}
                   />
                 );

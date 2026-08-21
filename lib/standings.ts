@@ -95,6 +95,166 @@ function compareOverall(a: StandingRow, b: StandingRow): number {
   return a.sourceOrder - b.sourceOrder;
 }
 
+/**
+ * REMIS DOKŁADNIE DWÓCH DRUŻYN — regulaminowe punkty 1-5.
+ *
+ * Zachowanie przeniesione jeden do jednego z poprzedniej wersji: decyduje
+ * mecz bezpośredni, a gdy był remisowy — bilans, bramki zdobyte i stracone.
+ * Ta ścieżka nie została zmieniona ani o krok.
+ */
+function resolveTwoTeamTie(
+  tiedRows: StandingRow[],
+  matches: Match[]
+): { sortedTiedRows: StandingRow[]; unresolvedGroups: StandingRow[][] } {
+  const sortedTiedRows = [...tiedRows].sort((a, b) => {
+    const direct = getDirectMatchResult(a.teamId, b.teamId, matches);
+    if (direct !== 0) return direct;
+
+    return compareOverall(a, b);
+  });
+
+  const signatureGroups = new Map<string, StandingRow[]>();
+
+  for (const row of sortedTiedRows) {
+    const signature = getTieSignature(row);
+    const list = signatureGroups.get(signature) ?? [];
+    list.push(row);
+    signatureGroups.set(signature, list);
+  }
+
+  const unresolvedGroups: StandingRow[][] = [];
+
+  for (const groupRows of signatureGroups.values()) {
+    if (groupRows.length <= 1) continue;
+
+    // Mecz bezpośredni rozstrzygnął — remis nie jest nierozstrzygnięty.
+    const [first, second] = groupRows;
+    if (getDirectMatchResult(first.teamId, second.teamId, matches) !== 0) {
+      continue;
+    }
+
+    unresolvedGroups.push(groupRows);
+  }
+
+  return { sortedTiedRows, unresolvedGroups };
+}
+
+/* ==========================================================================
+ * MAŁA TABELA (regulamin, punkt 6)
+ * ======================================================================== */
+
+export type MiniTableRow = {
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+};
+
+/**
+ * Tabela liczona WYŁĄCZNIE z meczów między zainteresowanymi drużynami.
+ *
+ * „Zainteresowane" to komplet drużyn z jednego koszyka punktowego. Mecz
+ * wchodzi do małej tabeli tylko wtedy, gdy OBIE strony do niego należą —
+ * spotkanie z drużyną spoza koszyka nie ma tu żadnego znaczenia.
+ */
+export function buildHeadToHeadMiniTable(
+  teamIds: string[],
+  matches: Match[]
+): Map<string, MiniTableRow> {
+  const involved = new Set(teamIds);
+  const table = new Map<string, MiniTableRow>(
+    teamIds.map((teamId) => [
+      teamId,
+      { goalsFor: 0, goalsAgainst: 0, goalDifference: 0 },
+    ])
+  );
+
+  for (const match of matches) {
+    if (!involved.has(match.homeTeamId)) continue;
+    if (!involved.has(match.awayTeamId)) continue;
+
+    const home = table.get(match.homeTeamId)!;
+    const away = table.get(match.awayTeamId)!;
+
+    home.goalsFor += match.homeScore;
+    home.goalsAgainst += match.awayScore;
+    away.goalsFor += match.awayScore;
+    away.goalsAgainst += match.homeScore;
+  }
+
+  for (const row of table.values()) {
+    row.goalDifference = row.goalsFor - row.goalsAgainst;
+  }
+
+  return table;
+}
+
+/**
+ * REMIS TRZECH LUB WIĘCEJ DRUŻYN — regulaminowy punkt 6.
+ *
+ * Kolejność kryteriów, w tej i tylko tej kolejności:
+ *
+ *   1. bilans bramek w małej tabeli,
+ *   2. bramki zdobyte w CAŁYM turnieju,
+ *   3. bramki stracone w całym turnieju (mniej = wyżej),
+ *   4. rzuty karne — czyli, dopóki nie ma ich gdzie wpisać, remis zostaje
+ *      nierozstrzygnięty.
+ *
+ * Świadomie NIE ma tu meczu bezpośredniego. Punkt 6 uruchomił się dlatego,
+ * że remisowały co najmniej trzy drużyny — i obowiązuje w całości, także
+ * dla par, które zostaną związane po małej tabeli. Powrót do „meczu
+ * bezpośredniego" byłby mieszaniem dwóch różnych ścieżek regulaminu.
+ */
+function resolveMultiTeamTie(
+  tiedRows: StandingRow[],
+  matches: Match[]
+): { sorted: StandingRow[]; unresolved: StandingRow[][] } {
+  const mini = buildHeadToHeadMiniTable(
+    tiedRows.map((row) => row.teamId),
+    matches
+  );
+
+  const sorted = [...tiedRows].sort((a, b) => {
+    const left = mini.get(a.teamId)!;
+    const right = mini.get(b.teamId)!;
+
+    // 1. bilans w meczach między zainteresowanymi
+    if (right.goalDifference !== left.goalDifference) {
+      return right.goalDifference - left.goalDifference;
+    }
+
+    // 2. bramki zdobyte w całym turnieju
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+
+    // 3. bramki stracone w całym turnieju
+    if (a.goalsAgainst !== b.goalsAgainst) {
+      return a.goalsAgainst - b.goalsAgainst;
+    }
+
+    /*
+      Wszystkie kryteria sportowe wyczerpane. `sourceOrder` daje wyłącznie
+      STABILNY porządek renderowania — nie jest rozstrzygnięciem i nie gasi
+      flagi remisu. O miejscu decydują rzuty karne.
+    */
+    return a.sourceOrder - b.sourceOrder;
+  });
+
+  /* Które drużyny NADAL są związane po wyczerpaniu kryteriów. */
+  const buckets = new Map<string, StandingRow[]>();
+
+  for (const row of sorted) {
+    const table = mini.get(row.teamId)!;
+    const key = `${table.goalDifference}|${row.goalsFor}|${row.goalsAgainst}`;
+    const list = buckets.get(key) ?? [];
+    list.push(row);
+    buckets.set(key, list);
+  }
+
+  return {
+    sorted,
+    unresolved: [...buckets.values()].filter((rows) => rows.length > 1),
+  };
+}
+
 function getTieSignature(row: StandingRow): string {
   return JSON.stringify({
     points: row.points,
@@ -152,44 +312,30 @@ export function calculateStandings(group: Group): StandingRow[] {
       continue;
     }
 
-    const sortedTiedRows = [...tiedRows].sort((a, b) => {
-      // tylko dla remisu dokładnie 2 drużyn
-      if (tiedRows.length === 2) {
-        const direct = getDirectMatchResult(a.teamId, b.teamId, group.matches);
-        if (direct !== 0) return direct;
-      }
+    /*
+      DWIE ŚCIEŻKI REGULAMINU, JAWNIE ROZDZIELONE.
 
-      // dla 3+ albo gdy bezpośredni mecz remisowy
-      return compareOverall(a, b);
-    });
+      Remis dwóch drużyn rozstrzyga mecz bezpośredni (punkty 1-5). Remis
+      trzech lub więcej uruchamia punkt 6, czyli małą tabelę — i wtedy mecz
+      bezpośredni nie wraca do gry na żadnym etapie.
+    */
+    const { sortedTiedRows, unresolvedGroups } =
+      tiedRows.length === 2
+        ? resolveTwoTeamTie(tiedRows, group.matches)
+        : (() => {
+            const result = resolveMultiTeamTie(tiedRows, group.matches);
+            return {
+              sortedTiedRows: result.sorted,
+              unresolvedGroups: result.unresolved,
+            };
+          })();
 
-    const signatureGroups = new Map<string, StandingRow[]>();
-
-    for (const row of sortedTiedRows) {
-      const signature = getTieSignature(row);
-      const list = signatureGroups.get(signature) ?? [];
-      list.push(row);
-      signatureGroups.set(signature, list);
-    }
-
-    for (const groupRows of signatureGroups.values()) {
-      if (groupRows.length <= 1) continue;
-
-      // jeśli remisują dokładnie 2 drużyny i bezpośredni mecz rozstrzyga,
-      // to nie oznaczamy ich jako nierozstrzygniętych
-      if (groupRows.length === 2) {
-        const [first, second] = groupRows;
-        const direct = getDirectMatchResult(first.teamId, second.teamId, group.matches);
-
-        if (direct !== 0) {
-          continue;
-        }
-      }
-
+    for (const groupRows of unresolvedGroups) {
       const teamIdsInTie = groupRows.map((row) => row.teamId);
 
       for (const row of groupRows) {
         row.isTieUnresolved = true;
+        // Wskazuje drużyny NADAL związane, a nie cały pierwotny koszyk.
         row.tieWithTeamIds = teamIdsInTie.filter((id) => id !== row.teamId);
         row.tieNote = groupComplete
           ? "Remis nierozstrzygnięty według kryteriów tabeli — o kolejności decydują rzuty karne."

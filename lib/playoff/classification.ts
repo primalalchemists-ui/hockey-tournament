@@ -60,6 +60,14 @@ export function buildFinalClassification(input: {
   /** Czy wszystkie mecze minigrupy zostały rozegrane. */
   placementComplete: boolean;
   /**
+   * Drużyny, których reguła miejsc poza podium NIE rozstrzygnęła.
+   *
+   * Puste w normalnym turnieju. Niepuste znaczy, że zabrakło zamrożonej
+   * tabeli grupowej — wtedy klasyfikacja jest niekompletna i mówi to wprost,
+   * zamiast wpisywać miejsce wzięte z kolejności rejestracji.
+   */
+  placementUnresolvedTeamIds?: string[];
+  /**
    * Zamrożona tabela grupowa: identyfikatory drużyn w kolejności miejsc.
    * Źródło rozstrzygnięcia dla przegranych półfinałów bez meczu o 3.
    * miejsce oraz dla drużyn spoza play-off bez minigrupy.
@@ -72,6 +80,7 @@ export function buildFinalClassification(input: {
     thirdPlaceMatch,
     placementStandings,
     placementComplete,
+    placementUnresolvedTeamIds = [],
     frozenOrder = [],
   } = input;
 
@@ -162,6 +171,10 @@ export function buildFinalClassification(input: {
   if (placementStandings && placementStandings.length > 0) {
     if (!placementComplete) {
       missing.push("minigrupa klasyfikacyjna");
+    }
+
+    if (placementUnresolvedTeamIds.length > 0) {
+      missing.push("rozstrzygnięcie miejsc poza podium");
     }
 
     placementStandings.forEach((row, index) => {

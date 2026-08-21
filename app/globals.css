@@ -1673,17 +1673,39 @@ button {
     sylwetka ma byc CALA za krawedzia; na szerokim ma ruszyc od granicy
     kontenera tresci, a nie kilkaset pikseli poza nia.
   */
+  /*
+    GDZIE LICZY SIE PUNKT STARTU — I DLACZEGO NIE NA SEKCJI.
+
+    `--pb-half` (polowa szerokosci sylwetki) jest ustawiane inline na SAMYM
+    zawodniku, bo kazda grafika ma inne proporcje. Zmienna uzyta w
+    deklaracji rozwiazuje sie tam, gdzie ta deklaracja stoi — wiec liczenie
+    `--pb-start-x` na `.powered-by-section` siegalo po `--pb-half`, ktorego
+    ta sekcja nie ma. Cala wartosc stawala sie niepoprawna, `translateX`
+    w klatce byl odrzucany i zawodnicy pojawiali sie od razu na srodku,
+    zderzeni, bez zadnego przejazdu.
+
+    Dlatego prog breakpointu ustawia tylko ODSTEP, a wlasciwy punkt startu
+    liczy sie juz na zawodniku, gdzie `--pb-half` istnieje.
+  */
   .powered-by-section {
-    --pb-start-x: var(--pb-start-mobile);
+    --pb-start-gap: var(--pb-start-gap-mobile);
     --pb-meet-x: var(--pb-meet-mobile);
   }
 
   @media (min-width: 768px) {
     .powered-by-section {
-      --pb-start-x: var(--pb-start-desktop);
+      --pb-start-gap: var(--pb-start-gap-desktop);
       /* Szeroki ekran wymaga mocniejszego zwarcia — patrz `meetDesktop`. */
       --pb-meet-x: var(--pb-meet-desktop);
     }
+  }
+
+  /*
+    Sylwetka startuje W CALOSCI za krawedzia sceny i dopiero z niej
+    wyjezdza. `50%` to krawedz, `--pb-half` chowa za nia cala postac.
+  */
+  .powered-by-section .pb-player {
+    --pb-start-x: calc(50% + var(--pb-half) + var(--pb-start-gap));
   }
 
   /*
