@@ -39,9 +39,16 @@ import {
   type CreateTournamentInput,
   type UpdateTournamentSettingsInput,
 } from "../types";
+import type { MediaAsset } from "../types";
+import {
+  MEDIA_CATEGORIES,
+  acceptsMimeType,
+  type MediaCategory,
+} from "@/lib/media/categories";
 import { slugifyTournamentTitle } from "../slug";
 import { normalizeColorToHex } from "@/lib/public/color";
 import { bumpPublicRevisionStatement } from "./public-revision";
+import { pruneEmptyCollections } from "./collections";
 import { learnAlias, resolveLogoAssetIds } from "./logo-library";
 import {
   ASSET_KINDS,
@@ -442,6 +449,126 @@ async function setTournamentArchived(tournamentId: string, archived: boolean) {
 }
 
 /* ==========================================================================
+ * TRWAŁE USUNIĘCIE
+ * ======================================================================== */
+
+/**
+ * Kasuje turniej i WSZYSTKO, co należy wyłącznie do niego.
+ *
+ * Nie wypisujemy tu listy tabel — robi to schemat. Każda tabela turniejowa
+ * (`tournament_assets`, `groups`, `teams`, `brackets`, `bracket_rounds`,
+ * `matches`, `scorers`, `standings_snapshots`, `standings_snapshot_rows`,
+ * `tournament_collection_members`) ma `ON DELETE CASCADE` na
+ * `tournament_id`, więc jedno usunięcie wiersza turnieju zabiera komplet
+ * jego danych w JEDNEJ operacji bazy. Ręczne kasowanie po kolei byłoby
+ * drugą, rozjeżdżającą się definicją własności danych.
+ *
+ * CZEGO TO NIE RUSZA — i to jest tu najważniejsze:
+ *
+ *   - `team_logo_assets` to biblioteka GLOBALNA, bez `tournament_id`.
+ *     `teams.logo_asset_id` wskazuje na nią przez `ON DELETE SET NULL`,
+ *     więc herby przeżywają kasowanie turnieju i zostają dla pozostałych.
+ *   - Cloudinary nie jest dotykane. Ta sama grafika może być używana przez
+ *     inny turniej — kasujemy referencję, nigdy plik.
+ */
+async function deleteTournamentPermanently(tournamentId: string) {
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      id: tournaments.id,
+      isCurrent: tournaments.isCurrent,
+      title: tournaments.title,
+    })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+
+  if (!rows[0]) {
+    throw new TournamentOperationError("Turniej nie istnieje.");
+  }
+
+  /*
+    TURNIEJ WYŚWIETLANY PUBLICZNIE JEST CHRONIONY.
+
+    Automatyczny wybór „następnego" turnieju oznaczałby, że kibic dostaje
+    losowe wydarzenie na stronie głównej. To decyzja administratora, nie
+    skutek uboczny kasowania.
+  */
+  if (rows[0].isCurrent) {
+    throw new TournamentOperationError(
+      "Ten turniej jest wyświetlany na stronie. Najpierw ustaw inny turniej jako aktualny."
+    );
+  }
+
+  await db.delete(tournaments).where(eq(tournaments.id, tournamentId));
+
+  /*
+    Kolekcja, która została bez turniejów, nie ma już czego przełączać —
+    ten sam sprzątacz, którego używa odłączanie kategorii.
+  */
+  await pruneEmptyCollections();
+}
+
+/* ==========================================================================
+ * BIBLIOTEKA MEDIÓW
+ * ======================================================================== */
+
+/**
+ * Pliki wgrane już wcześniej przez aplikację, pasujące do danego pola.
+ *
+ * Źródłem są WYŁĄCZNIE rekordy `tournament_assets` — nie przeglądamy konta
+ * Cloudinary, więc na liście nie pojawi się przypadkowa zawartość chmury.
+ *
+ * Kategoria decyduje, które `kind` wchodzą do puli, i odsiewa pliki
+ * niekompatybilne z polem (np. PDF w wyborze banera). Deduplikacja po
+ * `publicId`: ta sama grafika użyta w trzech turniejach pojawia się raz.
+ */
+async function listMediaLibrary(
+  category: MediaCategory
+): Promise<MediaAsset[]> {
+  const db = getDb();
+  const definition = MEDIA_CATEGORIES[category];
+
+  const rows = await db
+    .select({
+      kind: tournamentAssets.kind,
+      url: tournamentAssets.url,
+      mimeType: tournamentAssets.mimeType,
+      fileName: tournamentAssets.fileName,
+      publicId: tournamentAssets.publicId,
+      tournamentTitle: tournaments.title,
+      updatedAt: tournaments.updatedAt,
+    })
+    .from(tournamentAssets)
+    .innerJoin(tournaments, eq(tournamentAssets.tournamentId, tournaments.id))
+    .where(inArray(tournamentAssets.kind, definition.kinds));
+
+  const unique = new Map<string, MediaAsset>();
+
+  for (const row of [...rows].sort(
+    (a, b) => (b.updatedAt?.getTime() ?? 0) - (a.updatedAt?.getTime() ?? 0)
+  )) {
+    if (!row.url) continue;
+    if (!acceptsMimeType(category, row.mimeType ?? "")) continue;
+
+    const key = row.publicId?.trim() || row.url;
+    if (unique.has(key)) continue;
+
+    unique.set(key, {
+      url: row.url,
+      publicId: row.publicId ?? "",
+      fileName: row.fileName ?? "",
+      mimeType: row.mimeType ?? "",
+      kind: row.kind,
+      usedBy: row.tournamentTitle ?? "",
+    });
+  }
+
+  return [...unique.values()];
+}
+
+/* ==========================================================================
  * ZAPIS
  * ======================================================================== */
 
@@ -606,6 +733,86 @@ function collectAssets(tournament: Tournament): AssetInput[] {
   return collected;
 }
 
+/**
+ * ZAMROŻONA FAZA GRUPOWA JEST NIETYKALNA.
+ *
+ * Po zamrożeniu tabela grupowa zamienia się w oficjalne rozstawienie:
+ * snapshot i drabinka są już zbudowane. Zwykły zapis z panelu nadal
+ * potrafił jednak nadpisać stary wynik grupowy — a snapshot zostawał
+ * nietknięty. Efekt w hali: publiczna tabela pokazuje jedną kolejność,
+ * drabinka gra według innej, i nikt tego nie zauważa do końca turnieju.
+ *
+ * Blokada mieszka po stronie ZAPISU, nie w interfejsie: wyłączony input
+ * jest podpowiedzią dla oka, a nie zabezpieczeniem.
+ *
+ * Świadomie blokujemy WYŁĄCZNIE zmianę wyników fazy grupowej. Nazwa
+ * turnieju, grafiki, strzelcy i skład nadal zapisują się normalnie, tak
+ * samo jak wyniki drabinki i minigrupy — te mają własne bramkowanie.
+ */
+async function assertGroupResultsEditable(
+  db: Database,
+  tournamentId: string,
+  phase: string,
+  incoming: Tournament
+): Promise<void> {
+  /*
+    Faza grupowa to jedyny stan, w którym wyniki grupowe są oficjalnie
+    edytowalne. Turniej ligowy nigdy jej nie opuszcza, a turniej pucharowy
+    wraca do niej wyłącznie przez jawne cofnięcie — i wtedy korekta znów
+    jest legalna.
+  */
+  if (phase === "group_stage") return;
+
+  const storedRows = await db
+    .select({
+      externalId: matches.externalId,
+      homeScore: matches.homeScore,
+      awayScore: matches.awayScore,
+    })
+    .from(matches)
+    .where(and(eq(matches.tournamentId, tournamentId), eq(matches.stage, "group")));
+
+  /** Wynik meczu w postaci porównywalnej; null = mecz bez wyniku. */
+  const scoreOf = (home: number | null, away: number | null) =>
+    home === null || away === null ? null : `${home}:${away}`;
+
+  const stored = new Map(
+    storedRows.map((row) => [
+      row.externalId,
+      scoreOf(row.homeScore, row.awayScore),
+    ])
+  );
+
+  const submitted = new Map<string, string | null>();
+
+  for (const group of incoming.groups ?? []) {
+    for (const match of group.matches) {
+      submitted.set(match.id, scoreOf(match.homeScore, match.awayScore));
+    }
+  }
+
+  const changed: string[] = [];
+
+  for (const [externalId, score] of submitted) {
+    if (stored.get(externalId) !== score) changed.push(externalId);
+  }
+
+  /*
+    Model domenowy przenosi wyłącznie mecze ROZEGRANE, więc brak meczu
+    w payloadzie znaczy „wyczyszczono wynik" — i to też jest zmiana.
+  */
+  for (const [externalId, score] of stored) {
+    if (score !== null && !submitted.has(externalId)) changed.push(externalId);
+  }
+
+  if (changed.length === 0) return;
+
+  throw new TournamentOperationError(
+    "Nie można zmieniać wyników fazy grupowej po jej zamrożeniu. " +
+      "Cofnij turniej do fazy grupowej, popraw wynik i zamroź ją ponownie."
+  );
+}
+
 async function saveTournament(tournamentId: string, tournament: Tournament) {
   const db = getDb();
 
@@ -619,7 +826,11 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
   // modyfikować, i nigdy nie tworzy nowego przy okazji — tworzenie ma
   // własną, jawną operację createTournament().
   const existingRows = await db
-    .select({ id: tournaments.id, isCurrent: tournaments.isCurrent })
+    .select({
+      id: tournaments.id,
+      isCurrent: tournaments.isCurrent,
+      phase: tournaments.phase,
+    })
     .from(tournaments)
     .where(eq(tournaments.id, tournamentId))
     .limit(1);
@@ -631,6 +842,8 @@ async function saveTournament(tournamentId: string, tournament: Tournament) {
       "Turniej o podanym identyfikatorze nie istnieje."
     );
   }
+
+  await assertGroupResultsEditable(db, tournamentId, existing.phase, tournament);
 
   const nextSlug = await reserveUniqueSlug(
     db,
@@ -1068,6 +1281,8 @@ export const postgresRepository: TournamentRepository = {
   saveTournament,
   setCurrentTournament,
   setTournamentArchived,
+  deleteTournamentPermanently,
+  listMediaLibrary,
 };
 
 export const __internal = { collectAssets, reserveUniqueSlug };

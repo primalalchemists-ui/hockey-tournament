@@ -65,7 +65,6 @@ export function TournamentSettingsFields({
           disabled={isLocked}
           onSelect={() => setStructure("single")}
           label="Jedna tabela"
-          description="Wszystkie drużyny grają w jednej wspólnej klasyfikacji."
         />
 
         <Option
@@ -75,7 +74,6 @@ export function TournamentSettingsFields({
           disabled={isLocked}
           onSelect={() => setStructure("groups")}
           label="Podział na grupy"
-          description="Drużyny są dzielone na osobne grupy."
         />
 
         {structureLockedReason ? (
@@ -180,8 +178,7 @@ export function TournamentSettingsFields({
               Rozstrzygnięcie remisu
             </span>
             <span className="block text-[11px] leading-snug text-slate-500">
-              Rzuty karne. W fazie round-robin remis jest dozwolony; w play-off
-              i minigrupie wynik musi być rozstrzygnięty.
+              Rzuty karne. Remis dozwolony tylko w fazie round-robin.
             </span>
           </div>
         </fieldset>
@@ -236,6 +233,7 @@ function Option({
   disabled,
   onSelect,
   label,
+  /** Zdanie pomocnicze TYLKO tam, gdzie etykieta naprawdę nie wystarcza. */
   description,
 }: {
   name: string;
@@ -244,7 +242,7 @@ function Option({
   disabled?: boolean;
   onSelect: () => void;
   label: string;
-  description: string;
+  description?: string;
 }) {
   return (
     <label
@@ -268,9 +266,11 @@ function Option({
       />
       <span>
         <span className="block text-sm font-medium text-slate-900">{label}</span>
-        <span className="block text-[11px] leading-snug text-slate-500">
-          {description}
-        </span>
+        {description ? (
+          <span className="block text-[11px] leading-snug text-slate-500">
+            {description}
+          </span>
+        ) : null}
       </span>
     </label>
   );

@@ -95,11 +95,19 @@ async function buildSnapshotOnce(tournamentId?: string | null): Promise<{
     );
   }
 
-  const settings = readTournamentSettings({
-    structure: result.settings.structure,
-    format: result.settings.format,
-    playoffConfig: result.settings.playoffConfig,
-  });
+  /*
+    JEDNO ŹRÓDŁO PRAWDY O KONFIGURACJI.
+
+    Tu mieszkał błąd: przepisywano trzy pola z osobna i `scorersEnabled`
+    wypadało po drodze. `readTournamentSettings` domyśla brakującą flagę
+    na `true`, więc snapshot publiczny ZAWSZE twierdził, że turniej prowadzi
+    klasyfikację strzelców — nawet gdy admin ją wyłączył. Pierwszy render
+    serwerowy był poprawny, a pierwsze auto-odświeżenie przywracało zakładkę.
+
+    Ustawienia przechodzą teraz w całości. Dokładanie kolejnej flagi nie
+    wymaga pamiętania o tym miejscu.
+  */
+  const settings = readTournamentSettings(result.settings);
 
   const playoffState =
     settings.format === "group_playoff"

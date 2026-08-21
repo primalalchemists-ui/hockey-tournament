@@ -9,6 +9,21 @@ import {
 import type { PlayoffStateView } from "@/lib/data/postgres/playoff-engine";
 import type { Tournament } from "@/types/tournament";
 import type { TournamentStructure } from "@/types/tournament-config";
+import { BRAND_LOADER_PULSE_MS } from "@/components/brand-loader";
+
+/**
+ * Ile NAJKRÓCEJ trwa ekran ładowania przy zmianie kategorii.
+ *
+ * Snapshot potrafi wrócić w sto milisekund i wtedy loader tylko mrugnie —
+ * a mignięcie czyta się jak usterka, nie jak wczytywanie. Jeden pełny puls
+ * logo to najkrótszy czas, po którym widać, że aplikacja czegoś szuka.
+ */
+const MIN_SWITCH_MS = BRAND_LOADER_PULSE_MS;
+
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 
 export type PublicSnapshotShape = {
   tournamentId: string;
@@ -153,14 +168,16 @@ export function usePublicAutoRefresh(options: Options) {
   /**
    * Przełączenie kategorii.
    *
-   * Widok wymienia się ATOMOWO: dotychczasowe dane zostają na ekranie,
-   * dopóki nie przyjdzie komplet nowych. Nieudane pobranie zostawia
-   * poprzednią kategorię nietkniętą i zwraca `false`.
+   * Widok wymienia się ATOMOWO. Żadna sekcja nie aktualizuje się osobno:
+   * dopóki trwa pobieranie, `isSwitching` trzyma na wierzchu ekran ładowania,
+   * a dane podmieniają się dopiero wtedy, gdy jest komplet. Nieudane pobranie
+   * zostawia poprzednią kategorię nietkniętą i zwraca `false`.
    */
   async function switchTournament(nextId: string): Promise<boolean> {
     if (nextId === targetId || isSwitching) return false;
 
     setIsSwitching(true);
+    const startedAt = Date.now();
 
     try {
       const response = await fetch(snapshotUrl(nextId), { cache: "no-store" });
@@ -179,6 +196,14 @@ export function usePublicAutoRefresh(options: Options) {
       console.warn("[public] category switch failed", error);
       return false;
     } finally {
+      /*
+        Nowe dane są już zastosowane, ale ekran ładowania jeszcze je zasłania.
+        Kibic widzi więc: stary turniej, ładowanie, KOMPLETNY nowy turniej —
+        nigdy pół jednego i pół drugiego.
+      */
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_SWITCH_MS) await wait(MIN_SWITCH_MS - elapsed);
+
       setIsSwitching(false);
     }
   }

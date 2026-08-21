@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings, X} from "lucide-react";
 
 import {
   updateTournamentSettingsAction,
@@ -77,7 +77,7 @@ export function TournamentSettingsPanel({
           aria-modal="true"
           aria-label="Ustawienia turnieju"
           data-testid="settings-modal"
-          className="fixed inset-0 z-[80] flex items-stretch justify-center sm:items-center sm:p-6"
+          className="dialog-backdrop fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6"
         >
           <button
             type="button"
@@ -86,16 +86,24 @@ export function TournamentSettingsPanel({
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
           />
 
-          <div className="relative z-10 flex h-full w-full flex-col overflow-y-auto overscroll-contain bg-white p-4 shadow-2xl sm:h-auto sm:max-h-[85vh] sm:w-[34rem] sm:rounded-3xl sm:p-6">
+          {/*
+            Ta sama karta na każdym ekranie. Wariant pełnoekranowy na
+            telefonie czytał się jak osobna podstrona, choć jest oknem —
+            i gubił kontekst tego, co zostało pod spodem.
+          */}
+          <div className="ice-scroll dialog-card relative z-10 flex max-h-[88dvh] w-full flex-col overflow-y-auto overscroll-contain rounded-3xl bg-white p-4 shadow-2xl sm:w-[34rem] sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="section-title">Ustawienia turnieju</h2>
 
+              {/* Standard okien: zamknięcie to ikona w prawym górnym rogu. */}
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="btn btn-quiet px-4 text-xs"
+                aria-label="Zamknij"
+                data-testid="dialog-close"
+                className="dialog-close inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900"
               >
-                Zamknij
+                <X size={18} />
               </button>
             </div>
 
@@ -121,7 +129,7 @@ export function TournamentSettingsPanel({
               defaultScorersEnabled={settings.scorersEnabled}
               structureLockedReason={
                 hasSportingData
-                  ? "Struktura jest zablokowana, bo turniej ma już drużyny, mecze lub więcej niż jedną grupę. Zmiana wymagałaby przeniesienia danych — utwórz nowy turniej z właściwą strukturą."
+                  ? "Turniej ma już dane, więc struktury nie można zmienić. Utwórz nowy turniej z właściwą strukturą."
                   : null
               }
             />

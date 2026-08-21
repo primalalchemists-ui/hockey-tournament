@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, X } from "lucide-react";
 
 import { ModalPortal } from "@/components/ui/modal-portal";
 import { lockBodyScroll } from "@/lib/public/scroll-lock";
@@ -29,6 +29,12 @@ type ConfirmDialogProps = {
   children: React.ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
+  /**
+   * „Anuluj" ma sens tam, gdzie jest co porzucić — niezapisany formularz.
+   * W oknie, które tylko stawia pytanie i oferuje dwie realne odpowiedzi,
+   * trzeci przycisk oznaczający „nic" powiela funkcję „×" w rogu.
+   */
+  showCancel?: boolean;
   /** "danger" dla operacji kasujących wyniki. */
   tone?: "default" | "danger";
   /** Rozszerza okno dla dłuższych formularzy (np. łączenie kategorii). */
@@ -40,6 +46,21 @@ type ConfirmDialogProps = {
   isBusy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * DRUGA AKCJA OPERACYJNA — opcjonalna.
+   *
+   * Są decyzje, w których „Anuluj" nie wystarcza, bo bezpieczna
+   * alternatywa jest osobną operacją, a nie rezygnacją: przy kasowaniu
+   * turnieju admin ma wybór między usunięciem a archiwizacją. Wtedy okno
+   * pokazuje dwa realne wyjścia zamiast zmuszać do zamknięcia i szukania
+   * drugiego przycisku gdzie indziej.
+   */
+  secondaryAction?: {
+    label: string;
+    busyLabel?: string;
+    isBusy?: boolean;
+    onClick: () => void;
+  };
 };
 
 const FOCUSABLE =
@@ -51,6 +72,7 @@ export function ConfirmDialog({
   children,
   confirmLabel,
   cancelLabel = "Anuluj",
+  showCancel = true,
   tone = "default",
   size = "compact",
   icon = "none",
@@ -58,9 +80,11 @@ export function ConfirmDialog({
   isBusy = false,
   onConfirm,
   onCancel,
+  secondaryAction,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
 
@@ -68,7 +92,12 @@ export function ConfirmDialog({
     if (!open) return;
 
     restoreRef.current = document.activeElement as HTMLElement | null;
-    cancelRef.current?.focus();
+    /*
+      Focus zawsze ląduje na wyjściu bez konsekwencji, więc samo wciśnięcie
+      Enter nigdy nie wykona operacji nieodwracalnej. Bez „Anuluj" tę rolę
+      przejmuje „×".
+    */
+    (cancelRef.current ?? closeRef.current)?.focus();
 
     /*
       Blokada przewijania bez skoku strony — ten sam helper, którego używa
@@ -118,7 +147,14 @@ export function ConfirmDialog({
         data-testid="confirm-backdrop"
         // Tło pozostaje widoczne, ale przygaszone i rozmyte — panel nie
         // znika, tylko schodzi na drugi plan.
-        className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 p-4 backdrop-blur-sm sm:items-center"
+        /*
+          OKNO ZAWSZE NA ŚRODKU — także na telefonie.
+
+          Wcześniej mobilny wariant przyklejał się do dolnej krawędzi, więc
+          ta sama decyzja wyglądała inaczej zależnie od urządzenia.
+          Jeden układ znaczy jeden nawyk.
+        */
+        className="dialog-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
         onClick={(event) => {
           if (event.target === event.currentTarget && !isBusy) onCancel();
         }}
@@ -162,39 +198,65 @@ export function ConfirmDialog({
             </div>
 
             <button
+              ref={closeRef}
               type="button"
               onClick={onCancel}
               disabled={isBusy}
               aria-label="Zamknij"
               data-testid="confirm-close"
-              className="btn btn-quiet h-9 w-9 shrink-0 justify-center p-0 text-sm"
+              className="dialog-close inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50"
             >
-              ✕
+              <X size={18} />
             </button>
           </div>
 
           {/* Przewija się WYŁĄCZNIE treść — nagłówek i akcje zostają w kadrze. */}
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-3 text-sm text-slate-600 sm:px-6">
+          <div className="ice-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-5 py-3 text-sm text-slate-600 sm:px-6">
             {children}
           </div>
 
           {/* Na telefonie akcje układają się w pionie i mają pełny cel dotyku. */}
           <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--surface-line)] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-            <button
-              ref={cancelRef}
-              type="button"
-              onClick={onCancel}
-              disabled={isBusy}
-              data-testid="confirm-cancel"
-              className="btn btn-quiet h-11 justify-center"
-            >
-              {cancelLabel}
-            </button>
+            {showCancel ? (
+              <button
+                ref={cancelRef}
+                type="button"
+                onClick={onCancel}
+                disabled={isBusy}
+                data-testid="confirm-cancel"
+                className="btn btn-quiet h-11 justify-center"
+              >
+                {cancelLabel}
+              </button>
+            ) : null}
+
+            {/*
+              DRUGA REALNA ODPOWIEDŹ.
+
+              Prop `secondaryAction` był przyjmowany i wyłączał przycisk
+              główny na czas swojej operacji, ale sam nigdy się nie
+              renderował — okno „Co zrobić z turniejem?" pokazywało wyłącznie
+              „Usuń trwale". Bezpieczna alternatywa istniała w kodzie
+              i nie istniała na ekranie.
+            */}
+            {secondaryAction ? (
+              <button
+                type="button"
+                onClick={secondaryAction.onClick}
+                disabled={isBusy || secondaryAction.isBusy}
+                data-testid="confirm-secondary"
+                className="btn btn-quiet h-11 justify-center"
+              >
+                {secondaryAction.isBusy && secondaryAction.busyLabel
+                  ? secondaryAction.busyLabel
+                  : secondaryAction.label}
+              </button>
+            ) : null}
 
             <button
               type="button"
               onClick={onConfirm}
-              disabled={isBusy}
+              disabled={isBusy || secondaryAction?.isBusy}
               data-testid="confirm-accept"
               className={[
                 "btn h-11 min-w-[12rem] justify-center",

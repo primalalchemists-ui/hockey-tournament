@@ -120,7 +120,7 @@ export function CategorySwitcher({
             zamiast wychodzić poza ekran.
           */
           className={[
-            "ice-surface absolute right-0 z-10 max-h-[60vh] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl p-2 shadow-xl motion-safe:animate-[category-pop_140ms_ease-out]",
+            "ice-scroll ice-surface absolute right-0 z-10 max-h-[60vh] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl p-2 shadow-xl motion-safe:animate-[category-pop_140ms_ease-out]",
             isFloating ? "bottom-full mb-2" : "top-full mt-2",
           ].join(" ")}
         >
@@ -167,15 +167,28 @@ export function CategorySwitcher({
             );
           })}
 
-          {error ? (
-            <p
-              data-testid="category-error"
-              className="px-2.5 pb-1 pt-2 text-xs font-medium text-rose-700"
-            >
-              {error}
-            </p>
-          ) : null}
         </div>
+      ) : null}
+
+      {/*
+        KOMUNIKAT ŻYJE POZA LISTĄ.
+
+        Wybór kategorii zamyka listę natychmiast, więc błąd schowany w środku
+        znikał razem z nią i kibic nie dowiadywał się, dlaczego turniej się
+        nie zmienił. Element jest pozycjonowany absolutnie, żeby pojawienie
+        się komunikatu nie przesunęło ani paska, ani bąbelka.
+      */}
+      {error ? (
+        <p
+          role="status"
+          data-testid="category-error"
+          className={[
+            "ice-surface absolute right-0 z-20 w-56 max-w-[calc(100vw-2rem)] rounded-2xl px-3 py-2 text-xs font-semibold text-rose-700 shadow-lg",
+            isFloating ? "bottom-full mb-2" : "top-full mt-2",
+          ].join(" ")}
+        >
+          {error}
+        </p>
       ) : null}
 
       <button

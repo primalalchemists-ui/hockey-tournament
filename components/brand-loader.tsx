@@ -23,11 +23,21 @@ type BrandLoaderProps = {
    * pulsuje, dopóki trasa nie będzie gotowa.
    */
   cycles?: number | "infinite";
+  /**
+   * Czy loader ma PRZEJMOWAĆ kliknięcia.
+   *
+   * Granica trasy niczego nie przechwytuje — pod spodem i tak nie ma jeszcze
+   * strony. Przy zmianie kategorii jest odwrotnie: poprzedni turniej wciąż
+   * siedzi w DOM-ie i bez tego dałoby się w niego klikać przez zasłonę,
+   * czyli sterować widokiem, którego za chwilę nie będzie.
+   */
+  blocking?: boolean;
   testId?: string;
 };
 
 export function BrandLoader({
   cycles = "infinite",
+  blocking = false,
   testId = "brand-loader",
 }: BrandLoaderProps) {
   return (
@@ -38,7 +48,16 @@ export function BrandLoader({
         Tło z tokenu lodu, a nie białe — dzięki temu nie ma białego błysku
         przy wejściu i wyjściu ze stanu ładowania.
       */
-      className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-[var(--ice-base)]"
+      /*
+        `min-h-[100dvh]` obok `inset-0`: na telefonie pasek adresu chowa się
+        przy przewijaniu i wtedy warstwa rozciągnięta do „małego" viewportu
+        przestaje sięgać dolnej krawędzi — spod loadera wyglądał kawałek
+        poprzedniej strony.
+      */
+      className={[
+        "fixed inset-0 z-[100] flex min-h-[100dvh] items-center justify-center bg-[var(--ice-base)]",
+        blocking ? "pointer-events-auto" : "pointer-events-none",
+      ].join(" ")}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

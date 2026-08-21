@@ -11,6 +11,8 @@ import {
 import { safeEquals } from "@/lib/admin-session";
 import { getTournamentRepository } from "@/lib/data";
 import { TournamentOperationError } from "@/lib/data/types";
+import type { MediaAsset } from "@/lib/data/types";
+import { isMediaCategory, type MediaCategory } from "@/lib/media/categories";
 import type { OperationIssueReport } from "@/lib/playoff/validation";
 import type { ReopenImpact } from "@/lib/data/postgres/playoff-engine";
 import { deleteCloudinaryAssets } from "@/lib/cloudinary";
@@ -273,6 +275,69 @@ export async function setTournamentArchivedAction(
   if (slug) revalidatePath(`/turnieje/${slug}`);
 
   return { error: null };
+}
+
+/**
+ * Usuwa turniej TRWALE, razem z danymi należącymi wyłącznie do niego.
+ *
+ * Operacji nie da się cofnąć, więc panel proponuje obok niej archiwizację —
+ * to samo okno, dwa różne wyjścia.
+ */
+export async function deleteTournamentAction(
+  _prevState: TournamentActionState,
+  formData: FormData
+): Promise<TournamentActionState> {
+  await requireAdmin();
+
+  const tournamentId = getString(formData, "tournamentId");
+
+  if (!tournamentId) {
+    return { error: "Brak identyfikatora turnieju." };
+  }
+
+  let slug: string | null = null;
+
+  try {
+    const repository = getTournamentRepository();
+
+    /*
+      Slug czytamy PRZED usunięciem — po nim nie ma już czego pytać,
+      a strona archiwalna tego turnieju wymaga odświeżenia.
+    */
+    const summaries = await repository.listTournaments();
+    slug = summaries.find((item) => item.id === tournamentId)?.slug ?? null;
+
+    await repository.deleteTournamentPermanently(tournamentId);
+  } catch (error) {
+    return toActionError(error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  if (slug) revalidatePath(`/turnieje/${slug}`);
+
+  return { error: null };
+}
+
+/** Pliki pasujące do danego pola — do wyboru bez ponownego uploadu. */
+export async function listMediaAction(
+  category: MediaCategory
+): Promise<MediaAsset[]> {
+  await requireAdmin();
+
+  if (!isMediaCategory(category)) return [];
+
+  try {
+    return await getTournamentRepository().listMediaLibrary(category);
+  } catch (error) {
+    /*
+      Bez tego wpisu w logu okno mówiło tylko „nie udało się", a powód
+      zostawał po stronie serwera. Rzucamy dalej — klient ma pokazać stan
+      błędu z możliwością ponowienia, a nie udawać pustą bibliotekę.
+    */
+    console.error("[admin] listMediaLibrary failed:", category, error);
+    throw error;
+  }
 }
 
 /* ==========================================================================

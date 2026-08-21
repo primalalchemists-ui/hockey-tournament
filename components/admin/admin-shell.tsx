@@ -2,12 +2,16 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
 import { CampBanner } from "@/components/camp-banner";
+import { MediaPreview } from "@/components/ui/media-preview";
 import { CategorySwitcherSettings } from "@/components/admin/category-switcher-settings";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MediaAssetPicker } from "@/components/admin/media-asset-picker";
+import type { MediaAsset } from "@/lib/data/types";
+import type { MediaCategory } from "@/lib/media/categories";
 import { ColorPicker } from "@/components/admin/color-picker";
 import { CountdownPinPreview } from "@/components/admin/color-previews";
 import {
@@ -98,7 +102,11 @@ function createTeamId(groupKey: string) {
   return `${groupKey.toLowerCase()}-${Date.now()}`;
 }
 
-function createMatchId(groupKey: string, homeTeamId: string, awayTeamId: string) {
+function createMatchId(
+  groupKey: string,
+  homeTeamId: string,
+  awayTeamId: string,
+) {
   return `${groupKey}-${homeTeamId}-${awayTeamId}`;
 }
 
@@ -106,35 +114,103 @@ function createScorerId() {
   return `scorer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function PreviewImage({
-  src,
-  alt,
-  emptyLabel,
-  className,
-}: {
-  src?: string;
-  alt: string;
-  emptyLabel: string;
-  className?: string;
-}) {
-  if (!src) {
-    return (
-      <div className="flex min-h-[180px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-sm font-medium text-slate-500">
-        {emptyLabel}
-      </div>
-    );
-  }
+/* ==========================================================================
+ * POLA MEDIÓW
+ * ======================================================================== */
 
-  return (
-    <div
-      className={["overflow-hidden ice-surface rounded-3xl", className].join(
-        " "
-      )}
-    >
-      <img src={src} alt={alt} className="h-full w-full object-cover" />
-    </div>
-  );
-}
+/**
+ * Wszystkie pola panelu, w których ustawia się plik.
+ *
+ * Jedna tabela zamiast sześciu wariantów kodu: każde pole mówi, jaką ma
+ * kategorię (czyli co wolno w nie wstawić), skąd czytać obecny plik i jak
+ * zapisać wybrany. Picker jest wspólny i nic o polach nie wie.
+ */
+type MediaFieldKey =
+  | "schedule"
+  | "regulation"
+  | "hero_banner"
+  | "camp_banner"
+  | "camp_poster_left"
+  | "camp_poster_right";
+
+type AssetsDraft = Tournament["assets"];
+
+const MEDIA_FIELDS: Record<
+  MediaFieldKey,
+  {
+    title: string;
+    category: MediaCategory;
+    current: (assets: AssetsDraft) => string;
+    assign: (assets: AssetsDraft, asset: MediaAsset) => void;
+  }
+> = {
+  schedule: {
+    title: "Harmonogram",
+    category: "schedule",
+    current: (assets) => assets.scheduleImage ?? "",
+    assign: (assets, asset) => {
+      assets.scheduleImage = asset.url;
+      assets.scheduleImageName = asset.fileName;
+      assets.scheduleImageType = asset.mimeType;
+      assets.scheduleImagePublicId = asset.publicId;
+    },
+  },
+  regulation: {
+    title: "Regulamin",
+    category: "regulation",
+    current: (assets) => assets.regulationImage ?? "",
+    assign: (assets, asset) => {
+      assets.regulationImage = asset.url;
+      assets.regulationImageName = asset.fileName;
+      assets.regulationImageType = asset.mimeType;
+      assets.regulationImagePublicId = asset.publicId;
+    },
+  },
+  hero_banner: {
+    title: "Banner turnieju",
+    category: "hero_banner",
+    current: (assets) => assets.heroBannerImage ?? "",
+    assign: (assets, asset) => {
+      assets.heroBannerImage = asset.url;
+      assets.heroBannerImageName = asset.fileName;
+      assets.heroBannerImageType = asset.mimeType;
+      assets.heroBannerImagePublicId = asset.publicId;
+    },
+  },
+  camp_banner: {
+    title: "Banner campa",
+    category: "camp_banner",
+    current: (assets) => assets.campBannerImage ?? "",
+    assign: (assets, asset) => {
+      assets.campBannerImage = asset.url;
+      assets.campBannerImageName = asset.fileName;
+      assets.campBannerImageType = asset.mimeType;
+      assets.campBannerImagePublicId = asset.publicId;
+    },
+  },
+  camp_poster_left: {
+    title: "Lewy plakat",
+    category: "camp_poster",
+    current: (assets) => assets.campPosterLeft ?? "",
+    assign: (assets, asset) => {
+      assets.campPosterLeft = asset.url;
+      assets.campPosterLeftName = asset.fileName;
+      assets.campPosterLeftType = asset.mimeType;
+      assets.campPosterLeftPublicId = asset.publicId;
+    },
+  },
+  camp_poster_right: {
+    title: "Prawy plakat",
+    category: "camp_poster",
+    current: (assets) => assets.campPosterRight ?? "",
+    assign: (assets, asset) => {
+      assets.campPosterRight = asset.url;
+      assets.campPosterRightName = asset.fileName;
+      assets.campPosterRightType = asset.mimeType;
+      assets.campPosterRightPublicId = asset.publicId;
+    },
+  },
+};
 
 export function AdminShell({
   tournament,
@@ -146,7 +222,9 @@ export function AdminShell({
   collectionMembers,
   connectableTournaments,
 }: AdminShellProps) {
-  const [draft, setDraft] = useState<Tournament>(() => cloneTournament(tournament));
+  const [draft, setDraft] = useState<Tournament>(() =>
+    cloneTournament(tournament),
+  );
   const [activeTab, setActiveTab] = useState<MainTab>("live");
 
   /*
@@ -154,28 +232,30 @@ export function AdminShell({
     Kod pozostaje nietknięty — Rabbit Cup z niego korzysta.
   */
   const visibleTabs = mainTabs.filter(
-    (tab) => tab.key !== "scorers" || settings.scorersEnabled
+    (tab) => tab.key !== "scorers" || settings.scorersEnabled,
   );
 
   const effectiveTab: MainTab =
     activeTab === "scorers" && !settings.scorersEnabled ? "live" : activeTab;
   const [isPending, startTransition] = useTransition();
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle"
-  );
+  const [saveStatus, setSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
   const [clearOpen, setClearOpen] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "error">(
-    "idle"
-  );
+
+  /*
+    WYBÓR PLIKU — jedno okno na wszystkie pola.
+
+    Każde pole otwiera ten sam picker; różni je wyłącznie kategoria,
+    aktualny plik i miejsce, w które trafia wynik.
+  */
+  /** Które pole media ma otwarty wybór pliku. */
+  const [mediaField, setMediaField] = useState<MediaFieldKey | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "error"
+  >("idle");
   const [deletePublicIds, setDeletePublicIds] = useState<string[]>([]);
   const [separatorCopied, setSeparatorCopied] = useState(false);
-
-  const scheduleInputRef = useRef<HTMLInputElement | null>(null);
-  const regulationInputRef = useRef<HTMLInputElement | null>(null);
-  const heroBannerInputRef = useRef<HTMLInputElement | null>(null);
-  const campBannerInputRef = useRef<HTMLInputElement | null>(null);
-  const campPosterLeftInputRef = useRef<HTMLInputElement | null>(null);
-  const campPosterRightInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (saveStatus !== "saved") return;
@@ -299,8 +379,8 @@ export function AdminShell({
           Herby NIE są kasowane razem z grupą: należą do wspólnej
           biblioteki i mogą być używane przez inne drużyny i turnieje.
         */
-        prev.scorers = prev.scorers.filter((scorer) =>
-          !group.teams.some((team) => team.id === scorer.teamId)
+        prev.scorers = prev.scorers.filter(
+          (scorer) => !group.teams.some((team) => team.id === scorer.teamId),
         );
       }
 
@@ -311,7 +391,7 @@ export function AdminShell({
 
   function handleCreateTeam(
     groupKey: string,
-    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+    draft: { name: string; logoUrl: string; logoAssetSlug: string },
   ) {
     updateDraft((prev) => {
       const group = prev.groups.find((item) => item.key === groupKey);
@@ -341,7 +421,7 @@ export function AdminShell({
   function handleSaveTeam(
     groupKey: string,
     teamId: string,
-    draft: { name: string; logoUrl: string; logoAssetSlug: string }
+    draft: { name: string; logoUrl: string; logoAssetSlug: string },
   ) {
     updateDraft((prev) => {
       const group = prev.groups.find((item) => item.key === groupKey);
@@ -370,7 +450,7 @@ export function AdminShell({
       // Usunięcie drużyny nie kasuje herbu — patrz komentarz wyżej.
       group.teams = group.teams.filter((team) => team.id !== teamId);
       group.matches = group.matches.filter(
-        (match) => match.homeTeamId !== teamId && match.awayTeamId !== teamId
+        (match) => match.homeTeamId !== teamId && match.awayTeamId !== teamId,
       );
       prev.scorers = prev.scorers.filter((scorer) => scorer.teamId !== teamId);
 
@@ -378,86 +458,121 @@ export function AdminShell({
     });
   }
 
-  async function handleUploadSchedule(file: File) {
+  async function handleUploadSchedule(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.scheduleImagePublicId);
 
       prev.assets.scheduleImage = uploaded.url;
-      prev.assets.scheduleImageName = uploaded.name;
+      prev.assets.scheduleImageName = displayName || uploaded.name;
       prev.assets.scheduleImageType =
-        file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
+        file.type === "application/pdf"
+          ? "application/pdf"
+          : file.type || "image/*";
       prev.assets.scheduleImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
-  async function handleUploadRegulation(file: File) {
+  async function handleUploadRegulation(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.regulationImagePublicId);
 
       prev.assets.regulationImage = uploaded.url;
-      prev.assets.regulationImageName = uploaded.name;
+      prev.assets.regulationImageName = displayName || uploaded.name;
       prev.assets.regulationImageType =
-        file.type === "application/pdf" ? "application/pdf" : file.type || "image/*";
+        file.type === "application/pdf"
+          ? "application/pdf"
+          : file.type || "image/*";
       prev.assets.regulationImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
-  async function handleUploadHeroBanner(file: File) {
+  async function handleUploadHeroBanner(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.heroBannerImagePublicId);
 
       prev.assets.heroBannerImage = uploaded.url;
-      prev.assets.heroBannerImageName = uploaded.name;
+      prev.assets.heroBannerImageName = displayName || uploaded.name;
       prev.assets.heroBannerImageType = file.type || "image/*";
       prev.assets.heroBannerImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
-  async function handleUploadCampBanner(file: File) {
+  /**
+   * Przypisuje plik WYBRANY Z BIBLIOTEKI.
+   *
+   * Świadomie nie kolejkujemy tu usunięcia poprzedniego pliku z Cloudinary:
+   * przy wyborze z biblioteki poprzedni plik może być używany przez inny
+   * turniej, a skasowanie go zepsułoby tamtą stronę.
+   */
+  /** Wgranie nowego pliku — istniejąca ścieżka uploadu każdego pola. */
+  const MEDIA_UPLOADERS: Record<
+    MediaFieldKey,
+    (file: File, displayName: string) => Promise<void>
+  > =
+    {
+      schedule: handleUploadSchedule,
+      regulation: handleUploadRegulation,
+      hero_banner: handleUploadHeroBanner,
+      camp_banner: handleUploadCampBanner,
+      camp_poster_left: handleUploadCampPosterLeft,
+      camp_poster_right: handleUploadCampPosterRight,
+    };
+
+  function applyLibraryAsset(field: MediaFieldKey, asset: MediaAsset) {
+    updateDraft((prev) => {
+      const target = MEDIA_FIELDS[field].assign;
+      target(prev.assets, asset);
+      return prev;
+    });
+
+    setMediaField(null);
+  }
+
+  async function handleUploadCampBanner(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.campBannerImagePublicId);
 
       prev.assets.campBannerImage = uploaded.url;
-      prev.assets.campBannerImageName = uploaded.name;
+      prev.assets.campBannerImageName = displayName || uploaded.name;
       prev.assets.campBannerImageType = file.type || "image/*";
       prev.assets.campBannerImagePublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
-  async function handleUploadCampPosterLeft(file: File) {
+  async function handleUploadCampPosterLeft(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.campPosterLeftPublicId);
 
       prev.assets.campPosterLeft = uploaded.url;
-      prev.assets.campPosterLeftName = uploaded.name;
+      prev.assets.campPosterLeftName = displayName || uploaded.name;
       prev.assets.campPosterLeftType = file.type || "image/*";
       prev.assets.campPosterLeftPublicId = uploaded.publicId ?? "";
       return prev;
     });
   }
 
-  async function handleUploadCampPosterRight(file: File) {
+  async function handleUploadCampPosterRight(file: File, displayName: string) {
     const uploaded = await uploadFileToCloudinary(file);
 
     updateDraft((prev) => {
       queueDelete(prev.assets.campPosterRightPublicId);
 
       prev.assets.campPosterRight = uploaded.url;
-      prev.assets.campPosterRightName = uploaded.name;
+      prev.assets.campPosterRightName = displayName || uploaded.name;
       prev.assets.campPosterRightType = file.type || "image/*";
       prev.assets.campPosterRightPublicId = uploaded.publicId ?? "";
       return prev;
@@ -610,7 +725,7 @@ export function AdminShell({
   function handleUpdateScorer(
     scorerId: string,
     field: "playerName" | "jerseyNumber" | "goals" | "teamId",
-    value: string
+    value: string,
   ) {
     updateDraft((prev) => {
       const scorer = prev.scorers.find((item) => item.id === scorerId);
@@ -629,7 +744,8 @@ export function AdminShell({
       }
 
       if (field === "goals") {
-        scorer.goals = value.trim() === "" ? 0 : Math.max(0, Number(value) || 0);
+        scorer.goals =
+          value.trim() === "" ? 0 : Math.max(0, Number(value) || 0);
       }
 
       return prev;
@@ -640,7 +756,7 @@ export function AdminShell({
     groupKey: string,
     teamAId: string,
     teamBId: string,
-    value: string
+    value: string,
   ) {
     updateDraft((prev) => {
       const group = prev.groups.find((item) => item.key === groupKey);
@@ -655,14 +771,16 @@ export function AdminShell({
           (match.homeTeamId === canonicalHomeTeamId &&
             match.awayTeamId === canonicalAwayTeamId) ||
           (match.homeTeamId === canonicalAwayTeamId &&
-            match.awayTeamId === canonicalHomeTeamId)
+            match.awayTeamId === canonicalHomeTeamId),
       );
 
       const parsed = normalizeScore(value);
 
       if (!parsed) {
         if (existingMatch) {
-          group.matches = group.matches.filter((match) => match.id !== existingMatch.id);
+          group.matches = group.matches.filter(
+            (match) => match.id !== existingMatch.id,
+          );
         }
         return prev;
       }
@@ -670,8 +788,12 @@ export function AdminShell({
       const isSameOrientation =
         teamAId === canonicalHomeTeamId && teamBId === canonicalAwayTeamId;
 
-      const homeScore = isSameOrientation ? parsed.leftScore : parsed.rightScore;
-      const awayScore = isSameOrientation ? parsed.rightScore : parsed.leftScore;
+      const homeScore = isSameOrientation
+        ? parsed.leftScore
+        : parsed.rightScore;
+      const awayScore = isSameOrientation
+        ? parsed.rightScore
+        : parsed.leftScore;
 
       if (existingMatch) {
         existingMatch.homeTeamId = canonicalHomeTeamId;
@@ -772,7 +894,7 @@ export function AdminShell({
   const hasSportingData =
     draft.groups.length > 1 ||
     draft.groups.some(
-      (group) => group.teams.length > 0 || group.matches.length > 0
+      (group) => group.teams.length > 0 || group.matches.length > 0,
     );
 
   const tickerPreview = useMemo(() => {
@@ -794,34 +916,25 @@ export function AdminShell({
     return "Pasek będzie ukryty, bo nie ma komunikatu i król strzelców jest wyłączony.";
   }, [draft.tickerMessage, draft.showTopScorerTicker]);
 
-  const content = useMemo(() => {
+  /*
+    BEZ `useMemo`.
+
+    Ta tablica zależności nigdy nie była prawdziwa: wnętrze czyta kilkadziesiąt
+    wartości i funkcji, z których wymieniono osiem. Taki „memo" nie tyle
+    przyspieszał, ile obiecywał świeżość, której nie dowoził — i przy każdym
+    dołożeniu pola trzeba było zgadywać, czy trafia do listy.
+
+    React Compiler memoizuje to drzewo sam, na podstawie faktycznych odczytów.
+    Ręczna lista może mu w tym wyłącznie przeszkodzić, co właśnie robiła.
+  */
+  const content = ((): React.ReactNode => {
     if (effectiveTab === "schedule") {
       return (
         <section className="space-y-4">
           <div className="flex justify-end gap-2">
-            <input
-              ref={scheduleInputRef}
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
-              onChange={async (event) => {
-                const input = event.currentTarget;
-                const file = input.files?.[0];
-                if (!file) return;
-
-                try {
-                  await handleUploadSchedule(file);
-                } catch (error) {
-                  console.error(error);
-                } finally {
-                  input.value = "";
-                }
-              }}
-            />
-
             <button
               type="button"
-              onClick={() => scheduleInputRef.current?.click()}
+              onClick={() => setMediaField("schedule")}
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <Pencil size={16} />
@@ -851,29 +964,9 @@ export function AdminShell({
       return (
         <section className="space-y-4">
           <div className="flex justify-end gap-2">
-            <input
-              ref={regulationInputRef}
-              type="file"
-              accept="application/pdf,image/*"
-              className="hidden"
-              onChange={async (event) => {
-                const input = event.currentTarget;
-                const file = input.files?.[0];
-                if (!file) return;
-
-                try {
-                  await handleUploadRegulation(file);
-                } catch (error) {
-                  console.error(error);
-                } finally {
-                  input.value = "";
-                }
-              }}
-            />
-
             <button
               type="button"
-              onClick={() => regulationInputRef.current?.click()}
+              onClick={() => setMediaField("regulation")}
               className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <Pencil size={16} />
@@ -904,32 +997,14 @@ export function AdminShell({
         <section className="space-y-6">
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Banner główny</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Banner główny
+              </h2>
 
               <div className="flex flex-wrap gap-2">
-                <input
-                  ref={heroBannerInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (event) => {
-                    const input = event.currentTarget;
-                    const file = input.files?.[0];
-                    if (!file) return;
-
-                    try {
-                      await handleUploadHeroBanner(file);
-                    } catch (error) {
-                      console.error(error);
-                    } finally {
-                      input.value = "";
-                    }
-                  }}
-                />
-
                 <button
                   type="button"
-                  onClick={() => heroBannerInputRef.current?.click()}
+                  onClick={() => setMediaField("hero_banner")}
                   className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   <Pencil size={16} />
@@ -947,11 +1022,11 @@ export function AdminShell({
               </div>
             </div>
 
-            <PreviewImage
+            <MediaPreview
               src={draft.assets.heroBannerImage}
               alt="Banner główny"
               emptyLabel="Brak bannera głównego"
-              className="aspect-[16/7]"
+              ratio="16/7"
             />
           </section>
 
@@ -972,7 +1047,9 @@ export function AdminShell({
                   id="camp-title"
                   type="text"
                   value={draft.campTitle ?? ""}
-                  onChange={(event) => handleChangeCampTitle(event.target.value)}
+                  onChange={(event) =>
+                    handleChangeCampTitle(event.target.value)
+                  }
                   placeholder={CAMP_DEFAULT_TITLE}
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
                 />
@@ -985,7 +1062,9 @@ export function AdminShell({
                 <input
                   type="datetime-local"
                   value={draft.campStartDate ?? ""}
-                  onChange={(event) => handleChangeCampStartDate(event.target.value)}
+                  onChange={(event) =>
+                    handleChangeCampStartDate(event.target.value)
+                  }
                   className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
                 />
               </div>
@@ -1050,36 +1129,16 @@ export function AdminShell({
             </div>
           </section>
 
-
-
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Banner campa</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Banner campa
+              </h2>
 
               <div className="flex flex-wrap gap-2">
-                <input
-                  ref={campBannerInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (event) => {
-                    const input = event.currentTarget;
-                    const file = input.files?.[0];
-                    if (!file) return;
-
-                    try {
-                      await handleUploadCampBanner(file);
-                    } catch (error) {
-                      console.error(error);
-                    } finally {
-                      input.value = "";
-                    }
-                  }}
-                />
-
                 <button
                   type="button"
-                  onClick={() => campBannerInputRef.current?.click()}
+                  onClick={() => setMediaField("camp_banner")}
                   className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   <Pencil size={16} />
@@ -1097,43 +1156,25 @@ export function AdminShell({
               </div>
             </div>
 
-            <PreviewImage
+            <MediaPreview
               src={draft.assets.campBannerImage}
               alt="Banner campa"
               emptyLabel="Brak bannera campa"
-              className="aspect-[16/6]"
+              ratio="16/6"
             />
           </section>
 
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Plakaty campa</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Plakaty campa
+            </h2>
 
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  <input
-                    ref={campPosterLeftInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (event) => {
-                      const input = event.currentTarget;
-                      const file = input.files?.[0];
-                      if (!file) return;
-
-                      try {
-                        await handleUploadCampPosterLeft(file);
-                      } catch (error) {
-                        console.error(error);
-                      } finally {
-                        input.value = "";
-                      }
-                    }}
-                  />
-
                   <button
                     type="button"
-                    onClick={() => campPosterLeftInputRef.current?.click()}
+                    onClick={() => setMediaField("camp_poster_left")}
                     className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                   >
                     <Pencil size={16} />
@@ -1150,39 +1191,19 @@ export function AdminShell({
                   </button>
                 </div>
 
-                <PreviewImage
+                <MediaPreview
                   src={draft.assets.campPosterLeft}
                   alt="Lewy plakat"
                   emptyLabel="Brak lewego plakatu"
-                  className="aspect-[4/6]"
+                  ratio="4/6"
                 />
               </div>
 
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
-                  <input
-                    ref={campPosterRightInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (event) => {
-                      const input = event.currentTarget;
-                      const file = input.files?.[0];
-                      if (!file) return;
-
-                      try {
-                        await handleUploadCampPosterRight(file);
-                      } catch (error) {
-                        console.error(error);
-                      } finally {
-                        input.value = "";
-                      }
-                    }}
-                  />
-
                   <button
                     type="button"
-                    onClick={() => campPosterRightInputRef.current?.click()}
+                    onClick={() => setMediaField("camp_poster_right")}
                     className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                   >
                     <Pencil size={16} />
@@ -1199,11 +1220,11 @@ export function AdminShell({
                   </button>
                 </div>
 
-                <PreviewImage
+                <MediaPreview
                   src={draft.assets.campPosterRight}
                   alt="Prawy plakat"
                   emptyLabel="Brak prawego plakatu"
-                  className="aspect-[4/6]"
+                  ratio="4/6"
                 />
               </div>
             </div>
@@ -1229,7 +1250,9 @@ export function AdminShell({
           ) : null}
 
           <section className="space-y-4 ice-surface flush-card sm:rounded-3xl p-4 shadow-sm sm:p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Podgląd sekcji campa</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Podgląd sekcji campa
+            </h2>
 
             <CampBanner
               date={draft.campStartDate ?? ""}
@@ -1272,7 +1295,8 @@ export function AdminShell({
             <div>
               <p className="text-sm font-semibold text-slate-800">Separator</p>
               <p className="mt-1 text-sm text-slate-600">
-                Użyj tego między fragmentami komunikatu: <span className="font-bold">{TICKER_SEPARATOR}</span>
+                Użyj tego między fragmentami komunikatu:{" "}
+                <span className="font-bold">{TICKER_SEPARATOR}</span>
               </p>
             </div>
 
@@ -1290,7 +1314,9 @@ export function AdminShell({
             <input
               type="checkbox"
               checked={draft.showTopScorerTicker ?? true}
-              onChange={(event) => handleToggleShowTopScorerTicker(event.target.checked)}
+              onChange={(event) =>
+                handleToggleShowTopScorerTicker(event.target.checked)
+              }
               className="h-4 w-4 rounded border-slate-300"
             />
             <span className="text-sm font-semibold text-slate-800">
@@ -1304,7 +1330,9 @@ export function AdminShell({
             </label>
             <textarea
               value={draft.tickerMessage ?? ""}
-              onChange={(event) => handleChangeTickerMessage(event.target.value)}
+              onChange={(event) =>
+                handleChangeTickerMessage(event.target.value)
+              }
               placeholder={`Np. Zapraszamy na finały o 17:30${TICKER_SEPARATOR}Wstęp wolny${TICKER_SEPARATOR}Partner wydarzenia: Festiwal Hokeja`}
               rows={5}
               className="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-slate-900"
@@ -1312,7 +1340,9 @@ export function AdminShell({
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="mb-3 text-sm font-semibold text-slate-700">Podgląd:</p>
+            <p className="mb-3 text-sm font-semibold text-slate-700">
+              Podgląd:
+            </p>
             <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-bold uppercase tracking-[0.08em] text-white overflow-x-auto whitespace-nowrap">
               {tickerPreview}
             </div>
@@ -1342,27 +1372,18 @@ export function AdminShell({
         ) : null}
 
         <EditableGroupTabs
-        structure={settings.structure}
-        groups={draft.groups}
-        onAddGroup={handleAddGroup}
-        onRemoveGroup={handleRemoveGroup}
-        onCreateTeam={handleCreateTeam}
-        onRemoveTeam={handleRemoveTeam}
-        onSaveTeam={handleSaveTeam}
-        onUpdateCell={handleUpdateCell}
+          structure={settings.structure}
+          groups={draft.groups}
+          onAddGroup={handleAddGroup}
+          onRemoveGroup={handleRemoveGroup}
+          onCreateTeam={handleCreateTeam}
+          onRemoveTeam={handleRemoveTeam}
+          onSaveTeam={handleSaveTeam}
+          onUpdateCell={handleUpdateCell}
         />
       </>
     );
-  }, [
-    effectiveTab,
-    draft,
-    allTeams,
-    separatorCopied,
-    tickerPreview,
-    settings.structure,
-    playoffState,
-    tournamentId,
-  ]);
+  })();
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1497,6 +1518,20 @@ export function AdminShell({
         „operacji nieodwracalnej" ani „zachowania ustawień" — jedno i drugie
         byłoby nieprawdą wobec `handleClearAll`.
       */}
+      {mediaField ? (
+        <MediaAssetPicker
+          open
+          title={MEDIA_FIELDS[mediaField].title}
+          category={MEDIA_FIELDS[mediaField].category}
+          currentUrl={MEDIA_FIELDS[mediaField].current(draft.assets)}
+          onCancel={() => setMediaField(null)}
+          onSave={(asset) => applyLibraryAsset(mediaField, asset)}
+          onUploadNew={(file, displayName) =>
+            MEDIA_UPLOADERS[mediaField](file, displayName)
+          }
+        />
+      ) : null}
+
       <ConfirmDialog
         open={clearOpen}
         tone="danger"
@@ -1508,8 +1543,8 @@ export function AdminShell({
         onConfirm={handleClearAll}
       >
         <p>
-          Formularz zostanie opróżniony: znikną wszystkie grupy, drużyny,
-          mecze i strzelcy, a także ustawienia campu, grafiki i nazwa turnieju.
+          Formularz zostanie opróżniony: znikną wszystkie grupy, drużyny, mecze
+          i strzelcy, a także ustawienia campu, grafiki i nazwa turnieju.
         </p>
         <p className="font-medium text-slate-800">
           Zmiany trafią do bazy dopiero po kliknięciu „Zapisz”.

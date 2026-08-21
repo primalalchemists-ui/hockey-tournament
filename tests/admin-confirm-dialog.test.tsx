@@ -131,8 +131,12 @@ describe("BJ-BO: dostepnosc i uklad", () => {
   });
 
   it("BK: Enter nie potwierdza przypadkiem operacji kasujacej", () => {
-    // Focus startuje na akcji bezpiecznej.
-    expect(dialog).toContain("cancelRef.current?.focus()");
+    /*
+      Focus startuje na akcji bezpiecznej. Gdy okno nie ma „Anuluj" — bo
+      oferuje dwie realne odpowiedzi zamiast rezygnacji — tę rolę przejmuje
+      „×", ale nigdy przycisk kasujacy.
+    */
+    expect(dialog).toContain("(cancelRef.current ?? closeRef.current)?.focus()");
   });
 
   it("BM: tlo jest przygaszone i rozmyte", () => {
@@ -158,9 +162,14 @@ describe("BJ-BO: dostepnosc i uklad", () => {
     expect(dialog).toContain("flex-col-reverse");
     expect(dialog).toContain("sm:flex-row");
     expect(dialog).toContain("h-11");
-    // Okno przykleja sie do dolu ekranu na telefonie, srodkuje na desktopie.
-    expect(dialog).toContain("items-end");
-    expect(dialog).toContain("sm:items-center");
+
+    /*
+      Okno stoi na SRODKU na kazdym ekranie. Wczesniejszy wariant przyklejal
+      sie na telefonie do dolnej krawedzi, wiec ta sama decyzja wygladala
+      inaczej zaleznie od urzadzenia — jeden uklad znaczy jeden nawyk.
+    */
+    expect(dialog).toContain("items-center justify-center");
+    expect(dialog).not.toContain("items-end");
   });
 
   it("okno zyje w portalu, wiec nie zamyka go rozmycie karty", () => {

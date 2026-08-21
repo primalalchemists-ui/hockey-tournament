@@ -41,7 +41,15 @@ export function ShareTableButton({
 }: ShareTableButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  /*
+    Kopiowanie linku ma trzy stany, nie dwa. Nieudana próba nie może
+    wywoływać natywnego `alert()` — to okno przeglądarki, nie produktu:
+    wygląda jak awaria strony i nie da się go ostylować ani przetłumaczyć.
+    Odpowiedź pojawia się dokładnie tam, gdzie padło kliknięcie.
+  */
+  const [copyState, setCopyState] = useState<"idle" | "done" | "error">(
+    "idle"
+  );
   const timeoutRef = useRef<number | null>(null);
 
   const currentUrl =
@@ -61,20 +69,20 @@ export function ShareTableButton({
   }, [currentUrl, messengerAppId]);
 
   async function handleCopy() {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-
-      if (timeoutRef.current) {
-        window.clearTimeout(timeoutRef.current);
-      }
-
-      timeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
-      }, 1800);
+      setCopyState("done");
     } catch {
-      alert("Nie udało się skopiować linku.");
+      setCopyState("error");
     }
+
+    timeoutRef.current = window.setTimeout(() => {
+      setCopyState("idle");
+    }, 1800);
   }
 
   async function handleClick() {
@@ -139,8 +147,18 @@ export function ShareTableButton({
             onClick={handleCopy}
             className="block w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
           >
-            {copied ? "Skopiowano link" : "Kopiuj link"}
+            {copyState === "done" ? "Skopiowano link" : "Kopiuj link"}
           </button>
+
+          {copyState === "error" ? (
+            <p
+              role="status"
+              data-testid="share-copy-error"
+              className="px-3 pb-1 pt-0.5 text-xs font-semibold text-rose-700"
+            >
+              Nie udało się skopiować linku.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

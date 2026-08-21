@@ -8,6 +8,7 @@ import {
   createTournamentAction,
   setCurrentTournamentAction,
   setTournamentArchivedAction,
+  deleteTournamentAction,
   type TournamentActionState,
 } from "@/app/admin/actions";
 import { TournamentSettingsFields } from "@/components/admin/tournament-settings-fields";
@@ -50,13 +51,36 @@ export function TournamentSelector({
     setTournamentArchivedAction,
     initialState
   );
+  const [deleteState, deleteAction, isDeletePending] = useActionState(
+    deleteTournamentAction,
+    initialState
+  );
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteFormRef = useRef<HTMLFormElement | null>(null);
+  const archiveFromDialogRef = useRef<HTMLFormElement | null>(null);
+
+  /*
+    Okno zamykamy dopiero, gdy operacja NAPRAWDĘ się powiodła. Zamknięcie
+    zaraz po kliknięciu udawałoby sukces także wtedy, gdy serwer odmówił —
+    a odmawia na przykład dla turnieju wyświetlanego publicznie.
+  */
+  const [deleteRequested, setDeleteRequested] = useState(false);
+
+  if (deleteRequested && !isDeletePending) {
+    setDeleteRequested(false);
+    if (!deleteState.error) setDeleteOpen(false);
+  }
 
   const selected = tournaments.find((item) => item.id === selectedId);
   const active = tournaments.filter((item) => !item.archivedAt);
   const archived = tournaments.filter((item) => item.archivedAt);
 
   const errorMessage =
-    createState.error ?? currentState.error ?? archiveState.error;
+    createState.error ??
+    currentState.error ??
+    archiveState.error ??
+    deleteState.error;
 
   useEffect(() => {
     function closeOnOutside(event: MouseEvent | TouchEvent) {
@@ -324,8 +348,80 @@ export function TournamentSelector({
           </form>
         ) : null}
 
+        {selected ? (
+          <button
+            type="button"
+            data-testid="tournament-delete"
+            onClick={() => setDeleteOpen(true)}
+            className="btn btn-quiet text-xs"
+          >
+            Usuń turniej
+          </button>
+        ) : null}
+
         {extraActions}
       </div>
+
+      {selected ? (
+        <>
+          {/*
+            DWA WYJŚCIA, JEDNO OKNO.
+
+            Kasowanie turnieju i przeniesienie go do archiwum to dwie różne
+            odpowiedzi na to samo pytanie „co z tym turniejem". Pokazanie
+            wyłącznie destrukcyjnej opcji zmuszałoby do zamknięcia okna
+            i szukania bezpieczniejszej gdzie indziej.
+          */}
+          <ConfirmDialog
+            open={deleteOpen}
+            tone="danger"
+            icon="warning"
+            title="Co zrobić z turniejem?"
+            confirmLabel="Usuń trwale"
+            busyLabel="Usuwanie…"
+            isBusy={isDeletePending}
+            showCancel={false}
+            onCancel={() => setDeleteOpen(false)}
+            onConfirm={() => {
+              setDeleteRequested(true);
+              deleteFormRef.current?.requestSubmit();
+            }}
+            secondaryAction={{
+              label: "Archiwizuj",
+              busyLabel: "Archiwizowanie…",
+              isBusy: isArchivePending,
+              onClick: () => archiveFromDialogRef.current?.requestSubmit(),
+            }}
+          >
+            {/*
+              Dwa krótkie zdania. Konsekwencja i wyjście awaryjne — resztę
+              mówią same przyciski, a ściana tekstu w oknie decyzyjnym i tak
+              nie jest czytana.
+            */}
+            <p>
+              <strong>{selected.title}</strong>
+            </p>
+            <p>
+              Usunięcie jest nieodwracalne. Możesz też zachować turniej
+              w archiwum.
+            </p>
+          </ConfirmDialog>
+
+          <form ref={deleteFormRef} action={deleteAction} className="hidden">
+            <input type="hidden" name="tournamentId" value={selected.id} />
+          </form>
+
+          {/* Archiwizacja z okna korzysta z TEJ SAMEJ akcji co przycisk obok. */}
+          <form
+            ref={archiveFromDialogRef}
+            action={archiveAction}
+            className="hidden"
+          >
+            <input type="hidden" name="tournamentId" value={selected.id} />
+            <input type="hidden" name="archived" value="true" />
+          </form>
+        </>
+      ) : null}
 
       {errorMessage ? (
         <p className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800 lg:mt-0 lg:basis-full">

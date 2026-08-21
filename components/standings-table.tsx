@@ -174,7 +174,7 @@ export function StandingsTable({
         )}
       </div>
 
-      <EdgeScroller label="Tabela rankingu — przewijana w poziomie">
+      <EdgeScroller label="Tabela rankingu, przewijana w poziomie">
         <table className="ice-table min-w-full">
           <thead>
             <tr>

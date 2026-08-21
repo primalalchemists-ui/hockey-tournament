@@ -97,7 +97,7 @@ describe("D/E/F: pomoc kolumn zamiast bloku legendy", () => {
     // Opis istnieje wylacznie jako etykieta dostepnosci przy skrocie,
     // nie jako osobny widoczny wiersz listy pod tabela.
     expect(html).not.toContain(">Mecze rozegrane<");
-    expect(html).toContain('aria-label="M — Mecze rozegrane"');
+    expect(html).toContain('aria-label="M: Mecze rozegrane"');
   });
 
   it("E: mapa opisów pokrywa wszystkie skróty tabeli", () => {
@@ -115,8 +115,8 @@ describe("D/E/F: pomoc kolumn zamiast bloku legendy", () => {
     expect(triggers).toHaveLength(STANDINGS_COLUMNS.length);
     expect(html).toContain('type="button"');
     // Opis dociera do czytnika ekranu bez otwierania podpowiedzi.
-    expect(html).toContain('aria-label="Pkt — Punkty"');
-    expect(html).toContain('aria-label="Bil. — Różnica bramek"');
+    expect(html).toContain('aria-label="Pkt: Punkty"');
+    expect(html).toContain('aria-label="Bil.: Różnica bramek"');
   });
 
   it("F: skróty są wyśrodkowane w nagłówkach", () => {
@@ -416,18 +416,25 @@ describe("panel — układ i modal ustawień", () => {
     );
   });
 
-  it("ustawienia otwierają się jako pełny ekran na telefonie", () => {
+  it("ustawienia otwierają się jako okno na środku, na telefonie też", () => {
     expect(modal).toContain('data-testid="settings-modal"');
     expect(modal).toContain("fixed inset-0");
-    expect(modal).toContain("items-stretch justify-center sm:items-center");
+    expect(modal).toContain("items-center justify-center");
+    /*
+      Wariant pelnoekranowy na telefonie czytal sie jak osobna podstrona,
+      choc jest oknem — i gubil kontekst tego, co zostalo pod spodem.
+    */
+    expect(modal).not.toContain("items-stretch");
     // Zadnego dymka przyczepionego do przycisku.
     expect(modal).not.toContain("absolute right-0 top-full");
   });
 
-  it("na desktopie to wyśrodkowany modal na rozmytym tle", () => {
+  it("to wyśrodkowany modal na rozmytym tle", () => {
     expect(modal).toContain("backdrop-blur-sm");
     expect(modal).toContain("sm:w-[34rem]");
-    expect(modal).toContain("sm:rounded-3xl");
+    // Zaokraglenie karty jest bezwarunkowe — okno wyglada tak samo wszedzie.
+    expect(modal).toContain("rounded-3xl");
+    expect(modal).toContain("max-h-[88dvh]");
   });
 
   it("modal jest dostępny: rola, etykieta i Escape", () => {
@@ -533,8 +540,8 @@ describe("okna modalne wychodzą poza kartę, z której je otwarto", () => {
     for (const code of [dialog, settings]) {
       expect(code).toContain("fixed inset-0");
       expect(code).toContain("backdrop-blur-sm");
-      // Wyśrodkowane na desktopie, pełny ekran na telefonie.
-      expect(code).toContain("items-stretch justify-center sm:items-center");
+      // Sama karta stoi na srodku — na kazdej szerokosci tak samo.
+      expect(code).toContain("items-center justify-center");
     }
   });
 });

@@ -374,11 +374,17 @@ button {
     font-size: 0.875rem;
     font-weight: 600;
     line-height: 1.2;
+    /*
+      STANDARDOWY RUCH INTERFEJSU: kolor, obrys, cień i przezroczystość.
+      Żadnego przesuwania ani skalowania: podskakujący przycisk to język
+      strony reklamowej, nie narzędzia, w którym wpisuje się wyniki meczów.
+    */
     transition:
       background-color 160ms ease,
       border-color 160ms ease,
       box-shadow 160ms ease,
-      color 160ms ease;
+      color 160ms ease,
+      opacity 160ms ease;
   }
 
   .btn:disabled {
@@ -1504,9 +1510,42 @@ button {
 }
 
 /* Cienki pasek przewijania — drabinka i szerokie tabele. */
+/*
+  JEDEN PASEK PRZEWIJANIA W CAŁEJ APLIKACJI.
+
+  Strona główna ma swój spokojny pasek w tonacji lodu (reguły `html::` wyżej),
+  ale okna panelu przewijały się paskiem systemowym: szeroki, biało-szary,
+  na Windowsie wyraźnie inny. Ta klasa powtarza ten sam wygląd wszędzie tam,
+  gdzie przewija się własny kontener — okna, listy, pasek zakładek.
+
+  Firefox dostaje `scrollbar-*`, Chromium `::-webkit-scrollbar`. Innej wersji
+  paska nie ma: to jest TO miejsce, do którego się dopisuje.
+*/
 .ice-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 176, 205, 0.5) transparent;
+  scrollbar-color: rgba(100, 130, 165, 0.45) transparent;
+}
+
+.ice-scroll::-webkit-scrollbar {
+  width: 0.5625rem;
+  height: 0.5625rem;
+}
+
+.ice-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ice-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 130, 165, 0.45);
+  /* Przezroczysta ramka zwęża kciuk optycznie, bez zmiany celu chwytu. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.ice-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 100, 135, 0.6);
+  background-clip: content-box;
 }
 
 /* Delikatna sugestia, że drabinkę można przesunąć w bok. */
@@ -2075,6 +2114,238 @@ button {
     .powered-by-section[data-played="true"] .pb-logo-shake {
       animation: none;
       opacity: 1;
+    }
+  }
+}
+
+/* ==========================================================================
+   RUCH OKIEN MODALNYCH — jeden język dla całego panelu.
+
+   Okno ma się POJAWIĆ, a nie wjechać. Krótkie wyjście z 0.98 do 1 czyta się
+   jako „to wyskoczyło na wierzch", nie jako przejście między ekranami; skala
+   poniżej 0.95 zaczyna wyglądać jak zoom i przyciąga uwagę do samego ruchu
+   zamiast do treści.
+
+   Tokeny stoją w jednym miejscu, bo najgorszy wariant to nie „za wolno" ani
+   „za szybko", tylko okno otwierające się inaczej niż sąsiednie.
+   ========================================================================== */
+
+:root {
+  --motion-dialog-in: 180ms;
+  --motion-card-in: 170ms;
+  /* Wyhamowanie bez odbicia — odbicie w oknie decyzyjnym wygląda na zabawkę. */
+  --motion-ease-out: cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+@layer components {
+  @keyframes dialog-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dialog-card-in {
+    from {
+      opacity: 0;
+      transform: scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .dialog-backdrop {
+    animation: dialog-backdrop-in 140ms ease-out both;
+  }
+
+  /*
+    `.ice-surface` też dostaje ten ruch — okna potwierdzeń używają jej zamiast
+    `.dialog-card`, a jeden wyjątek zniszczyłby spójność, której pilnuje cała
+    ta sekcja.
+  */
+  .dialog-backdrop > .dialog-card,
+  .dialog-backdrop > .ice-surface {
+    animation: dialog-card-in var(--motion-dialog-in) var(--motion-ease-out)
+      both;
+  }
+
+  /* Zamknięcie jest natychmiastowe (unmount) — nie udajemy, że trwa. */
+
+  .media-card,
+  .media-fade {
+    animation: dialog-card-in var(--motion-card-in) var(--motion-ease-out) both;
+  }
+
+  .dialog-close {
+    transition: background-color 140ms ease-out, color 140ms ease-out;
+  }
+
+  /*
+    ZERO RUCHU NA ŻYCZENIE.
+
+    `animation: none` samo w sobie zostawiłoby element w stanie początkowym,
+    bo `both` utrwala klatkę `from`. Dlatego stan końcowy trzeba dopisać
+    jawnie — inaczej „mniej ruchu" znaczyłoby „niewidoczne okno".
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .dialog-backdrop,
+    .dialog-backdrop > .dialog-card,
+    .dialog-backdrop > .ice-surface,
+    .media-card,
+    .media-fade {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .dialog-close {
+      transition: none;
+    }
+  }
+}
+
+/* ==========================================================================
+   PODGLĄD MEDIÓW I WALIDACJA POLA
+
+   Dwa drobiazgi, które decydują o tym, czy panel sprawia wrażenie solidnego:
+   znak ładowania w kadrze podglądu i reakcja na puste wymagane pole.
+   ========================================================================== */
+
+@layer components {
+  /* Ten sam puls co logo na granicy trasy — tylko wolniejszy i cichszy. */
+  .media-preview-pulse {
+    animation: intro-pulse 900ms ease-in-out infinite both;
+  }
+
+  /*
+    BŁĄD BEZ PRZESUWANIA UKŁADU.
+
+    Komunikat pod polem dokładał wiersz i całe okno rosło — przyciski
+    uciekały spod palca dokładnie w chwili, w której użytkownik próbował
+    je trafić. Informacja siedzi więc w samym polu: obwódka, focus i jedno
+    krótkie drgnienie. Treść dla czytnika ekranu jest osobno, poza układem.
+
+    Amplituda spada z każdym wychyleniem i kończy na zerze. Bez odbicia,
+    bez sprężyny — to ma być zauważone kątem oka, nie obejrzane.
+  */
+  @keyframes field-shake {
+    0% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(-3px);
+    }
+    40% {
+      transform: translateX(3px);
+    }
+    60% {
+      transform: translateX(-2px);
+    }
+    80% {
+      transform: translateX(2px);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  .field-shake {
+    animation: field-shake 240ms ease-in-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /*
+      Mniej ruchu nie znaczy mniej informacji: drgnienie znika, ale czerwona
+      obwódka i focus zostają, więc komunikat nadal dociera.
+    */
+    .field-shake {
+      animation: none;
+    }
+
+    .media-preview-pulse {
+      animation: none;
+      opacity: 0.6;
+    }
+
+    .btn {
+      transition: none;
+    }
+  }
+}
+
+/* ==========================================================================
+   BIBLIOTEKA PLIKÓW I DROBNE STANY OCZEKIWANIA
+   ========================================================================== */
+
+:root {
+  /*
+    WYSOKOŚĆ OBSZARU Z PLIKAMI — jedna wartość dla wszystkich pól mediów.
+
+    Okno otwierało się wąskie, a po dojściu listy z serwera skakało o dwieście
+    kilkadziesiąt pikseli. Miejsce musi więc być znane, ZANIM cokolwiek się
+    wczyta, i nie może zależeć od tego, ile plików wróciło.
+
+    Około dwóch rzędów kafelków na telefonie, dwóch–trzech wyżej. Osobne
+    wartości dla harmonogramu, banera i tła znaczyłyby, że to samo okno ma
+    trzy różne rozmiary.
+  */
+  --media-library-h: 22rem;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --media-library-h: 26rem;
+  }
+}
+
+@layer components {
+  .media-library-area {
+    /*
+      `min()` pilnuje niskich ekranów: na telefonie w poziomie stała wysokość
+      wypchnęłaby stopkę poza okno. Wynik nadal nie zależy od zawartości —
+      dla danego viewportu jest jedną, ustaloną liczbą.
+    */
+    height: min(var(--media-library-h), 52dvh);
+  }
+
+  /*
+    KÓŁKO OCZEKIWANIA W PRZYCISKU.
+
+    Logo Festiwalu jest znakiem ładowania CAŁEJ strony i na przycisku
+    wyglądałoby na pomyłkę. Tutaj wystarczy obrys w kolorze tekstu — na tyle
+    mały, że nie zmienia wysokości przycisku.
+  */
+  .spinner {
+    display: inline-block;
+    width: var(--spinner-size, 1rem);
+    height: var(--spinner-size, 1rem);
+    border: var(--spinner-thickness, 2px) solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: spinner-turn 620ms linear infinite;
+  }
+
+  /* Wersja dla pustego jeszcze obszaru: widoczna z drugiego końca pokoju. */
+  .spinner-lg {
+    --spinner-size: 3rem;
+    --spinner-thickness: 3px;
+  }
+
+  @keyframes spinner-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: none;
+      /* Bez obrotu nadal widać, że przycisk czeka. */
+      opacity: 0.55;
     }
   }
 }

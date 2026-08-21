@@ -2,8 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+
+import { lockBodyScroll } from "@/lib/public/scroll-lock";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { BrandLoader } from "@/components/brand-loader";
+import { ModalPortal } from "@/components/ui/modal-portal";
 import { CampBanner } from "@/components/camp-banner";
 import { GroupTabs } from "@/components/group-tabs";
 import { RegulationSection } from "@/components/regulation-section";
@@ -110,6 +114,17 @@ export function TournamentShell({
 
     if (!ok) setSwitchError("Nie udało się wczytać tej kategorii.");
   }
+
+  /*
+    W trakcie zmiany kategorii strona pod ekranem ładowania stoi. Bez tego
+    dałoby się przewinąć zasłonięty, nieaktualny turniej i po odsłonięciu
+    wylądować w zupełnie innym miejscu nowego.
+  */
+  useEffect(() => {
+    if (!isSwitching) return;
+
+    return lockBodyScroll();
+  }, [isSwitching]);
 
   /*
     CELEBRACJA — jedna decyzja, dwa miejsca prezentacji.
@@ -246,7 +261,32 @@ export function TournamentShell({
   ]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6" aria-busy={isSwitching}>
+      {/*
+        ZMIANA KATEGORII WYGLĄDA JAK WCZYTANIE INNEGO TURNIEJU.
+
+        Wcześniej kliknięcie U10 zostawiało na ekranie kompletny, klikalny
+        turniej U8 do czasu powrotu snapshotu. Wyglądało to jak zawieszenie
+        aplikacji, bo nic nie potwierdzało, że cokolwiek się dzieje.
+
+        Teraz stary turniej znika od razu pod tym samym ekranem ładowania,
+        który obsługuje wejście na stronę — z logo Festiwalu Hokeja, bez
+        drugiego języka wizualnego dla tej samej czynności. `blocking`
+        odcina kliknięcia w zasłonięty widok.
+
+        PORTAL DO <body> JEST TU KONIECZNY. Warstwa siedziała wewnątrz
+        kontenera strony, a `position: fixed` liczy się względem viewportu
+        tylko wtedy, gdy żaden przodek nie tworzy własnego kontenera
+        pozycjonowania — robi to każdy `transform`, `filter` i `backdrop-filter`
+        (czyli nasza `.ice-surface`). Efekt: zasłona kończyła się na krawędzi
+        karty i pod spodem dalej było widać ranking oraz „Udostępnij".
+      */}
+      {isSwitching ? (
+        <ModalPortal>
+          <BrandLoader blocking testId="category-loader" />
+        </ModalPortal>
+      ) : null}
+
       <TournamentHeader
         title={tournament.title}
         scorers={tournament.scorers ?? []}

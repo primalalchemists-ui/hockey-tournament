@@ -1,5 +1,6 @@
 import type { OperationIssueReport } from "@/lib/playoff/validation";
 import type { Tournament } from "@/types/tournament";
+import type { MediaCategory } from "@/lib/media/categories";
 import type {
   TournamentFormat,
   TournamentSettings,
@@ -36,6 +37,18 @@ export type TournamentLoadResult =
  * `id` to STABILNE UUID — prawdziwa tożsamość turnieju. Slug i title są
  * wyłącznie prezentacyjne i mogą się zmieniać bez wpływu na relacje.
  */
+/** Pojedynczy plik z biblioteki — gotowa referencja, nie zawartość. */
+export type MediaAsset = {
+  url: string;
+  publicId: string;
+  fileName: string;
+  mimeType: string;
+  /** Wartość `tournament_assets.kind`, np. `camp_banner`. */
+  kind: string;
+  /** Turniej, w którym grafika jest obecnie użyta — do rozpoznania. */
+  usedBy: string;
+};
+
 export type TournamentSummary = {
   id: string;
   title: string;
@@ -74,6 +87,13 @@ export interface TournamentRepository {
 
   /** Lista turniejów do selektora. Najnowsze pierwsze. */
   listTournaments(): Promise<TournamentSummary[]>;
+  /**
+   * Kasuje turniej wraz z danymi, które należą wyłącznie do niego.
+   * Nie rusza bibliotek współdzielonych ani plików w Cloudinary.
+   */
+  deleteTournamentPermanently(tournamentId: string): Promise<void>;
+  /** Pliki pasujące do danego pola, wgrane wcześniej, bez duplikatów. */
+  listMediaLibrary(category: MediaCategory): Promise<MediaAsset[]>;
 
   /** Konkretny turniej po UUID — niezależnie od tego, który jest publiczny. */
   getTournamentById(id: string): Promise<TournamentLoadResult>;

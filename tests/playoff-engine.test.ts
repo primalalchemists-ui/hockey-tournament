@@ -261,39 +261,50 @@ describe.skipIf(!hasDatabase)("silnik play-off — scenariusz referencyjny", () 
     expect(state.scopes[0].rounds).toHaveLength(3);
   });
 
-  it("zmiana wyniku grupowego po zamrożeniu NIE zmienia rozstawienia", async () => {
+  it("zmiana wyniku grupowego po zamrożeniu jest ODRZUCANA", async () => {
+    /*
+      ZACHOWANIE ZMIENIONE ŚWIADOMIE (PB-01).
+
+      Wcześniej taki zapis przechodził i „nie zmieniał rozstawienia" — ale
+      zmieniał tabelę na żywo, przez co publiczna klasyfikacja i drabinka
+      zaczynały opowiadać dwie różne historie. Teraz korekta wyniku
+      grupowego po zamrożeniu wymaga jawnego cofnięcia turnieju.
+    */
     const before = await getPlayoffState(tournamentId);
     const seedsBefore = before.scopes[0].rounds[0].matches.map((m) => [
       m.home?.teamId,
       m.away?.teamId,
     ]);
 
-    // Odwracamy wynik meczu a1 vs a7 — a1 przestaje być liderem na żywo.
     const payload = buildTournamentPayload("Vitest Reference Cup", ["A", "B"], 7);
     const target = payload.groups[0].matches.find((m) => m.id === "A-a1-a7")!;
     target.homeScore = 0;
     target.awayScore = 9;
 
-    await postgresRepository.saveTournament(tournamentId, payload);
+    await expect(
+      postgresRepository.saveTournament(tournamentId, payload)
+    ).rejects.toBeInstanceOf(TournamentOperationError);
 
     const after = await getPlayoffState(tournamentId);
 
-    // Oficjalna drabinka pochodzi ze snapshotu — jest nietknięta.
+    // Nic się nie ruszyło: ani tabela, ani snapshot, ani drabinka.
     expect(
       after.scopes[0].rounds[0].matches.map((m) => [m.home?.teamId, m.away?.teamId])
     ).toEqual(seedsBefore);
-
-    // Snapshot też się nie zmienił.
     expect(after.scopes[0].snapshot?.[0].teamId).toBe("a1");
-
-    // Zapis tabeli nie skasował drabinki ani minigrupy.
+    expect(after.scopes[0].groupStandings[0].teamId).toBe("a1");
     expect(after.scopes[0].rounds).toHaveLength(3);
     expect(after.scopes[0].placement?.matches).toHaveLength(3);
+  });
 
-    // przywracamy oryginalny wynik
-    target.homeScore = 1;
-    target.awayScore = 0;
-    await postgresRepository.saveTournament(tournamentId, payload);
+  it("zapis bez zmiany wyników grupowych po zamrożeniu jest dozwolony", async () => {
+    // Blokada dotyczy WYNIKÓW, nie całego zapisu — tytuł czy grafiki wolno
+    // poprawiać także w trakcie play-offu.
+    const payload = buildTournamentPayload("Vitest Reference Cup", ["A", "B"], 7);
+
+    await expect(
+      postgresRepository.saveTournament(tournamentId, payload)
+    ).resolves.not.toThrow();
   });
 
   it("odrzuca remis w meczu play-off", async () => {

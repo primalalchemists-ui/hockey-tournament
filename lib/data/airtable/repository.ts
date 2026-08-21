@@ -413,6 +413,22 @@ export const airtableRepository: TournamentRepository = {
   saveTournament,
   setCurrentTournament,
   setTournamentArchived,
+
+  /*
+    Airtable obsługuje JEDEN turniej i nie zna wielu wydarzeń, więc obie
+    operacje nie mają tu sensu domenowego. Zamiast po cichu nic nie robić,
+    mówimy to wprost — cicha zgoda na „usunięto" byłaby najgorsza.
+  */
+  async deleteTournamentPermanently() {
+    throw new UnsupportedOperationError(
+      "deleteTournamentPermanently",
+      "airtable"
+    );
+  },
+
+  async listMediaLibrary() {
+    return [];
+  },
 };
 
 /** Eksport wyłącznie dla skryptów diagnostycznych / eksportu fixtures. */

@@ -160,6 +160,19 @@ export function buildFinalClassification(input: {
         shared: !canRank,
       });
     });
+
+    /*
+      MIEJSCA BEZ OBSADY TO BRAK, A NIE KOMPLET.
+
+      Bez meczu o 3. miejsce i bez zamrożonej tabeli nie ma czym rozdzielić
+      przegranych półfinałów — zostają z `position: null`. Wcześniej nic nie
+      trafiało wtedy do `missing`, więc klasyfikacja ogłaszała komplet mimo
+      dwóch nieobsadzonych miejsc, a ceremonia podium odpalała się dla
+      turnieju z dziurą w wynikach.
+    */
+    if (ordered.length > 0 && !canRank) {
+      missing.push("rozstrzygnięcie miejsc 3-4");
+    }
   }
 
   /* --- miejsca poza play-off ------------------------------------------- */

@@ -12,7 +12,7 @@ type DataErrorProps = {
  */
 export function DataError({
   title = "Chwilowy problem z danymi",
-  description = "Nie udało się pobrać danych turnieju. Odśwież stronę za chwilę — wyniki nie zostały utracone.",
+  description = "Nie udało się pobrać danych turnieju. Odśwież stronę za chwilę. Wyniki nie zostały utracone.",
 }: DataErrorProps) {
   return (
     <main className="min-h-screen bg-slate-100">

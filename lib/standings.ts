@@ -268,8 +268,36 @@ function getExpectedMatchCount(teamCount: number) {
   return (teamCount * (teamCount - 1)) / 2;
 }
 
+/** Nieuporządkowana para drużyn — „a vs b" i „b vs a" to ten sam klucz. */
+function pairKey(left: string, right: string): string {
+  return left < right ? `${left}|${right}` : `${right}|${left}`;
+}
+
+/**
+ * Czy round-robin grupy jest NAPRAWDĘ rozegrany do końca.
+ *
+ * Wcześniej wystarczyło, że liczba meczów sięgnęła `n(n-1)/2`. To jest
+ * zawodne: dopisany mecz towarzyski albo powtórka tej samej pary podbijały
+ * licznik i grupa uchodziła za kompletną, mimo że jakiejś pary brakowało.
+ * W hali objawiało się to komunikatem o rzutach karnych i możliwością
+ * zamrożenia tabeli, która nie była jeszcze rozstrzygnięta.
+ *
+ * Liczymy więc UNIKALNE pary, i to wyłącznie takie, w których obie drużyny
+ * należą do tej grupy. Duplikat nie zastąpi brakującego meczu.
+ */
 function isGroupComplete(group: Group) {
-  return group.matches.length >= getExpectedMatchCount(group.teams.length);
+  const teamIds = new Set(group.teams.map((team) => team.id));
+  const played = new Set<string>();
+
+  for (const match of group.matches) {
+    if (!teamIds.has(match.homeTeamId)) continue;
+    if (!teamIds.has(match.awayTeamId)) continue;
+    if (match.homeTeamId === match.awayTeamId) continue;
+
+    played.add(pairKey(match.homeTeamId, match.awayTeamId));
+  }
+
+  return played.size >= getExpectedMatchCount(teamIds.size);
 }
 
 export function calculateStandings(group: Group): StandingRow[] {
