@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { useState } from "react";
 import type { Group, Match, Team } from "@/types/tournament";
 
 export type ResultsSaveState = {
@@ -116,6 +116,32 @@ function TeamLogo({
   );
 }
 
+/** Rozbija „3:1" na dwa pola. Pusty wynik to dwa puste pola. */
+function splitScore(value: string): { home: string; away: string } {
+  const [home = "", away = ""] = value.split(":");
+  return { home: home.trim(), away: away.trim() };
+}
+
+/**
+ * KOMÓRKA WYNIKU — dwa pola i dwukropek na stałe.
+ *
+ * Wcześniej było jedno pole, w które trzeba było wstukać także dwukropek.
+ * Dwa problemy naraz:
+ *
+ * 1. DWUKROPEK Z KLAWIATURY. Na telefonie to zmiana układu klawiatury dla
+ *    jednego znaku, przy stu wynikach w turnieju. Panel play-off od dawna
+ *    ma dwa osobne pola i wpisuje się w nim znacznie szybciej.
+ *
+ * 2. SKAKANIE MACIERZY W TRAKCIE PISANIA. Wynik bez dwukropka nie parsował
+ *    się, więc po pierwszym znaku mecz ZNIKAŁ z draftu: kratka traciła
+ *    kolor, tabela nad macierzą przeliczała się i przestawiała drużyny,
+ *    a wszystko wracało dopiero po wpisaniu ostatniej cyfry. Przy każdym
+ *    wyniku, trzy razy.
+ *
+ * Dlatego niekompletna para (jedno pole puste) NIE rusza draftu. Zmiana
+ * idzie dalej dopiero wtedy, gdy oba pola mają liczbę — albo gdy oba są
+ * puste i użytkownik opuszcza kratkę, co znaczy „wyczyść wynik".
+ */
 function EditableCell({
   groupKey,
   rowTeamId,
@@ -138,6 +164,21 @@ function EditableCell({
     value: string
   ) => void;
 }) {
+  const [fields, setFields] = useState(() => splitScore(initialValue));
+
+  /*
+    Wartość z zewnątrz (zapis, przeładowanie danych) ma wygrać z tym, co
+    leży w polach — ale tylko wtedy, gdy naprawdę się zmieniła. Ten sam
+    wzorzec co w wierszu meczu play-off: korekta stanu w renderze, bez
+    efektu, więc nie ma dodatkowego przebiegu ani migotania.
+  */
+  const [seen, setSeen] = useState(initialValue);
+
+  if (initialValue !== seen) {
+    setSeen(initialValue);
+    setFields(splitScore(initialValue));
+  }
+
   if (!isEditable) {
     return (
       <div
@@ -151,25 +192,91 @@ function EditableCell({
     );
   }
 
+  /** Do draftu trafia komplet albo nic — nigdy połowa wyniku. */
+  function commit(next: { home: string; away: string }) {
+    if (next.home !== "" && next.away !== "") {
+      onUpdateCell(groupKey, rowTeamId, colTeamId, `${next.home}:${next.away}`);
+    }
+  }
+
+  function handleChange(side: "home" | "away", raw: string) {
+    // Same cyfry i najwyżej dwie — bramek powyżej 99 w minihokeju nie ma.
+    const digits = raw.replace(/[^0-9]/g, "").slice(0, 2);
+    const next = { ...fields, [side]: digits };
+
+    setFields(next);
+    commit(next);
+
+    /*
+      ŻADNEGO automatycznego skoku na drugie pole.
+
+      Miał oszczędzać tabulatory, ale przeskakiwał już po pierwszej cyfrze —
+      więc wyniku dwucyfrowego (10:2, 12:1) NIE DAŁO SIĘ wpisać: druga cyfra
+      lądowała w polu gości. Przejście między polami należy do Taba i myszy,
+      czyli do użytkownika.
+    */
+  }
+
+  /*
+    Opuszczenie kratki z DWOMA pustymi polami znaczy „wyczyść ten wynik".
+    Świadomie dopiero na wyjściu: kasowanie w trakcie poprawiania 3:1 na
+    4:1 wywoływałoby dokładnie to migotanie, którego się pozbywamy.
+  */
+  function handleBlur() {
+    if (fields.home === "" && fields.away === "" && initialValue !== "") {
+      onUpdateCell(groupKey, rowTeamId, colTeamId, "");
+    }
+  }
+
+  const fieldClass =
+    "w-6 bg-transparent text-center outline-none placeholder:text-slate-400";
+
   return (
     <div
       className={[
-        "mx-auto flex min-h-10 min-w-[88px] items-center justify-between gap-2 rounded-xl border px-2 py-2 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
+        "mx-auto flex min-h-10 min-w-[88px] items-center justify-center gap-0.5 rounded-xl border px-2 py-2 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]",
         toneClassName,
       ].join(" ")}
     >
       <input
-        defaultValue={initialValue}
-        onChange={(event) =>
-          onUpdateCell(groupKey, rowTeamId, colTeamId, event.target.value)
-        }
-        placeholder="1:0"
-        className="w-full bg-transparent text-center outline-none placeholder:text-slate-400"
+        value={fields.home}
+        onChange={(event) => handleChange("home", event.target.value)}
+        onBlur={handleBlur}
+        onFocus={(event) => event.target.select()}
+        inputMode="numeric"
+        aria-label="Gole gospodarza"
+        data-testid="cell-home"
+        /*
+          Wyszarzone „0" to nie ozdoba, tylko sygnał „tu się wpisuje".
+          Lustrzane odbicie w górnej połowie macierzy pokazuje „—", więc
+          te dwa stany da się odróżnić jednym spojrzeniem. Wpisany wynik
+          dostaje dodatkowo kolor tła, czego pusta kratka nie ma.
+        */
+        placeholder="0"
+        /*
+          Nieruchoma kolumna z nazwami leży NAD tabelą, więc bez tego marginesu
+          przeglądarka przewijała kratkę dokładnie pod nią przy wejściu w pole.
+        */
+        style={{ scrollMarginLeft: `${NAME_COLUMN_REM + 1}rem` }}
+        className={fieldClass}
       />
 
-      <span className="shrink-0 rounded-md p-1 text-slate-500">
-        <Pencil size={12} />
+      <span aria-hidden="true" className="select-none text-slate-400">
+        :
       </span>
+
+      <input
+        value={fields.away}
+        onChange={(event) => handleChange("away", event.target.value)}
+        onBlur={handleBlur}
+        onFocus={(event) => event.target.select()}
+        inputMode="numeric"
+        aria-label="Gole gościa"
+        data-testid="cell-away"
+        placeholder="0"
+        style={{ scrollMarginRight: "1rem" }}
+        className={fieldClass}
+      />
     </div>
   );
 }
@@ -207,12 +314,16 @@ export function EditableMatchMatrix({
   /* Powód blokady stoi w tym samym miejscu co komunikaty o zapisie. */
   const lockedNote = "Faza grupowa zamrożona. Cofnij ją, aby poprawić wynik.";
 
-  const statusText =
-    saveState.status === "saving"
-      ? "Zapisywanie…"
-      : saveState.status === "saved"
-        ? "Zapisano"
-        : (saveState.message ?? (locked ? lockedNote : null));
+  /*
+    W trakcie zapisu status MILCZY. Przycisk pokazuje wtedy kółko i napis
+    „Zapisywanie", więc powtarzanie tego samego słowa obok byłoby szumem.
+    Tekst pojawia się dopiero jako WYNIK: „Zapisano" albo powód porażki.
+  */
+  const statusText = isSaving
+    ? null
+    : saveState.status === "saved"
+      ? "Zapisano"
+      : (saveState.message ?? (locked ? lockedNote : null));
 
   return (
     <section className="ice-card-solid flush-card rounded-none sm:rounded-3xl">

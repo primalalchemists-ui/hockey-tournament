@@ -28,6 +28,7 @@
     "assets:orphans": "tsx scripts/cloudinary-orphans.ts",
     "rehearsal:setup": "tsx scripts/rehearsal-setup.ts",
     "env:diagnose": "tsx scripts/env-diagnose.ts",
+    "results:log": "tsx scripts/results-log.ts",
     "visual:setup": "tsx scripts/visual-rehearsal-setup.ts"
   },
   "dependencies": {

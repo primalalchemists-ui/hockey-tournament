@@ -100,4 +100,29 @@ describe("AM-AR: zloty znak zapytania", () => {
     expect(tie).toContain('data-testid="rank-unresolved"');
     expect(tie).toContain("unresolved-rank");
   });
+
+  it("wyjasnienie remisu nie zmienia wysokosci karty", () => {
+    /*
+      Nierozstrzygnieta pozycja pojawia sie i znika przy KAZDYM wpisanym
+      wyniku. Kafel rosnacy i znikajacy w tym rytmie podrzucal macierz pod
+      spodem dokladnie wtedy, gdy ktos w nia celowal palcem.
+    */
+    const withNote = render([
+      { ...row(1, 3), isTieUnresolved: true, tieNote: "Rzuty karne" },
+      row(2, 3),
+    ]);
+    const withoutNote = render([row(1, 3), row(2, 3)]);
+
+    // Slot istnieje w obu przypadkach i ma te sama, stala wysokosc.
+    expect(withNote).toContain('data-testid="tie-notes"');
+    expect(withoutNote).toContain('data-testid="tie-notes"');
+
+    const source = readFileSync(
+      new URL("../components/standings-table.tsx", import.meta.url),
+      "utf8"
+    );
+    expect(source).toContain('className="mt-2 h-5 truncate');
+    // Zadnego kafla, ktory raz jest, a raz go nie ma.
+    expect(source).not.toContain("bg-amber-50");
+  });
 });

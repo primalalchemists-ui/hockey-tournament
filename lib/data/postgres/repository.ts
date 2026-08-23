@@ -927,16 +927,15 @@ async function saveGroupResults(
   );
 
   /*
-    Znacznik zmiany turnieju idzie w TEJ SAMEJ transakcji. Publiczna strona
-    rozpoznaje po nim nową wersję i dociąga snapshot; zapis wyników bez tego
-    byłby dla kibica niewidoczny do najbliższego pełnego zapisu.
+    PODBICIE WERSJI PUBLICZNEJ — W TEJ SAMEJ TRANSAKCJI.
+
+    Strona kibica nie patrzy na `updated_at`, tylko na licznik
+    `public_revision`: odpytuje go co kilka sekund i dopiero jego zmiana
+    każe jej pobrać nowy snapshot. Zapis wyników bez tego inkrementu
+    wchodziłby do bazy poprawnie i był NIEWIDOCZNY na stronie aż do
+    najbliższego pełnego zapisu albo ręcznego odświeżenia.
   */
-  statements.push(
-    db
-      .update(tournaments)
-      .set({ updatedAt: new Date() })
-      .where(eq(tournaments.id, tournamentId)) as Statement
-  );
+  statements.push(bumpPublicRevisionStatement(db, tournamentId) as Statement);
 
   // Jedna transakcja: albo wchodzi komplet wyników, albo nic.
   await db.batch(statements as [Statement, ...Statement[]]);

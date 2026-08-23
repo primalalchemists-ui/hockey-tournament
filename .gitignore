@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Dziennik wynikow z rejestratora (scripts/results-log.ts) — dane, nie kod.
+logs/

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { matches, teams } from "@/lib/db/schema";
+import { matches, teams, tournaments } from "@/lib/db/schema";
 import { postgresRepository } from "@/lib/data/postgres/repository";
 import { TournamentOperationError } from "@/lib/data/types";
 import type { GroupResultInput } from "@/lib/data/types";
@@ -128,6 +128,59 @@ describe("kontrakt UI", () => {
     // Brak silnika pucharowego znaczy, że faza grupowa nigdy się nie kończy.
     expect(shell).toContain("const resultsLocked = playoffState");
     expect(shell).toContain(": false;");
+  });
+
+  it("wynik wpisuje się w dwa pola, dwukropek jest na stałe", () => {
+    /*
+      Jedno pole wymagało wstukania dwukropka — na telefonie to zmiana
+      układu klawiatury dla jednego znaku, przy stu wynikach w turnieju.
+      Panel play-off od dawna ma dwa pola; macierz robi to samo.
+    */
+    expect(matrix).toContain('data-testid="cell-home"');
+    expect(matrix).toContain('data-testid="cell-away"');
+    expect(matrix).toContain('inputMode="numeric"');
+    expect(matrix).toContain('aria-label="Gole gospodarza"');
+    expect(matrix).toContain('aria-label="Gole gościa"');
+
+    // Same cyfry, najwyżej dwie.
+    expect(matrix).toContain('raw.replace(/[^0-9]/g, "").slice(0, 2)');
+
+    /*
+      DWUCYFROWE WYNIKI MUSZĄ WCHODZIĆ.
+
+      Automatyczny skok na drugie pole po pierwszej cyfrze uniemożliwiał
+      wpisanie 10:2 — druga cyfra lądowała u gości. Przechodzenie między
+      polami należy do Taba i myszy.
+    */
+    expect(matrix).not.toContain("awayRef");
+    expect(matrix).not.toContain(".focus()");
+
+    // Wyszarzone „0" mówi „tu się wpisuje"; lustro obok pokazuje „—".
+    expect(matrix).toContain('placeholder="0"');
+  });
+
+  it("w trakcie zapisu status milczy — mówi przycisk", () => {
+    // Dwa razy to samo słowo obok siebie to szum, nie informacja.
+    expect(matrix).toContain("const statusText = isSaving");
+    expect(matrix).toContain("? null");
+    expect(matrix).toContain('<span>Zapisywanie</span>');
+  });
+
+  it("niekompletny wynik nie rusza draftu — koniec ze skakaniem macierzy", () => {
+    /*
+      ŹRÓDŁO PROBLEMU. Wynik bez dwukropka nie parsował się, więc po
+      pierwszym znaku mecz znikał z draftu: kratka traciła kolor, a tabela
+      nad macierzą przeliczała się i przestawiała drużyny. Przy każdym
+      wyniku, trzy razy.
+    */
+    expect(matrix).toContain('if (next.home !== "" && next.away !== "")');
+
+    // Wyczyszczenie działa, ale dopiero przy opuszczeniu kratki.
+    expect(matrix).toContain("function handleBlur()");
+    expect(matrix).toContain('fields.home === "" && fields.away === ""');
+
+    // Wejście w pole nie chowa kratki pod nieruchomą kolumną nazw.
+    expect(matrix).toContain("scrollMarginLeft");
   });
 
   it("wysyłamy wyniki ze wszystkich grup, nie tylko z widocznej zakładki", () => {
@@ -267,6 +320,28 @@ describe.skipIf(!hasDatabase)("zapis wyników w bazie", () => {
     expect(nonGroupAfter.filter((row) => row.stage !== "group").length).toBe(
       playoffCount
     );
+  });
+
+  it("podbija wersję publiczną, więc kibic widzi wynik bez odświeżania", async () => {
+    /*
+      Strona kibica odpytuje licznik `public_revision`, a NIE `updated_at`.
+      Bez inkrementu wynik siedziałby w bazie i był niewidoczny na stronie
+      do najbliższego pełnego zapisu.
+    */
+    const db = getDb();
+    const before = await db
+      .select({ revision: tournaments.publicRevision })
+      .from(tournaments)
+      .where(eq(tournaments.id, id));
+
+    await postgresRepository.saveGroupResults(id, toInputs(await load()));
+
+    const after = await db
+      .select({ revision: tournaments.publicRevision })
+      .from(tournaments)
+      .where(eq(tournaments.id, id));
+
+    expect(after[0].revision).toBeGreaterThan(before[0].revision);
   });
 
   it("odmawia zapisu dla nieistniejącego turnieju", async () => {

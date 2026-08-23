@@ -165,13 +165,26 @@ export function StandingsTable({
           </div>
         ) : null}
 
-        {uniqueNotes.length > 0 && (
-          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {uniqueNotes.map((note) => (
-              <p key={note}>{note}</p>
-            ))}
-          </div>
-        )}
+        {/*
+          WYJAŚNIENIE REMISU W SLOCIE O STAŁEJ WYSOKOŚCI.
+
+          Wcześniej był to bursztynowy kafel pojawiający się i znikający
+          zależnie od tego, czy któraś pozycja jest nierozstrzygnięta —
+          a to zmienia się przy KAŻDYM wpisanym wyniku. Karta rankingu raz
+          rosła, raz malała o kilkadziesiąt pikseli, więc macierz pod nią
+          podskakiwała dokładnie wtedy, gdy ktoś w nią celował palcem.
+
+          Slot istnieje zawsze i ma stałą wysokość. Pusty nic nie pokazuje,
+          pełny mieści jedną linię; komplet treści zostaje w `title`, gdyby
+          wyjaśnień było kilka naraz.
+        */}
+        <p
+          data-testid="tie-notes"
+          title={uniqueNotes.join(" · ") || undefined}
+          className="mt-2 h-5 truncate text-xs font-medium text-amber-800"
+        >
+          {uniqueNotes.join(" · ")}
+        </p>
       </div>
 
       <EdgeScroller label="Tabela rankingu, przewijana w poziomie">
