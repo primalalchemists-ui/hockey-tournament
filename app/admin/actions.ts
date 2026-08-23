@@ -11,7 +11,7 @@ import {
 import { safeEquals } from "@/lib/admin-session";
 import { getTournamentRepository } from "@/lib/data";
 import { TournamentOperationError } from "@/lib/data/types";
-import type { MediaAsset } from "@/lib/data/types";
+import type { GroupResultInput, MediaAsset } from "@/lib/data/types";
 import { isMediaCategory, type MediaCategory } from "@/lib/media/categories";
 import type { OperationIssueReport } from "@/lib/playoff/validation";
 import type { ReopenImpact } from "@/lib/data/postgres/playoff-engine";
@@ -315,6 +315,40 @@ export async function deleteTournamentAction(
   revalidatePath("/admin");
   revalidatePath("/");
   if (slug) revalidatePath(`/turnieje/${slug}`);
+
+  return { error: null };
+}
+
+/**
+ * ZAPIS SAMYCH WYNIKÓW — wąska ścieżka dla przycisku przy tabeli.
+ *
+ * Zwraca powód niepowodzenia zamiast go rzucać, bo panel ma go POKAZAĆ.
+ * Samo słowo „Błąd" nie mówi, czy zerwało sieć, wygasła sesja, czy faza
+ * grupowa jest zamrożona — a każda z tych sytuacji wymaga czego innego.
+ */
+export async function saveGroupResultsAction(
+  tournamentId: string,
+  results: GroupResultInput[]
+): Promise<{ error: string | null }> {
+  try {
+    await requireAdmin();
+  } catch {
+    return { error: "Sesja wygasła. Zaloguj się ponownie w drugiej karcie." };
+  }
+
+  if (!tournamentId) {
+    return { error: "Brak identyfikatora turnieju." };
+  }
+
+  try {
+    await getTournamentRepository().saveGroupResults(tournamentId, results);
+  } catch (error) {
+    console.error("[admin] saveGroupResults failed:", error);
+    return { error: toMessage(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin");
 
   return { error: null };
 }

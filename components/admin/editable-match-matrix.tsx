@@ -3,6 +3,12 @@
 import { Pencil } from "lucide-react";
 import type { Group, Match, Team } from "@/types/tournament";
 
+export type ResultsSaveState = {
+  status: "idle" | "saving" | "saved" | "error";
+  /** Powód niepowodzenia — pokazywany wprost, nie chowany w konsoli. */
+  message: string | null;
+};
+
 type EditableMatchMatrixProps = {
   group: Group;
   onUpdateCell: (
@@ -11,6 +17,25 @@ type EditableMatchMatrixProps = {
     teamBId: string,
     value: string
   ) => void;
+  /** Zapis wąską ścieżką: wyłącznie wyniki, bez reszty turnieju. */
+  onSaveResults: () => void;
+  saveState: ResultsSaveState;
+  /**
+   * Faza grupowa zamrożona — wyniki są zamknięte.
+   *
+   * Serwer i tak odrzuci taki zapis, ale odmowa PO kliknięciu to zła
+   * kolejność: człowiek zdąży wpisać partię wyników, zanim się dowie,
+   * że nie miał prawa. Blokada musi być widoczna wcześniej.
+   */
+  locked: boolean;
+  /**
+   * Czy od ostatniego zapisu cokolwiek się zmieniło.
+   *
+   * Przycisk aktywny bez przerwy nic nie mówi. Zapalony znaczy „coś czeka
+   * w przeglądarce i nie ma tego jeszcze w bazie" — i to jest informacja,
+   * której przy wpisywaniu wyników naprawdę się potrzebuje.
+   */
+  dirty: boolean;
 };
 
 function findMatch(group: Group, teamAId: string, teamBId: string): Match | null {
@@ -172,12 +197,84 @@ const NAME_COLUMN_OVERLAY_STYLE: React.CSSProperties = {
 export function EditableMatchMatrix({
   group,
   onUpdateCell,
+  onSaveResults,
+  saveState,
+  locked,
+  dirty,
 }: EditableMatchMatrixProps) {
+  const isSaving = saveState.status === "saving";
+
+  /* Powód blokady stoi w tym samym miejscu co komunikaty o zapisie. */
+  const lockedNote = "Faza grupowa zamrożona. Cofnij ją, aby poprawić wynik.";
+
+  const statusText =
+    saveState.status === "saving"
+      ? "Zapisywanie…"
+      : saveState.status === "saved"
+        ? "Zapisano"
+        : (saveState.message ?? (locked ? lockedNote : null));
+
   return (
     <section className="ice-card-solid flush-card rounded-none sm:rounded-3xl">
+      {/*
+        ZAPIS PRZY TABELI, NIE NA GÓRZE STRONY.
+
+        Jedyny przycisk zapisu stał w nagłówku panelu, więc po każdej partii
+        wyników trzeba było przewinąć w górę, kliknąć i wrócić na dół — a status
+        pojawiał się dokładnie tam, skąd się przed chwilą odjechało. Tutaj
+        przycisk jest w zasięgu wzroku od kratek, a odpowiedź pokazuje się
+        w tej samej linii.
+
+        Ten zapis wysyła WYŁĄCZNIE wyniki. Nie może skasować drużyny ani grupy,
+        więc wpisywanie wyników przestaje być operacją na całym turnieju.
+      */}
       <div className="ice-card-head">
-        <div className="flex justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="section-title">Wyniki</h2>
+
+          {/*
+            Status stoi TUŻ PRZY przycisku, nie na środku linii. Odpowiedź
+            ma się pojawić tam, gdzie przed chwilą był wzrok i palec —
+            środek nagłówka to miejsce, na które nikt nie patrzy po
+            kliknięciu. Wysokość jest stała, więc tabela pod spodem nie drga.
+          */}
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+            <p
+              role="status"
+              data-testid="results-save-status"
+              title={statusText ?? undefined}
+              className={[
+                "min-h-5 min-w-0 truncate text-right text-sm font-semibold",
+                saveState.status === "error"
+                  ? "text-rose-700"
+                  : saveState.status === "saved"
+                    ? "text-emerald-700"
+                    : "text-slate-600",
+              ].join(" ")}
+            >
+              {statusText}
+            </p>
+
+            <button
+              type="button"
+              onClick={onSaveResults}
+              disabled={isSaving || locked || !dirty}
+              title={locked ? lockedNote : undefined}
+              data-testid="results-save"
+              data-locked={locked ? "true" : "false"}
+              data-dirty={dirty ? "true" : "false"}
+              className="btn btn-primary shrink-0"
+            >
+              {isSaving ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  <span>Zapisywanie</span>
+                </>
+              ) : (
+                "Zapisz wyniki"
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

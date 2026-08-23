@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { EditableMatchMatrix } from "@/components/admin/editable-match-matrix";
+import {
+  EditableMatchMatrix,
+  type ResultsSaveState,
+} from "@/components/admin/editable-match-matrix";
 import { TeamManager } from "@/components/admin/team-manager";
 import { calculateStandings } from "@/lib/standings";
 import type { Group } from "@/types/tournament";
@@ -33,6 +36,13 @@ type EditableGroupTabsProps = {
     awayTeamId: string,
     value: string
   ) => void;
+  /** Zapis samych wyników — przycisk mieszka przy tabeli, nie na górze. */
+  onSaveResults: () => void;
+  resultsSaveState: ResultsSaveState;
+  /** Po zamrożeniu fazy grupowej wyniki są tylko do odczytu. */
+  resultsLocked: boolean;
+  /** Czy w ogóle jest co zapisywać — bez zmian przycisk nie ma sensu. */
+  resultsDirty: boolean;
 };
 
 export function EditableGroupTabs({
@@ -43,6 +53,10 @@ export function EditableGroupTabs({
   onCreateTeam,
   onRemoveTeam,
   onSaveTeam,
+  onSaveResults,
+  resultsSaveState,
+  resultsLocked,
+  resultsDirty,
   onUpdateCell,
 }: EditableGroupTabsProps) {
   const [activeGroup, setActiveGroup] = useState(groups[0]?.key);
@@ -147,6 +161,10 @@ export function EditableGroupTabs({
           <EditableMatchMatrix
             group={currentGroup}
             onUpdateCell={onUpdateCell}
+            onSaveResults={onSaveResults}
+            saveState={resultsSaveState}
+            locked={resultsLocked}
+            dirty={resultsDirty}
           />
         </motion.div>
       </AnimatePresence>

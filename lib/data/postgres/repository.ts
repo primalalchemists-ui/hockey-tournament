@@ -38,6 +38,7 @@ import {
   type TournamentSummary,
   type CreateTournamentInput,
   type UpdateTournamentSettingsInput,
+  type GroupResultInput,
 } from "../types";
 import type { MediaAsset } from "../types";
 import {
@@ -813,6 +814,140 @@ async function assertGroupResultsEditable(
   );
 }
 
+/**
+ * ZAPIS SAMYCH WYNIKÓW FAZY GRUPOWEJ.
+ *
+ * Ta ścieżka istnieje po to, żeby wpisanie wyniku NIE mogło skasować niczego
+ * innego. Pełny zapis wysyła cały turniej naraz — drużyny, grupy, grafiki —
+ * więc panel otwarty rano nadpisuje nim wszystko, co zmieniono później,
+ * a zniknięcie drużyny z payloadu kasuje kaskadą jej mecze razem z wynikami.
+ *
+ * Tutaj dotykamy WYŁĄCZNIE tabeli `matches`, i to tylko dla `stage='group'`.
+ * Reguły kasowania są dokładnie te same co przy pełnym zapisie: znika mecz,
+ * który MA wynik, a nie ma go w payloadzie (czyli wyczyszczono kratkę).
+ * Terminarz bez wyników jest nietykalny — inaczej pierwszy zapis zmiótłby
+ * rozpisane 90 meczów.
+ */
+async function saveGroupResults(
+  tournamentId: string,
+  results: GroupResultInput[]
+): Promise<void> {
+  const db = getDb();
+
+  if (!tournamentId) {
+    throw new TournamentOperationError(
+      "Zapis wymaga jawnego identyfikatora turnieju."
+    );
+  }
+
+  const existingRows = await db
+    .select({ id: tournaments.id, phase: tournaments.phase })
+    .from(tournaments)
+    .where(eq(tournaments.id, tournamentId))
+    .limit(1);
+
+  const existing = existingRows[0];
+
+  if (!existing) {
+    throw new TournamentOperationError(
+      "Turniej o podanym identyfikatorze nie istnieje."
+    );
+  }
+
+  if (existing.phase !== "group_stage") {
+    throw new TournamentOperationError(
+      "Nie można zmieniać wyników fazy grupowej po jej zamrożeniu. " +
+        "Cofnij turniej do fazy grupowej, popraw wynik i zamroź ją ponownie."
+    );
+  }
+
+  const maps = await readIdentityMaps(db, tournamentId);
+  const groupIdByKey = maps.groupIdByKey;
+  const teamIdByExternalId = maps.teamIdByExternalId;
+
+  let order = 0;
+
+  const inputs = results
+    .map((result) => ({
+      id: maps.matchIdByExternalId.get(makeResultId(result)) ?? randomUUID(),
+      tournamentId,
+      groupId: groupIdByKey.get(result.groupKey) ?? null,
+      externalId: makeResultId(result),
+      stage: "group" as const,
+      status: "finished" as const,
+      homeTeamId: teamIdByExternalId.get(result.homeTeamId) ?? null,
+      awayTeamId: teamIdByExternalId.get(result.awayTeamId) ?? null,
+      homeScore: result.homeScore,
+      awayScore: result.awayScore,
+      sourceOrder: order++,
+    }))
+    /*
+      Wynik wskazujący drużynę lub grupę spoza turnieju jest pomijany, a nie
+      zapisywany z pustą referencją — pusty `home_team_id` znaczyłby mecz
+      bez uczestnika i wypadłby z klasyfikacji bez śladu.
+    */
+    .filter((input) => input.groupId && input.homeTeamId && input.awayTeamId);
+
+  const statements: Statement[] = [];
+
+  if (inputs.length) {
+    statements.push(
+      db
+        .insert(matches)
+        .values(inputs)
+        .onConflictDoUpdate({
+          target: [matches.tournamentId, matches.externalId],
+          set: {
+            groupId: sql`excluded.group_id`,
+            stage: sql`excluded.stage`,
+            status: sql`excluded.status`,
+            homeTeamId: sql`excluded.home_team_id`,
+            awayTeamId: sql`excluded.away_team_id`,
+            homeScore: sql`excluded.home_score`,
+            awayScore: sql`excluded.away_score`,
+          },
+        }) as Statement
+    );
+  }
+
+  const kept = inputs.map((input) => input.externalId);
+
+  const deletable = and(
+    eq(matches.tournamentId, tournamentId),
+    eq(matches.stage, "group"),
+    isNotNull(matches.homeScore)
+  );
+
+  statements.push(
+    (kept.length === 0
+      ? db.delete(matches).where(deletable)
+      : db
+          .delete(matches)
+          .where(and(deletable, notInArray(matches.externalId, kept)))) as Statement
+  );
+
+  /*
+    Znacznik zmiany turnieju idzie w TEJ SAMEJ transakcji. Publiczna strona
+    rozpoznaje po nim nową wersję i dociąga snapshot; zapis wyników bez tego
+    byłby dla kibica niewidoczny do najbliższego pełnego zapisu.
+  */
+  statements.push(
+    db
+      .update(tournaments)
+      .set({ updatedAt: new Date() })
+      .where(eq(tournaments.id, tournamentId)) as Statement
+  );
+
+  // Jedna transakcja: albo wchodzi komplet wyników, albo nic.
+  await db.batch(statements as [Statement, ...Statement[]]);
+}
+
+/** Identyfikator meczu budowany tak samo jak w panelu: drużyny posortowane. */
+function makeResultId(result: GroupResultInput): string {
+  const [first, second] = [result.homeTeamId, result.awayTeamId].sort();
+  return `${result.groupKey}-${first}-${second}`;
+}
+
 async function saveTournament(tournamentId: string, tournament: Tournament) {
   const db = getDb();
 
@@ -1283,6 +1418,7 @@ export const postgresRepository: TournamentRepository = {
   setTournamentArchived,
   deleteTournamentPermanently,
   listMediaLibrary,
+  saveGroupResults,
 };
 
 export const __internal = { collectAssets, reserveUniqueSlug };

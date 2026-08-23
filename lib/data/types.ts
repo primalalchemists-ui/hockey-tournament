@@ -120,6 +120,20 @@ export interface TournamentRepository {
     tournament: Tournament
   ): Promise<{ slug: string }>;
 
+  /**
+   * ZAPIS SAMYCH WYNIKÓW FAZY GRUPOWEJ.
+   *
+   * Wąska ścieżka dla przycisku przy tabeli wyników. Pełny zapis wysyła cały
+   * turniej — drużyny, grupy, grafiki, strzelców — więc karta otwarta rano
+   * potrafi nim nadpisać wszystko, co zmieniono później, a usunięcie drużyny
+   * kaskadą zabiera jej mecze. Ten zapis dotyka WYŁĄCZNIE wyników meczów
+   * fazy grupowej: nie może skasować drużyny, grupy ani niczego poza nią.
+   */
+  saveGroupResults(
+    tournamentId: string,
+    results: GroupResultInput[]
+  ): Promise<void>;
+
   /** Atomowo przełącza, który turniej jest wyświetlany publicznie. */
   setCurrentTournament(tournamentId: string): Promise<void>;
 
@@ -136,6 +150,15 @@ export interface TournamentRepository {
 export type CreateTournamentInput = {
   title: string;
   settings: TournamentSettings;
+};
+
+/** Jeden wynik meczu fazy grupowej, w identyfikatorach domenowych. */
+export type GroupResultInput = {
+  groupKey: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  homeScore: number;
+  awayScore: number;
 };
 
 export type UpdateTournamentSettingsInput = {

@@ -429,6 +429,10 @@ export const airtableRepository: TournamentRepository = {
   async listMediaLibrary() {
     return [];
   },
+
+  async saveGroupResults() {
+    throw new UnsupportedOperationError("saveGroupResults", "airtable");
+  },
 };
 
 /** Eksport wyłącznie dla skryptów diagnostycznych / eksportu fixtures. */

@@ -4,7 +4,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { logoutAdminAction, saveAdminDraftAction } from "@/app/admin/actions";
+import {
+  logoutAdminAction,
+  saveAdminDraftAction,
+  saveGroupResultsAction,
+} from "@/app/admin/actions";
 import { CampBanner } from "@/components/camp-banner";
 import { MediaPreview } from "@/components/ui/media-preview";
 import { CategorySwitcherSettings } from "@/components/admin/category-switcher-settings";
@@ -108,6 +112,37 @@ function createMatchId(
   awayTeamId: string,
 ) {
   return `${groupKey}-${homeTeamId}-${awayTeamId}`;
+}
+
+/**
+ * PODPIS WYNIKÓW — do wykrywania, czy jest co zapisywać.
+ *
+ * Porównywanie całych obiektów meczów jest zawodne: kolejność w tablicy
+ * bywa inna po każdym wczytaniu, a ta sama para może być zapisana raz jako
+ * A–B, raz jako B–A. Podpis sprowadza wynik do postaci niezależnej od
+ * jednego i drugiego, więc „bez zmian" naprawdę znaczy bez zmian, a nie
+ * „przetasowało się w tablicy".
+ */
+function resultsSignature(tournament: Tournament): string {
+  const entries = tournament.groups.flatMap((group) =>
+    group.matches
+      .filter(
+        (match) =>
+          typeof match.homeScore === "number" &&
+          typeof match.awayScore === "number"
+      )
+      .map((match) => {
+        const [first, second] = [match.homeTeamId, match.awayTeamId].sort();
+        const flipped = first !== match.homeTeamId;
+
+        const firstScore = flipped ? match.awayScore : match.homeScore;
+        const secondScore = flipped ? match.homeScore : match.awayScore;
+
+        return `${group.key}|${first}|${second}|${firstScore}:${secondScore}`;
+      })
+  );
+
+  return entries.sort().join("|#|");
 }
 
 function createScorerId() {
@@ -244,6 +279,28 @@ export function AdminShell({
   const [clearOpen, setClearOpen] = useState(false);
 
   /*
+    ZAPIS WYNIKÓW MA WŁASNY STAN.
+
+    Dzieli go z górnym przyciskiem tylko tyle, że oba zapisują. Powód
+    niepowodzenia trzymamy jako tekst, bo ma trafić na ekran przy tabeli —
+    samo słowo „Błąd" nie mówi, czy zerwało sieć, wygasła sesja, czy faza
+    grupowa jest zamrożona.
+  */
+  const [resultsSave, setResultsSave] = useState<{
+    status: "idle" | "saving" | "saved" | "error";
+    message: string | null;
+  }>({ status: "idle", message: null });
+
+  /*
+    Podpis wyników w postaci, w jakiej są w bazie. Wszystko, co się od niego
+    różni, czeka na zapis; wszystko, co się zgadza, jest już zapisane.
+    Po udanym zapisie podpis się przesuwa i przycisk znów gaśnie.
+  */
+  const [savedResults, setSavedResults] = useState(() =>
+    resultsSignature(tournament)
+  );
+
+  /*
     WYBÓR PLIKU — jedno okno na wszystkie pola.
 
     Każde pole otwiera ten sam picker; różni je wyłącznie kategoria,
@@ -289,6 +346,16 @@ export function AdminShell({
   function updateDraft(updater: (prev: Tournament) => Tournament) {
     setDraft((prev) => updater(cloneTournament(prev)));
     setSaveStatus("idle");
+
+    /*
+      Komunikat o BŁĘDZIE zostaje na ekranie aż do kolejnej próby zapisu.
+      Wcześniej gasł przy pierwszym dotknięciu pola, więc ostrzeżenie
+      „nic się nie zapisało" znikało dokładnie wtedy, gdy człowiek wracał
+      do wpisywania — i o niczym się nie dowiadywał.
+    */
+    setResultsSave((prev) =>
+      prev.status === "saved" ? { status: "idle", message: null } : prev
+    );
   }
 
   async function uploadFileToCloudinary(file: File) {
@@ -865,6 +932,58 @@ export function AdminShell({
     setClearOpen(false);
   }
 
+  /**
+   * Zapis WYŁĄCZNIE wyników fazy grupowej.
+   *
+   * Wysyła płaską listę wyników zamiast całego turnieju, więc nie jest
+   * w stanie skasować drużyny, grupy ani grafiki — a to właśnie te operacje
+   * potrafiły zabrać wyniki kaskadą. Idą wyniki ze WSZYSTKICH grup, żeby
+   * przełączanie zakładek nie miało znaczenia dla tego, co zostanie zapisane.
+   */
+  function handleSaveResults() {
+    if (resultsLocked || !resultsDirty) return;
+
+    const signature = resultsSignature(draft);
+    setResultsSave({ status: "saving", message: null });
+
+    startTransition(async () => {
+      const results = draft.groups.flatMap((group) =>
+        group.matches
+          .filter(
+            (match) =>
+              typeof match.homeScore === "number" &&
+              typeof match.awayScore === "number"
+          )
+          .map((match) => ({
+            groupKey: group.key,
+            homeTeamId: match.homeTeamId,
+            awayTeamId: match.awayTeamId,
+            homeScore: match.homeScore,
+            awayScore: match.awayScore,
+          }))
+      );
+
+      try {
+        const result = await saveGroupResultsAction(tournamentId, results);
+
+        if (result.error) {
+          setResultsSave({ status: "error", message: result.error });
+          return;
+        }
+
+        // Dopiero potwierdzony zapis przesuwa punkt odniesienia.
+        setSavedResults(signature);
+        setResultsSave({ status: "saved", message: null });
+      } catch (error) {
+        console.error(error);
+        setResultsSave({
+          status: "error",
+          message: "Brak połączenia. Wyniki NIE zostały zapisane.",
+        });
+      }
+    });
+  }
+
   function handleSave() {
     setSaveStatus("saving");
 
@@ -880,6 +999,8 @@ export function AdminShell({
         await saveAdminDraftAction(formData);
 
         setDeletePublicIds([]);
+        // Górny przycisk zapisuje też wyniki, więc dolny nie ma już co wysyłać.
+        setSavedResults(resultsSignature(draft));
         setSaveStatus("saved");
       } catch (error) {
         console.error(error);
@@ -887,6 +1008,30 @@ export function AdminShell({
       }
     });
   }
+
+  /*
+    BLOKADA WYNIKÓW = TA SAMA REGUŁA CO NA SERWERZE.
+
+    `assertGroupResultsEditable` przepuszcza zapis wyłącznie w fazie grupowej.
+    Powtarzamy ten warunek tutaj, żeby przycisk był wyłączony ZANIM ktoś
+    wpisze partię wyników — a nie żeby serwer odmówił po fakcie.
+
+    Turniej ligowy nie ma silnika pucharowego i nigdy nie opuszcza fazy
+    grupowej, więc brak `playoffState` znaczy „edycja otwarta".
+  */
+  const resultsLocked = playoffState
+    ? playoffState.phase !== "group_stage"
+    : false;
+
+  /*
+    Aktywny przycisk ma znaczyć „jest co zapisać". Przycisk, który świeci
+    zawsze, przestaje cokolwiek komunikować — a tutaj ma być sygnałem, że
+    coś czeka w pamięci przeglądarki i jeszcze nie dotarło do bazy.
+
+    Powrót do poprzedniej wartości też gasi przycisk, bo wtedy naprawdę
+    nie ma czego wysyłać.
+  */
+  const resultsDirty = resultsSignature(draft) !== savedResults;
 
   const allTeams = draft.groups.flatMap((group) => group.teams);
 
@@ -1380,6 +1525,10 @@ export function AdminShell({
           onRemoveTeam={handleRemoveTeam}
           onSaveTeam={handleSaveTeam}
           onUpdateCell={handleUpdateCell}
+          onSaveResults={handleSaveResults}
+          resultsSaveState={resultsSave}
+          resultsLocked={resultsLocked}
+          resultsDirty={resultsDirty}
         />
       </>
     );
